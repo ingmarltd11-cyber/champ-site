@@ -9,6 +9,7 @@ All routes live under /api/... (see vercel.json).  The website is served from
 the same domain, so no CORS is needed and the login cookie is first-party.
 """
 import base64
+import difflib
 import hashlib
 import hmac
 import html
@@ -1876,6 +1877,8 @@ CHAMP CLIENT PRODUCT FACTS
 
 Product: Champ Client is a native Minecraft Java Fabric mod (.jar) for Minecraft 1.21.11. It is not an injection tool and needs no DLL injector. Install Fabric Loader 0.16 or newer, then place the .jar in the Minecraft mods folder. It is designed to work alongside Sodium, Lithium, FerriteCore and Iris shaders on 1.21.11.
 
+Scope: the website advertises 178 modules, custom Dear ImGui render overlays, crystal macros and DonutSMP base raiding suites. The full module list lives on the features page. Never invent module names or describe a specific module that is not listed on the site.
+
 Plans and delivery: Monthly costs EUR 6.99 and can be cancelled anytime from the dashboard. Lifetime costs EUR 9.99 as a one-time payment and includes future 1.21.x updates. Checkout uses Stripe, which supports credit cards, debit cards, iDEAL and country-specific local payment methods. After successful payment the product is available in the customer's dashboard immediately, and a license confirmation email is sent. Downloads require an active license. PayPal, crypto and other payment providers are not available in this shop; never suggest them.
 
 Refunds and billing: a Monthly plan can be cancelled at any time and stays active until the paid period ends. Refund terms are not confirmed here, so for refunds or billing mistakes say a staff member must review the order and point to Discord support. Never promise a refund.
@@ -1896,7 +1899,7 @@ Do not invent features, testimonials, downloads, compatibility promises, refunds
 # The assistant treats every other domain as non-existent, exactly like the Discord bot.
 OFFICIAL_SITE = (os.getenv("SITE_URL") or "https://champ-site-psi.vercel.app").rstrip("/")
 HIDDEN_HOSTS = [h.strip().replace("www.", "").lower() for h in (os.getenv("AI_HIDDEN_HOSTS") or "champclient.com").split(",") if h.strip()]
-FEATURES_REPLY = "\U0001F4C4 **Features and modules**\nEverything the client can do is listed here: {url}\nAsk here if you want to know more about one of them."
+FEATURES_REPLY = "\U0001F4C4 **Features and modules**\n178 modules, custom Dear ImGui overlays, crystal macros and DonutSMP base raiding suites. The full list is here: {url}\nAsk here if you want to know more about one of them."
 REFUSAL = "I can't help with that: I don't share code and I won't explain how to get it. A staff member can help you further."
 FEATURES_PATTERN = re.compile(
     r"\b(modules?|features?|functies?|functionaliteit\w*|capabilit\w*|what\s+can\s+(it|this|the\s+(mod|client|cheat|menu))\s+do|what\s+does\s+(it|the\s+(mod|client))\s+(do|include|have)|what(?:'s|\s+is)\s+included|wat\s+kan\s+(het|deze|de\s+(mod|client))|wat\s+zit\s+er\s+in|welke\s+(modules?|features?|functies?))\b",
@@ -2009,9 +2012,10 @@ def _answer_account() -> str:
     return (
         "You can create an account with a username, email address and password and sign in straight away, "
         "because email verification is currently switched off. Use the exact username or email you signed up with.\n\n"
-        "Password reset by email is unavailable at the moment, so if you are locked out, ask the team on Discord to "
-        "help you back into your account.\n\n"
-        f"Sign in: {SITE_LINKS['dashboard']}\nDiscord support: {SITE_LINKS['discord']}"
+        "Locked out? Use the Forgot? link on the sign-in page: we send a reset link to the address on the account. "
+        "Check spam if it does not arrive, and if the email still does not come through, ask the team on Discord.\n\n"
+        f"Sign in: {SITE_LINKS['dashboard']}\nReset password: {SITE_LINKS['home']}reset.html\n"
+        f"Discord support: {SITE_LINKS['discord']}"
     )
 
 
@@ -2068,7 +2072,8 @@ def _answer_safety() -> str:
 def _answer_what_is_it() -> str:
     return (
         "Champ Client is a native Minecraft Java Fabric mod for 1.21.11: it installs as a .jar, needs no injector, "
-        "and is built to run next to Sodium, Lithium, FerriteCore and Iris.\n\n"
+        "and is built to run next to Sodium, Lithium, FerriteCore and Iris. The site lists 178 modules, custom "
+        "Dear ImGui overlays, crystal macros and DonutSMP base raiding suites.\n\n"
         f"Features and modules: {SITE_LINKS['features']}\nPlans and pricing: {SITE_LINKS['pricing']}"
     )
 
@@ -2132,12 +2137,25 @@ def _answer_contact() -> str:
     )
 
 
+def _answer_troubleshooting() -> str:
+    return (
+        "Sorry it is not working. These checks solve most cases:\n"
+        "- Confirm Minecraft 1.21.11 with Fabric Loader 0.16 or newer, and keep Forge or OptiFine out of the same mods folder.\n"
+        "- Re-download the latest .jar from your dashboard and replace the old file.\n"
+        "- Remove other mods one by one to find a conflict; Sodium, Lithium, FerriteCore and Iris are the tested companions.\n"
+        "- Check the crash report for the line that names the failing mod.\n"
+        "Still stuck? Post the crash report text on Discord - never your password or licence key.\n\n"
+        f"Dashboard: {SITE_LINKS['dashboard']}\nSupport page: {SITE_LINKS['support']}\nDiscord support: {SITE_LINKS['discord']}"
+    )
+
+
 # Ordered: the first matching topic wins, so specific intents come before broad ones.
 SUPPORT_TOPICS = (
     ("trial", re.compile(r"\b(trial|free (version|trial|account)|demo|gratis|proefperiode|try before)\b", re.I), _answer_trial),
     ("order_issue", re.compile(r"\b(paid|betaald|besteld|payment failed|betaling mislukt|no download|geen download|didn'?t (get|receive)|not received|niets ontvangen|my order|order (number|email|id|status)|bestelling|invoice|factuur|charged twice|double charged)\b", re.I), _answer_order_issue),
     ("devices", re.compile(r"\b(devices?|machines?|how many (pc|pcs|computers?|accounts?|devices?)|account shar\w*|share my account|meerdere (pc|computers?))\b", re.I), _answer_devices),
     ("license_issue", re.compile(r"\b(licen[cs]e( key)? (is )?(not working|doesn'?t work|does not work|won'?t work|invalid|broken|rejected|error)|licentie (werkt niet( meer)?|is ongeldig|ongeldig)|key (is )?(not working|doesn'?t work|invalid))\b", re.I), _answer_license_issue),
+    ("troubleshooting", re.compile(r"\b(crash\w*|freez\w*|black screen|won'?t (start|launch|open|load)|doesn'?t (work|start|launch|load)|not (working|loading)|broken|lag\w*|bug|error|werkt niet|doet het niet|start niet)\b", re.I), _answer_troubleshooting),
     ("discord_link", re.compile(r"\b(link (my )?discord|discord (rank|role|link|koppel\w*)|champ\+)\b", re.I), _answer_discord_link),
     ("discount", re.compile(r"\b(discount|korting|coupon|promo ?code|voucher|goedkoper)\b", re.I), _answer_discount),
     ("billing", re.compile(r"\b(cancel|opzeg\w*|refund|money back|terugbetaling|chargeback|downgrade)\b", re.I), _answer_billing_change),
@@ -2163,6 +2181,89 @@ GREETING_PATTERN = re.compile(
     re.I,
 )
 THANKS_PATTERN = re.compile(r"^\s*(thanks|thank you|thx|dank(je| je)?|bedankt|top|nice)\b", re.I)
+CAPABILITY_PATTERN = re.compile(
+    r"\b(what can you (do|help)|what do you do|who are you|what are you|are you (a )?(bot|human|real)|"
+    r"hoe kun je (mij )?helpen|wat kun je|wie ben je|ben je een bot)\b",
+    re.I,
+)
+HELP_ONLY_PATTERN = re.compile(r"^\s*(help|i need (some )?help|kan je (mij )?helpen|ik heb hulp nodig)\s*[!.?]*\s*$", re.I)
+
+# Used when the exact patterns miss: typos and close paraphrases still reach the right answer.
+TOPIC_HINTS = {
+    "trial": ("trial", "demo", "gratis", "free"),
+    "order_issue": ("order", "invoice", "charged", "payment", "paid", "bestelling", "factuur"),
+    "devices": ("device", "devices", "computer", "account", "sharing"),
+    "license_issue": ("license", "licence", "licentie", "serial"),
+    "discord_link": ("discord", "rank", "role", "koppelen"),
+    "discount": ("discount", "coupon", "promo", "korting", "voucher"),
+    "billing": ("cancel", "refund", "cancellation", "opzeggen", "terugbetaling"),
+    "pricing": ("price", "pricing", "cost", "costs", "prijs", "kosten", "plans", "subscription", "lifetime", "monthly"),
+    "payment_methods": ("ideal", "stripe", "paypal", "card", "bitcoin", "betalen"),
+    "download": ("download", "downloads", "downloaden", "dashboard"),
+    "install": ("install", "installeren", "installed", "fabric", "setup", "mods"),
+    "requirements": ("version", "versie", "requirements", "vereisten", "java", "minecraft"),
+    "compatibility": ("sodium", "iris", "shaders", "compatibility", "compatibel", "optifine", "forge"),
+    "updates": ("update", "updates", "build"),
+    "texture_packs": ("texture", "resourcepack", "cape", "skins"),
+    "base_finds": ("finds", "coords"),
+    "safety": ("banned", "detect", "veilig", "virus", "injector"),
+    "account": ("account", "login", "password", "wachtwoord", "register", "email", "verify"),
+    "what_is_it": ("champ", "client"),
+    "contact": ("discord", "ticket", "support", "contact", "staff"),
+}
+
+# Only merge two answers when the intents are different enough to both be useful.
+COMBINABLE_TOPICS = {
+    ("pricing", "install"),
+    ("pricing", "download"),
+    ("pricing", "requirements"),
+    ("pricing", "compatibility"),
+    ("pricing", "account"),
+    ("pricing", "updates"),
+    ("pricing", "safety"),
+    ("install", "download"),
+    ("install", "account"),
+    ("install", "requirements"),
+    ("install", "safety"),
+    ("download", "account"),
+}
+
+
+def _fuzzy_topic(question: str) -> Optional[str]:
+    """Find a topic for a typo or unusual wording that the patterns missed."""
+    words = [w for w in re.findall(r"[a-z]+", question.lower()) if len(w) >= 5]
+    if not words:
+        return None
+    best_score = 0.0
+    best_topic = None
+    for topic, hints in TOPIC_HINTS.items():
+        for hint in hints:
+            if len(hint) < 5:
+                continue
+            for word in words:
+                score = difflib.SequenceMatcher(None, word, hint).ratio()
+                if score > best_score:
+                    best_score, best_topic = score, topic
+    return best_topic if best_score >= 0.84 else None
+
+
+def _topic_builders():
+    return {name: builder for name, _pattern, builder in SUPPORT_TOPICS}
+
+
+def _matched_topics(question: str):
+    names = [name for name, pattern, _builder in SUPPORT_TOPICS if pattern.search(question)]
+    if not names:
+        fuzzy = _fuzzy_topic(question)
+        if fuzzy:
+            names = [fuzzy]
+    return names
+
+
+def _build_topic_answer(names):
+    builders = _topic_builders()
+    parts = [builders[name]() for name in names if name in builders]
+    return "\n\n".join(part for part in parts if part)
 
 
 def builtin_support_answer(text: str) -> Optional[str]:
@@ -2171,21 +2272,41 @@ def builtin_support_answer(text: str) -> Optional[str]:
     if not question:
         return None
 
-    if len(question.split()) <= 6 and GREETING_PATTERN.search(question):
+    if len(question.split()) <= 8 and GREETING_PATTERN.search(question):
         return ("Hi! I'm the Champ Client support assistant. Ask me about plans and pricing, installing the mod, "
                 "your dashboard or licence, or compatibility - or say what problem you are running into.")
-    if len(question.split()) <= 6 and THANKS_PATTERN.search(question):
+    if len(question.split()) <= 8 and THANKS_PATTERN.search(question):
         return "You're welcome! If anything else comes up, just ask."
+    if CAPABILITY_PATTERN.search(question) or HELP_ONLY_PATTERN.search(question):
+        return ("I'm the automated Champ Client support assistant. I can answer questions about plans and pricing, "
+                "installing the mod, downloads and licences, accounts, compatibility, texture packs, Base Finds, "
+                "updates and order problems. If something needs a person, I'll point you to Discord support.\n\n"
+                f"Features and modules: {SITE_LINKS['features']}\nPlans and pricing: {SITE_LINKS['pricing']}")
 
-    for _name, pattern, builder in SUPPORT_TOPICS:
-        if pattern.search(question):
-            return builder()
-    return None
+    names = _matched_topics(question)
+    if not names:
+        return None
+
+    primary = names[0]
+    builders = _topic_builders()
+    answer = builders[primary]() if primary in builders else None
+    if not answer:
+        return None
+
+    if len(names) > 1:
+        second = names[1]
+        mergeable = (primary, second) in COMBINABLE_TOPICS or (second, primary) in COMBINABLE_TOPICS
+        if mergeable and second in builders:
+            extra = builders[second]()
+            if extra and extra not in answer and len(answer) + len(extra) < 1100:
+                answer = answer + "\n\n" + extra
+    return answer
 
 
 NO_PROVIDER_ANSWER = (
-    "I'm not certain enough about that one to answer it safely. A staff member can help you further on Discord, "
-    "usually within hours.\n\n"
+    "I don't have a ready answer for that one. I can help with plans and pricing, installation, downloads and "
+    "licences, accounts, compatibility, texture packs, Base Finds and order problems - ask again with a little "
+    "more detail, or let the team take over on Discord, usually within hours.\n\n"
     f"Discord support: {SITE_LINKS['discord']}\n"
     f"Support page: {SITE_LINKS['support']}\n"
     f"Features and modules: {SITE_LINKS['features']}\n"
@@ -2486,8 +2607,8 @@ def ai_chat(p: AIChatReq):
                     "max_tokens": 800,
                 }
                 if model.startswith("openai/gpt-oss"):
-                    # Keep reasoning short so the visible answer is never cut off.
-                    payload["reasoning_effort"] = "low"
+                    # Short questions stay fast; longer ones get more reasoning room.
+                    payload["reasoning_effort"] = "medium" if len(user_msg.split()) >= 14 else "low"
                 response = requests.post(endpoint, headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}, json=payload, timeout=25)
                 if response.status_code == 400 and "reasoning_effort" in payload:
                     # Older API versions reject the option; retry without it.
