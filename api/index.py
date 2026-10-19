@@ -1972,6 +1972,8 @@ def admin_delete_texture_pack(pack_id: int, admin: dict = Depends(current_admin)
         raise HTTPException(404, "Texture pack not found.")
     try:
         _sb("DELETE", "texture_packs", params={"id": eq(pack_id)})
+        if pack.get("storage_path"):
+            requests.delete(f"{SUPABASE_URL}/storage/v1/object/{TEXTURE_PACK_BUCKET}/{pack['storage_path']}", headers=_sb_headers(), timeout=15)
         object_path = (pack.get("download_url") or "").split(f"/object/public/{TEXTURE_PACK_BUCKET}/", 1)
         if len(object_path) == 2:
             requests.delete(f"{SUPABASE_URL}/storage/v1/object/{TEXTURE_PACK_BUCKET}/{object_path[1]}", headers=_sb_headers(), timeout=15)
