@@ -938,7 +938,7 @@ table, thead, tbody, tr, td, th { border-radius: 0 !important; }
   .nav-links a { font-size: 13px; }
 }
 
-@media (max-width: 1000px) {
+@media (max-width: 1060px) {
   .nav-links { display: none; }
   .hamburger { display: flex; }
 }
