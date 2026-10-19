@@ -500,6 +500,20 @@ def grant_license(email: str, plan: str, expires_at: Optional[datetime], custome
     raise RuntimeError("Could not generate a unique license key.")
 
 
+def ensure_admin_license(user: Optional[dict]) -> Optional[dict]:
+    """Every admin holds an active lifetime license, including accounts flagged after signup."""
+    if not user or not user.get("is_admin") or not user.get("email"):
+        return None
+    try:
+        existing = db_get("licenses", {"email": eq(user["email"]), "plan_type": eq("lifetime")})
+        if license_active(existing):
+            return existing
+        return grant_license(user["email"], "lifetime", None)
+    except Exception as exc:
+        print("Admin license sync failed:", type(exc).__name__)
+        return None
+
+
 def sync_subscription(sub: dict) -> None:
     lic = db_get("licenses", {"stripe_subscription_id": eq(sub["id"])})
     if not lic:
@@ -835,6 +849,7 @@ def current_admin(admin_session: Optional[str] = Cookie(None, alias="admin_sessi
     if payload.get("db_admin") is True and subject:
         user = db_get("users", {"username_lower": eq(subject.lower())})
         if user and user.get("is_admin"):
+            ensure_admin_license(user)
             return {"username": user["username"]}
     raise HTTPException(401, "Admin login required.")
 
@@ -876,6 +891,7 @@ def admin_login(p: AdminLoginReq, response: Response):
         field = "email" if "@" in ident else "username_lower"
         user = db_get("users", {field: eq(ident.lower())})
         if user and user.get("is_admin") and check_pw(p.password, user["password_hash"]):
+            ensure_admin_license(user)
             subject = (user.get("username_lower") or user["username"]).lower()
             response.set_cookie("admin_session", admin_token(subject, db_admin=True), httponly=True, secure=COOKIE_SECURE, samesite="lax", max_age=60 * 60 * 12, path="/")
             return {"message": "Signed in."}
@@ -1173,9 +1189,11 @@ def logout(response: Response):
 
 @app.get("/api/auth/me")
 def me(user: dict = Depends(current_user)):
+    ensure_admin_license(user)
     return {"email": user["email"], "username": user["username"],
             "phone": user.get("phone"), "totp_enabled": bool(user.get("totp_enabled")),
-            "discord_username": user.get("discord_username"), "discord_linked": bool(user.get("discord_id"))}
+            "discord_username": user.get("discord_username"), "discord_linked": bool(user.get("discord_id")),
+            "is_admin": bool(user.get("is_admin"))}
 
 
 @app.post("/api/auth/forgot")
@@ -1303,6 +1321,7 @@ def billing_portal(user: dict = Depends(current_user)):
 # --------------------------------------------------------------------------
 @app.get("/api/dashboard/user-data")
 def dashboard(user: dict = Depends(current_user)):
+    ensure_admin_license(user)
     licenses = {plan: None for plan in PLANS}
     for row in db_list("licenses", {"email": eq(user["email"])}):
         licenses[row["plan_type"]] = {
@@ -1337,7 +1356,10 @@ def signed_download_url(path: str, filename: str) -> str:
 def download(plan: str, user: dict = Depends(current_user)):
     if plan not in DOWNLOAD_FILES:
         raise HTTPException(404, "Unknown download.")
-    if not license_active(db_get("licenses", {"email": eq(user["email"]), "plan_type": eq(plan)})):
+    if user.get("is_admin"):
+        # Admins hold a lifetime license and may fetch either build for testing.
+        ensure_admin_license(user)
+    elif not license_active(db_get("licenses", {"email": eq(user["email"]), "plan_type": eq(plan)})):
         raise HTTPException(403, f"You don't have an active {plan} license.")
     path, filename = DOWNLOAD_FILES[plan]
     try:
@@ -1764,6 +1786,10 @@ def discord_oauth_configured() -> bool:
 
 
 def user_has_active_license(email: str) -> bool:
+    user = db_get("users", {"email": eq(email)})
+    if user and user.get("is_admin"):
+        ensure_admin_license(user)
+        return True
     return any(license_active(r) for r in db_list("licenses", {"email": eq(email)}, limit=20))
 
 
