@@ -113,6 +113,29 @@ create table if not exists public.ai_knowledge (
   updated_at timestamptz not null default now()
 );
 
+-- Client JAR files uploaded by an admin (one active file per plan).
+create table if not exists public.download_files (
+  plan         text primary key check (plan in ('monthly', 'lifetime')),
+  storage_path text not null,
+  filename     text not null,
+  size_bytes   bigint not null default 0,
+  updated_at   timestamptz not null default now()
+);
+alter table public.download_files enable row level security;
+
+-- Public changelog, written from the admin panel.
+create table if not exists public.changelog (
+  id bigint generated always as identity primary key,
+  version text not null,
+  title text not null,
+  body text not null default '',
+  released_at date not null default current_date,
+  published boolean not null default true,
+  created_at timestamptz not null default now()
+);
+create index if not exists changelog_released_idx on public.changelog (published, released_at desc);
+alter table public.changelog enable row level security;
+
 -- Shared multi-turn support history for website and Discord conversations.
 create table if not exists public.ai_conversations (
   session_id text primary key,
@@ -180,6 +203,8 @@ alter table public.site_settings    enable row level security;
 alter table public.reviews          enable row level security;
 alter table public.texture_packs    enable row level security;
 alter table public.ai_knowledge     enable row level security;
+alter table public.download_files   enable row level security;
+alter table public.changelog        enable row level security;
 
 -- Storage buckets
 insert into storage.buckets (id, name, public)

@@ -26,6 +26,8 @@
       <button class="admin-tab active" data-tab="settings" type="button">Announcements &amp; Links</button>
       <button class="admin-tab" data-tab="orders" type="button">Orders &amp; Keys</button>
       <button class="admin-tab" data-tab="texture-packs" type="button">Texture Packs</button>
+      <button class="admin-tab" data-tab="downloads" type="button">Client JAR</button>
+      <button class="admin-tab" data-tab="changelog" type="button">Changelog</button>
       <button class="admin-tab" data-tab="features" type="button">Features &amp; Videos</button>
       <button class="admin-tab" data-tab="reviews" type="button">Reviews</button>
       <button class="admin-tab" data-tab="ai-knowledge" type="button">AI Knowledge</button>
@@ -126,13 +128,71 @@
       <div id="adminTexturePacksList" class="admin-table-wrap"><p class="no-license-text">Loading texture packs...</p></div>
     </div>
 
+    <!-- TAB: CLIENT JAR -->
+    <div class="admin-tabpage" id="tab-downloads" style="display:none">
+      <div style="margin:18px 0 20px;">
+        <h2>Client JAR downloads</h2>
+        <p class="no-license-text">Upload the .jar customers receive. Files are stored privately and only customers with an active license for that plan can download them. Uploads go straight to storage, so large JARs work too.</p>
+      </div>
+      <div id="adminDownloads" class="admin-editor"><p class="no-license-text">Loading client files...</p></div>
+    </div>
+
+    <!-- TAB: CHANGELOG -->
+    <div class="admin-tabpage" id="tab-changelog" style="display:none">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin:18px 0; flex-wrap:wrap; gap:12px;">
+        <div>
+          <h2>Changelog</h2>
+          <p class="no-license-text">Releases shown on the public changelog page. Unpublished entries stay hidden.</p>
+        </div>
+        <button class="btn-primary" type="button" onclick="showAddChangelogForm()">+ Add release</button>
+      </div>
+
+      <div id="addChangelogContainer" style="display:none; margin-bottom:24px; padding:20px; background:var(--surface); border:1px solid var(--border); border-radius:10px;">
+        <h3>Add release</h3>
+        <form id="createChangelogForm" class="admin-editor">
+          <label>Version<input name="version" required placeholder="e.g. 0.9.9.2" maxlength="40"></label>
+          <label>Title<input name="title" required placeholder="e.g. Combat update" maxlength="160"></label>
+          <label>Release date<input type="date" name="released_at"></label>
+          <label>Changes<textarea name="body" rows="6" placeholder="- Added a new module&#10;- Fixed a crash when opening the menu"></textarea></label>
+          <p class="no-license-text" style="margin-top:-8px">Start a line with <code>-</code> for a bullet. Leave an empty line between paragraphs. Use <code>*text*</code> for the purple highlight.</p>
+          <label style="display:flex; align-items:center; gap:10px; cursor:pointer;"><input type="checkbox" name="published" style="width:auto; margin:0;" checked><span>Publish immediately</span></label>
+          <div style="display:flex; gap:10px; flex-wrap:wrap">
+            <button class="btn-primary" type="submit">Add release</button>
+            <button class="btn-ghost" type="button" onclick="document.getElementById('addChangelogContainer').style.display='none'">Cancel</button>
+          </div>
+          <p id="createChangelogMsg" class="save-message" style="display:none"></p>
+        </form>
+      </div>
+
+      <div id="adminChangelogList" class="admin-editor"><p class="no-license-text">Loading changelog...</p></div>
+    </div>
+
     <!-- TAB: FEATURES & VIDEOS -->
     <div class="admin-tabpage" id="tab-features" style="display:none">
-      <div style="margin:18px 0 20px;">
-        <h2>Features &amp; Video Embeds</h2>
-        <p class="no-license-text">Edit the feature items and YouTube video previews displayed on the public Features page.</p>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin:18px 0 20px; flex-wrap:wrap; gap:12px;">
+        <div>
+          <h2>Features &amp; Video Embeds</h2>
+          <p class="no-license-text">Edit the text and video for every feature card on the public Features page.</p>
+        </div>
+        <button class="btn-primary" type="button" onclick="showAddFeatureForm()">+ Add feature</button>
       </div>
-      <div id="adminFeatures" class="admin-editor"></div>
+
+      <div id="addFeatureContainer" style="display:none; margin-bottom:24px; padding:20px; background:var(--surface); border:1px solid var(--border); border-radius:10px;">
+        <h3>Add feature</h3>
+        <form id="createFeatureForm" class="admin-editor">
+          <label>Title<input name="title" required placeholder="e.g. Crystal PvP macros" maxlength="150"></label>
+          <label>Description<textarea name="description" rows="4" placeholder="What this feature does..."></textarea></label>
+          <label>Video embed URL<input name="video_url" placeholder="https://www.youtube.com/embed/... or https://.../clip.mp4"></label>
+          <label>Sort order<input type="number" name="sort_order" value="0"></label>
+          <div style="display:flex; gap:10px; flex-wrap:wrap">
+            <button class="btn-primary" type="submit">Add feature</button>
+            <button class="btn-ghost" type="button" onclick="document.getElementById('addFeatureContainer').style.display='none'">Cancel</button>
+          </div>
+          <p id="createFeatureMsg" class="save-message" style="display:none"></p>
+        </form>
+      </div>
+
+      <div id="adminFeatures" class="admin-editor"><p class="no-license-text">Loading features...</p></div>
     </div>
 
     <!-- TAB: REVIEWS -->

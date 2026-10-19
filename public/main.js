@@ -554,7 +554,10 @@ function appendDiscordEscalation(container) {
 }
 
 function fmtDate(iso) {
-  return iso ? new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '';
+  if (!iso) return '';
+  // Date-only values are UTC midnight; read them at noon so the day never shifts.
+  const value = /^\d{4}-\d{2}-\d{2}$/.test(iso) ? `${iso}T12:00:00` : iso;
+  return new Date(value).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 function renderLicense(kind, lic) {
@@ -931,6 +934,48 @@ async function loadFeaturesPage() {
   }
 }
 
+// ============================================================
+// Public changelog (no login required)
+// ============================================================
+function renderChangelogBody(body) {
+  const text = String(body || '').trim();
+  if (!text) return '';
+  return text.split(/\n\s*\n/).map(block => {
+    const lines = block.split('\n').map(line => line.trim()).filter(Boolean);
+    const bullets = lines.filter(line => /^[-*]\s+/.test(line));
+    if (bullets.length && bullets.length === lines.length) {
+      return `<ul class="changelog-bullets">${bullets.map(line => `<li>${renderSiteText(line.replace(/^[-*]\s+/, ''))}</li>`).join('')}</ul>`;
+    }
+    return `<p>${renderSiteText(block).replace(/\n/g, '<br>')}</p>`;
+  }).join('');
+}
+
+async function loadChangelogPage() {
+  const wrap = document.getElementById('changelogList');
+  if (!wrap) return;
+  try {
+    const res = await api('/api/changelog');
+    if (!res.ok) throw new Error('changelog');
+    const entries = res.data.entries || [];
+    if (!entries.length) {
+      wrap.innerHTML = '<p class="no-license-text">No releases published yet. Check back soon.</p>';
+      return;
+    }
+    wrap.innerHTML = entries.map(entry => `
+      <article class="changelog-entry">
+        <div class="changelog-meta">
+          <span class="changelog-version">${escapeHtml(entry.version)}</span>
+          <time datetime="${escapeAttr(entry.released_at || '')}">${fmtDate(entry.released_at)}</time>
+        </div>
+        <h2>${escapeHtml(entry.title)}</h2>
+        <div class="changelog-body">${renderChangelogBody(entry.body)}</div>
+      </article>
+    `).join('');
+  } catch (_) {
+    wrap.innerHTML = '<p class="no-license-text">Could not load the changelog right now.</p>';
+  }
+}
+
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));
 }
@@ -1269,41 +1314,9 @@ async function loadAdminPanel() {
   loadAdminTexturePacks();
   loadAdminReviews();
   loadAdminAIKnowledge();
-
-  const result = await api('/api/admin/features');
-  if (!result.ok) {
-    showMessage('adminMessage', errorText(result.data, 'Could not load features.'), true);
-    return;
-  }
-
-  const wrap = document.getElementById('adminFeatures');
-  wrap.innerHTML = (result.data.features || []).map(feature => `
-    <div class="admin-feature">
-      <h2>${escapeHtml(feature.title)}</h2>
-      <form class="admin-editor feature-edit-form" data-slug="${escapeAttr(feature.slug)}">
-        <label>Title<input name="title" value="${escapeAttr(feature.title)}" required></label>
-        <label>Description<textarea name="description" required>${escapeHtml(feature.description)}</textarea></label>
-        <label>Video embed URL<input name="video_url" value="${escapeAttr(feature.video_url || '')}" placeholder="https://www.youtube.com/embed/..."></label>
-        <button class="btn-primary" type="submit">Save ${escapeHtml(feature.title)}</button>
-        <p class="save-message" style="display:none"></p>
-      </form>
-    </div>
-  `).join('');
-
-  wrap.querySelectorAll('.feature-edit-form').forEach(form => {
-    form.addEventListener('submit', async e => {
-      e.preventDefault();
-      const button = form.querySelector('button');
-      const msg = form.querySelector('.save-message');
-      button.disabled = true;
-      const data = Object.fromEntries(new FormData(form).entries());
-      const res = await api(`/api/admin/features/${encodeURIComponent(form.dataset.slug)}`, { method:'PUT', body:JSON.stringify(data) });
-      msg.style.display = 'block';
-      msg.style.color = res.ok ? '#4ade80' : '#ff6b6b';
-      msg.textContent = res.ok ? 'Saved.' : errorText(res.data, 'Could not save.');
-      button.disabled = false;
-    });
-  });
+  loadAdminDownloads();
+  loadAdminChangelog();
+  loadAdminFeatures();
 }
 
 const adminLoginForm = document.getElementById('adminLoginForm');
@@ -1469,6 +1482,310 @@ function renderAdminDashboardIcons(raw) {
       `<option value="${name}"${name === current ? ' selected' : ''}>${name}</option>`).join('');
     return `<label>${label}<select data-icon-section="${section}">${options}</select></label>`;
   }).join('');
+}
+
+// ============================================================
+// Admin: client JAR uploads
+// ============================================================
+function formatBytes(bytes) {
+  const size = Number(bytes) || 0;
+  if (!size) return 'unknown size';
+  if (size >= 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+  if (size >= 1024) return `${Math.round(size / 1024)} KB`;
+  return `${size} bytes`;
+}
+
+function planLabel(plan) {
+  return plan === 'lifetime' ? 'Lifetime' : 'Monthly';
+}
+
+async function loadAdminDownloads() {
+  const wrap = document.getElementById('adminDownloads');
+  if (!wrap) return;
+  let res;
+  try {
+    res = await api('/api/admin/downloads');
+  } catch (_) {
+    wrap.innerHTML = '<p class="no-license-text">Could not load the client files.</p>';
+    return;
+  }
+  if (!res.ok) {
+    wrap.innerHTML = `<p class="no-license-text">${escapeHtml(errorText(res.data, 'Could not load the client files.'))}</p>`;
+    return;
+  }
+  const items = res.data.downloads || [];
+  wrap.innerHTML = items.map(item => `
+    <div class="admin-feature" data-jar-plan="${escapeAttr(item.plan)}">
+      <h2>${planLabel(item.plan)} client JAR</h2>
+      <p class="no-license-text">${item.custom
+        ? `Current file: <strong>${escapeHtml(item.filename)}</strong> (${formatBytes(item.size_bytes)}). Customers on the ${item.plan} plan download this file.`
+        : 'No custom JAR uploaded yet — the default hosted file is used.'}</p>
+      <label>Upload or replace the .jar (max 100 MB)<input type="file" accept=".jar,application/java-archive" data-jar-input="${escapeAttr(item.plan)}"></label>
+      <div style="display:flex; gap:10px; flex-wrap:wrap">
+        <button class="btn-primary" type="button" data-jar-upload="${escapeAttr(item.plan)}">Upload JAR</button>
+        ${item.custom ? `<button class="btn-ghost" type="button" data-jar-remove="${escapeAttr(item.plan)}">Remove custom file</button>` : ''}
+      </div>
+      <p class="save-message" data-jar-msg="${escapeAttr(item.plan)}" style="display:none"></p>
+    </div>
+  `).join('');
+
+  wrap.querySelectorAll('[data-jar-upload]').forEach(button => {
+    button.addEventListener('click', async () => {
+      const plan = button.dataset.jarUpload;
+      const input = wrap.querySelector(`[data-jar-input="${plan}"]`);
+      const file = input && input.files && input.files[0];
+      const msg = wrap.querySelector(`[data-jar-msg="${plan}"]`);
+      if (!file) {
+        msg.style.display = 'block';
+        msg.style.color = '#ff6b6b';
+        msg.textContent = 'Choose a .jar file first.';
+        return;
+      }
+      if (!/\.jar$/i.test(file.name)) {
+        msg.style.display = 'block';
+        msg.style.color = '#ff6b6b';
+        msg.textContent = 'Choose a .jar file.';
+        return;
+      }
+      if (file.size > 100 * 1024 * 1024) {
+        msg.style.display = 'block';
+        msg.style.color = '#ff6b6b';
+        msg.textContent = 'The JAR must be 100 MB or smaller.';
+        return;
+      }
+      button.disabled = true;
+      msg.style.display = 'block';
+      msg.style.color = 'var(--muted)';
+      msg.textContent = 'Preparing upload…';
+      try {
+        const prep = await api('/api/admin/downloads/upload-url', {
+          method: 'POST', body: JSON.stringify({ plan, filename: file.name }),
+        });
+        if (!prep.ok) throw new Error(errorText(prep.data, 'Could not prepare the upload.'));
+        await new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open('PUT', prep.data.upload_url);
+          xhr.setRequestHeader('Content-Type', 'application/java-archive');
+          xhr.upload.onprogress = event => {
+            if (event.lengthComputable) msg.textContent = `Uploading… ${Math.round((event.loaded / event.total) * 100)}%`;
+          };
+          xhr.onload = () => (xhr.status < 400 ? resolve() : reject(new Error(`Storage rejected the upload (${xhr.status}).`)));
+          xhr.onerror = () => reject(new Error('The upload connection failed. Please try again.'));
+          xhr.send(file);
+        });
+        msg.textContent = 'Saving…';
+        const saved = await api('/api/admin/downloads', {
+          method: 'POST',
+          body: JSON.stringify({ plan, storage_path: prep.data.path, filename: file.name, size_bytes: file.size }),
+        });
+        if (!saved.ok) throw new Error(errorText(saved.data, 'Could not save the JAR.'));
+        loadAdminDownloads();
+      } catch (error) {
+        msg.style.color = '#ff6b6b';
+        msg.textContent = error.message || 'Upload failed.';
+        button.disabled = false;
+      }
+    });
+  });
+
+  wrap.querySelectorAll('[data-jar-remove]').forEach(button => {
+    button.addEventListener('click', async () => {
+      const plan = button.dataset.jarRemove;
+      if (!confirm(`Remove the uploaded ${plan} JAR? The default file is used again.`)) return;
+      const res = await api(`/api/admin/downloads/${encodeURIComponent(plan)}`, { method: 'DELETE' });
+      if (res.ok) loadAdminDownloads();
+      else alert(errorText(res.data, 'Could not remove the JAR.'));
+    });
+  });
+}
+
+// ============================================================
+// Admin: changelog
+// ============================================================
+function showAddChangelogForm() {
+  const container = document.getElementById('addChangelogContainer');
+  if (container) container.style.display = 'block';
+}
+
+async function loadAdminChangelog() {
+  const wrap = document.getElementById('adminChangelogList');
+  if (!wrap) return;
+  let res;
+  try {
+    res = await api('/api/admin/changelog');
+  } catch (_) {
+    wrap.innerHTML = '<p class="no-license-text">Could not load the changelog.</p>';
+    return;
+  }
+  if (!res.ok) {
+    wrap.innerHTML = `<p class="no-license-text">${escapeHtml(errorText(res.data, 'Could not load the changelog.'))}</p>`;
+    return;
+  }
+  const entries = res.data.entries || [];
+  if (!entries.length) {
+    wrap.innerHTML = '<p class="no-license-text">No releases yet. Add the first one above.</p>';
+    return;
+  }
+  wrap.innerHTML = entries.map(entry => `
+    <div class="admin-feature">
+      <form class="admin-editor changelog-edit-form" data-id="${entry.id}">
+        <div class="admin-grid-2">
+          <label>Version<input name="version" value="${escapeAttr(entry.version)}" required maxlength="40"></label>
+          <label>Release date<input type="date" name="released_at" value="${escapeAttr(entry.released_at || '')}"></label>
+        </div>
+        <label>Title<input name="title" value="${escapeAttr(entry.title)}" required maxlength="160"></label>
+        <label>Changes<textarea name="body" rows="6">${escapeHtml(entry.body || '')}</textarea></label>
+        <label style="display:flex; align-items:center; gap:10px; cursor:pointer;"><input type="checkbox" name="published" style="width:auto; margin:0;"${entry.published ? ' checked' : ''}><span>Published on the public changelog</span></label>
+        <div style="display:flex; gap:10px; flex-wrap:wrap">
+          <button class="btn-primary" type="submit">Save release</button>
+          <button class="btn-ghost" type="button" data-delete-entry="${entry.id}">Delete</button>
+        </div>
+        <p class="save-message" style="display:none"></p>
+      </form>
+    </div>
+  `).join('');
+
+  wrap.querySelectorAll('.changelog-edit-form').forEach(form => {
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      const button = form.querySelector('button[type="submit"]');
+      const msg = form.querySelector('.save-message');
+      button.disabled = true;
+      const payload = {
+        version: form.elements.version.value,
+        title: form.elements.title.value,
+        released_at: form.elements.released_at.value || null,
+        body: form.elements.body.value,
+        published: form.elements.published.checked,
+      };
+      const saved = await api(`/api/admin/changelog/${form.dataset.id}`, { method: 'PUT', body: JSON.stringify(payload) });
+      msg.style.display = 'block';
+      msg.style.color = saved.ok ? '#4ade80' : '#ff6b6b';
+      msg.textContent = saved.ok ? 'Saved.' : errorText(saved.data, 'Could not save.');
+      button.disabled = false;
+    });
+  });
+
+  wrap.querySelectorAll('[data-delete-entry]').forEach(button => {
+    button.addEventListener('click', async () => {
+      if (!confirm('Delete this changelog entry?')) return;
+      const res = await api(`/api/admin/changelog/${button.dataset.deleteEntry}`, { method: 'DELETE' });
+      if (res.ok) loadAdminChangelog();
+      else alert(errorText(res.data, 'Could not delete the entry.'));
+    });
+  });
+}
+
+const createChangelogForm = document.getElementById('createChangelogForm');
+if (createChangelogForm) {
+  createChangelogForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const button = createChangelogForm.querySelector('button[type="submit"]');
+    button.disabled = true;
+    const payload = {
+      version: createChangelogForm.elements.version.value,
+      title: createChangelogForm.elements.title.value,
+      released_at: createChangelogForm.elements.released_at.value || null,
+      body: createChangelogForm.elements.body.value,
+      published: createChangelogForm.elements.published.checked,
+    };
+    const res = await api('/api/admin/changelog', { method: 'POST', body: JSON.stringify(payload) });
+    showMessage('createChangelogMsg', res.ok ? 'Release added.' : errorText(res.data, 'Could not add the release.'), !res.ok);
+    if (res.ok) {
+      createChangelogForm.reset();
+      loadAdminChangelog();
+    }
+    button.disabled = false;
+  });
+}
+
+// ============================================================
+// Admin: features & videos
+// ============================================================
+function showAddFeatureForm() {
+  const container = document.getElementById('addFeatureContainer');
+  if (container) container.style.display = 'block';
+}
+
+async function loadAdminFeatures() {
+  const wrap = document.getElementById('adminFeatures');
+  if (!wrap) return;
+  let result;
+  try {
+    result = await api('/api/admin/features');
+  } catch (_) {
+    wrap.innerHTML = '<p class="no-license-text">Could not load features.</p>';
+    return;
+  }
+  if (!result.ok) {
+    wrap.innerHTML = `<p class="no-license-text">${escapeHtml(errorText(result.data, 'Could not load features.'))}</p>`;
+    return;
+  }
+  const features = result.data.features || [];
+  if (!features.length) {
+    wrap.innerHTML = '<p class="no-license-text">No features yet. Add the first one above.</p>';
+    return;
+  }
+  wrap.innerHTML = features.map(feature => `
+    <div class="admin-feature">
+      <h2>${escapeHtml(feature.title)}</h2>
+      <form class="admin-editor feature-edit-form" data-slug="${escapeAttr(feature.slug)}">
+        <label>Title<input name="title" value="${escapeAttr(feature.title)}" required></label>
+        <label>Description<textarea name="description" required rows="4">${escapeHtml(feature.description)}</textarea></label>
+        <label>Video embed URL<input name="video_url" value="${escapeAttr(feature.video_url || '')}" placeholder="https://www.youtube.com/embed/..."></label>
+        <p class="no-license-text" style="margin-top:-8px">Use an embed link (youtube.com/embed/VIDEO_ID) or a direct .mp4 URL. Leave empty to show no video.</p>
+        <label>Sort order<input type="number" name="sort_order" value="${Number(feature.sort_order) || 0}"></label>
+        <div style="display:flex; gap:10px; flex-wrap:wrap">
+          <button class="btn-primary" type="submit">Save changes</button>
+          <button class="btn-ghost" type="button" data-delete-feature="${escapeAttr(feature.slug)}">Delete feature</button>
+        </div>
+        <p class="save-message" style="display:none"></p>
+      </form>
+    </div>
+  `).join('');
+
+  wrap.querySelectorAll('.feature-edit-form').forEach(form => {
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      const button = form.querySelector('button[type="submit"]');
+      const msg = form.querySelector('.save-message');
+      button.disabled = true;
+      const data = Object.fromEntries(new FormData(form).entries());
+      data.sort_order = Number(data.sort_order) || 0;
+      const res = await api(`/api/admin/features/${encodeURIComponent(form.dataset.slug)}`, { method:'PUT', body:JSON.stringify(data) });
+      msg.style.display = 'block';
+      msg.style.color = res.ok ? '#4ade80' : '#ff6b6b';
+      msg.textContent = res.ok ? 'Saved.' : errorText(res.data, 'Could not save.');
+      button.disabled = false;
+    });
+  });
+
+  wrap.querySelectorAll('[data-delete-feature]').forEach(button => {
+    button.addEventListener('click', async () => {
+      if (!confirm('Delete this feature? It disappears from the public page.')) return;
+      const res = await api(`/api/admin/features/${encodeURIComponent(button.dataset.deleteFeature)}`, { method: 'DELETE' });
+      if (res.ok) loadAdminFeatures();
+      else alert(errorText(res.data, 'Could not delete the feature.'));
+    });
+  });
+}
+
+const createFeatureForm = document.getElementById('createFeatureForm');
+if (createFeatureForm) {
+  createFeatureForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const button = createFeatureForm.querySelector('button[type="submit"]');
+    button.disabled = true;
+    const payload = Object.fromEntries(new FormData(createFeatureForm).entries());
+    payload.sort_order = Number(payload.sort_order) || 0;
+    const res = await api('/api/admin/features', { method: 'POST', body: JSON.stringify(payload) });
+    showMessage('createFeatureMsg', res.ok ? 'Feature added.' : errorText(res.data, 'Could not add the feature.'), !res.ok);
+    if (res.ok) {
+      createFeatureForm.reset();
+      loadAdminFeatures();
+    }
+    button.disabled = false;
+  });
 }
 
 // Admin: Texture Packs
@@ -1687,5 +2004,6 @@ document.getElementById('createReviewForm')?.addEventListener('submit', async fu
 });
 
 loadFeaturesPage();
+loadChangelogPage();
 loadFindsPage();
 loadPublicData();

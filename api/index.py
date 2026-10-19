@@ -81,6 +81,7 @@ if SUPABASE_URL and SUPABASE_KEY and not SUPABASE_SERVER_KEY:
 DOWNLOAD_BUCKET = os.getenv("DOWNLOAD_BUCKET", "downloads")
 TEXTURE_PACK_BUCKET = os.getenv("TEXTURE_PACK_BUCKET", "texture-packs")
 MAX_TEXTURE_PACK_BYTES = 32 * 1024 * 1024
+JAR_MAX_BYTES = 100 * 1024 * 1024
 FROM_EMAIL = os.getenv("FROM_EMAIL", "Champ Client <onboarding@resend.dev>")
 DEV_MODE = os.getenv("DEV_MODE", "").lower() in ("1", "true", "yes")
 # Email verification is off by default: without a domain there is no reliable sender,
@@ -654,6 +655,42 @@ class FeatureUpdateReq(BaseModel):
     title: str
     description: str
     video_url: str = ""
+    sort_order: Optional[int] = None
+
+
+class FeatureCreateReq(BaseModel):
+    title: str
+    description: str = ""
+    video_url: str = ""
+    sort_order: Optional[int] = None
+
+
+class JarUploadUrlReq(BaseModel):
+    plan: str
+    filename: str
+
+
+class JarConfirmReq(BaseModel):
+    plan: str
+    storage_path: str
+    filename: str
+    size_bytes: int = 0
+
+
+class ChangelogCreateReq(BaseModel):
+    version: str
+    title: str
+    body: str = ""
+    released_at: Optional[str] = None
+    published: bool = True
+
+
+class ChangelogUpdateReq(BaseModel):
+    version: Optional[str] = None
+    title: Optional[str] = None
+    body: Optional[str] = None
+    released_at: Optional[str] = None
+    published: Optional[bool] = None
 
 
 class SettingsUpdateReq(BaseModel):
@@ -853,14 +890,55 @@ def admin_features(admin: dict = Depends(current_admin)):
     return {"features": db_list("features", {}, order="sort_order.asc")}
 
 
-@app.put("/api/admin/features/{slug}")
-def update_feature(slug: str, p: FeatureUpdateReq, admin: dict = Depends(current_admin)):
-    rows = db_update("features", {"slug": eq(slug)}, {
-        "title": p.title.strip(),
-        "description": p.description.strip(),
-        "video_url": p.video_url.strip(),
+def next_feature_slug(title: str) -> str:
+    base = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:60]
+    base = base or f"feature-{secrets.token_hex(2)}"
+    slug, n = base, 2
+    while db_get("features", {"slug": eq(slug)}):
+        slug = f"{base}-{n}"
+        n += 1
+    return slug
+
+
+@app.post("/api/admin/features", status_code=201)
+def create_feature(p: FeatureCreateReq, admin: dict = Depends(current_admin)):
+    title = p.title.strip()[:150]
+    if not title:
+        raise HTTPException(400, "Give the feature a title.")
+    sort_order = p.sort_order
+    if sort_order is None:
+        existing = db_list("features", {}, limit=100)
+        sort_order = max((int(r.get("sort_order") or 0) for r in existing), default=0) + 1
+    row = db_insert("features", {
+        "slug": next_feature_slug(title),
+        "title": title,
+        "description": p.description.strip()[:4000],
+        "video_url": p.video_url.strip()[:1000],
+        "sort_order": int(sort_order),
         "updated_at": iso(now()),
     })
+    return row
+
+
+@app.delete("/api/admin/features/{slug}")
+def delete_feature(slug: str, admin: dict = Depends(current_admin)):
+    rows = _sb("DELETE", "features", params={"slug": eq(slug)}, prefer="return=representation")
+    if not rows:
+        raise HTTPException(404, "Feature not found.")
+    return {"message": "Feature deleted."}
+
+
+@app.put("/api/admin/features/{slug}")
+def update_feature(slug: str, p: FeatureUpdateReq, admin: dict = Depends(current_admin)):
+    updates = {
+        "title": p.title.strip()[:150],
+        "description": p.description.strip()[:4000],
+        "video_url": p.video_url.strip()[:1000],
+        "updated_at": iso(now()),
+    }
+    if p.sort_order is not None:
+        updates["sort_order"] = int(p.sort_order)
+    rows = db_update("features", {"slug": eq(slug)}, updates)
     if not rows:
         raise HTTPException(404, "Feature not found.")
     return rows[0]
@@ -1243,7 +1321,188 @@ def download(plan: str, user: dict = Depends(current_user)):
     if not license_active(db_get("licenses", {"email": eq(user["email"]), "plan_type": eq(plan)})):
         raise HTTPException(403, f"You don't have an active {plan} license.")
     path, filename = DOWNLOAD_FILES[plan]
+    try:
+        uploaded = db_get("download_files", {"plan": eq(plan)})
+    except Exception as exc:
+        print("Download mapping unavailable:", type(exc).__name__)
+        uploaded = None
+    if uploaded and uploaded.get("storage_path"):
+        path = uploaded["storage_path"]
+        filename = uploaded.get("filename") or filename
     return RedirectResponse(signed_download_url(path, filename), status_code=302, headers={"Cache-Control": "no-store"})
+
+
+# --------------------------------------------------------------------------
+# Admin: client JAR uploads
+# --------------------------------------------------------------------------
+def safe_jar_name(filename: str) -> str:
+    name = re.sub(r"[^A-Za-z0-9_.-]", "_", (filename or "")[:120]).strip("._")
+    name = name or "ChampClient.jar"
+    return name if name.lower().endswith(".jar") else f"{name}.jar"
+
+
+@app.get("/api/admin/downloads")
+def admin_downloads(admin: dict = Depends(current_admin)):
+    try:
+        rows = db_list("download_files", {})
+    except Exception as exc:
+        print("Download list unavailable:", type(exc).__name__)
+        rows = []
+    by_plan = {r["plan"]: r for r in rows}
+    items = []
+    for plan in PLANS:
+        row = by_plan.get(plan) or {}
+        items.append({
+            "plan": plan,
+            "filename": row.get("filename") or DOWNLOAD_FILES[plan][1],
+            "size_bytes": row.get("size_bytes") or 0,
+            "custom": bool(row.get("storage_path")),
+            "updated_at": row.get("updated_at"),
+        })
+    return {"downloads": items, "max_bytes": JAR_MAX_BYTES}
+
+
+@app.post("/api/admin/downloads/upload-url")
+def admin_jar_upload_url(p: JarUploadUrlReq, admin: dict = Depends(current_admin)):
+    if p.plan not in DOWNLOAD_FILES:
+        raise HTTPException(400, "Unknown plan.")
+    if not SUPABASE_URL:
+        raise HTTPException(503, "File storage is not configured on this deployment.")
+    path = f"{p.plan}/{uuid.uuid4().hex}/{safe_jar_name(p.filename)}"
+    r = requests.post(
+        f"{SUPABASE_URL}/storage/v1/object/upload/sign/{DOWNLOAD_BUCKET}/{path}",
+        headers=_sb_headers(), json={"expiresIn": 3600}, timeout=15,
+    )
+    if r.status_code >= 400:
+        print("Signed upload URL failed:", r.status_code, r.text)
+        raise HTTPException(502, "Could not prepare the upload. Please try again.")
+    body = r.json()
+    signed = body.get("url") or body.get("signedURL") or body.get("signedUrl")
+    if not signed:
+        raise HTTPException(502, "Could not prepare the upload. Please try again.")
+    upload_url = signed if signed.startswith("http") else f"{SUPABASE_URL}/storage/v1{signed}"
+    return {"upload_url": upload_url, "path": path, "max_bytes": JAR_MAX_BYTES}
+
+
+@app.post("/api/admin/downloads")
+def admin_save_download(p: JarConfirmReq, admin: dict = Depends(current_admin)):
+    if p.plan not in DOWNLOAD_FILES:
+        raise HTTPException(400, "Unknown plan.")
+    path = p.storage_path.strip()
+    if not re.fullmatch(r"(monthly|lifetime)/[0-9a-f]{32}/[A-Za-z0-9_.-]{1,120}", path) or not path.startswith(f"{p.plan}/"):
+        raise HTTPException(400, "Invalid upload path.")
+    if p.size_bytes and p.size_bytes > JAR_MAX_BYTES:
+        raise HTTPException(400, "The JAR must be 100 MB or smaller.")
+    values = {
+        "storage_path": path,
+        "filename": safe_jar_name(p.filename),
+        "size_bytes": max(0, int(p.size_bytes or 0)),
+        "updated_at": iso(now()),
+    }
+    existing = db_get("download_files", {"plan": eq(p.plan)})
+    old_path = (existing or {}).get("storage_path")
+    if existing:
+        rows = db_update("download_files", {"plan": eq(p.plan)}, values)
+    else:
+        try:
+            rows = [db_insert("download_files", {"plan": p.plan, **values})]
+        except DBError as e:
+            if e.status != 409:
+                raise
+            rows = db_update("download_files", {"plan": eq(p.plan)}, values)
+    if old_path and old_path != path:
+        requests.delete(f"{SUPABASE_URL}/storage/v1/object/{DOWNLOAD_BUCKET}/{old_path}", headers=_sb_headers(), timeout=15)
+    return rows[0]
+
+
+@app.delete("/api/admin/downloads/{plan}")
+def admin_delete_download(plan: str, admin: dict = Depends(current_admin)):
+    if plan not in DOWNLOAD_FILES:
+        raise HTTPException(404, "Unknown download.")
+    row = db_get("download_files", {"plan": eq(plan)})
+    if not row:
+        raise HTTPException(404, "No custom JAR is set for this plan.")
+    _sb("DELETE", "download_files", params={"plan": eq(plan)})
+    if row.get("storage_path"):
+        requests.delete(f"{SUPABASE_URL}/storage/v1/object/{DOWNLOAD_BUCKET}/{row['storage_path']}", headers=_sb_headers(), timeout=15)
+    return {"message": "Custom JAR removed. The default file is used again."}
+
+
+# --------------------------------------------------------------------------
+# Changelog (public page, managed in the admin panel)
+# --------------------------------------------------------------------------
+def changelog_filters_published() -> dict:
+    return {"published": eq("true")}
+
+
+@app.get("/api/changelog")
+def public_changelog():
+    try:
+        rows = db_list("changelog", changelog_filters_published(), limit=100, order="released_at.desc")
+    except Exception as exc:
+        print("Changelog unavailable:", type(exc).__name__)
+        rows = []
+    return {"entries": rows}
+
+
+@app.get("/api/admin/changelog")
+def admin_changelog(admin: dict = Depends(current_admin)):
+    return {"entries": db_list("changelog", {}, limit=200, order="released_at.desc")}
+
+
+def changelog_date(value: Optional[str]) -> Optional[str]:
+    if value is None or value == "":
+        return None
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value.strip()):
+        raise HTTPException(400, "Release date must be YYYY-MM-DD.")
+    return value.strip()
+
+
+@app.post("/api/admin/changelog", status_code=201)
+def create_changelog(p: ChangelogCreateReq, admin: dict = Depends(current_admin)):
+    version = p.version.strip()[:40]
+    title = p.title.strip()[:160]
+    if not version or not title:
+        raise HTTPException(400, "A version and title are required.")
+    released = changelog_date(p.released_at) or now().date().isoformat()
+    row = db_insert("changelog", {
+        "version": version,
+        "title": title,
+        "body": p.body.strip()[:8000],
+        "released_at": released,
+        "published": p.published,
+    })
+    return row
+
+
+@app.put("/api/admin/changelog/{entry_id}")
+def update_changelog(entry_id: int, p: ChangelogUpdateReq, admin: dict = Depends(current_admin)):
+    updates = {}
+    if p.version is not None:
+        updates["version"] = p.version.strip()[:40]
+    if p.title is not None:
+        updates["title"] = p.title.strip()[:160]
+    if p.body is not None:
+        updates["body"] = p.body.strip()[:8000]
+    released = changelog_date(p.released_at)
+    if released:
+        updates["released_at"] = released
+    if p.published is not None:
+        updates["published"] = p.published
+    if not updates:
+        raise HTTPException(400, "Nothing to update.")
+    rows = db_update("changelog", {"id": eq(entry_id)}, updates)
+    if not rows:
+        raise HTTPException(404, "Changelog entry not found.")
+    return rows[0]
+
+
+@app.delete("/api/admin/changelog/{entry_id}")
+def delete_changelog(entry_id: int, admin: dict = Depends(current_admin)):
+    rows = _sb("DELETE", "changelog", params={"id": eq(entry_id)}, prefer="return=representation")
+    if not rows:
+        raise HTTPException(404, "Changelog entry not found.")
+    return {"message": "Changelog entry deleted."}
 
 
 @app.post("/api/license/validate")

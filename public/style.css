@@ -911,3 +911,34 @@ nav, .mobile-menu, .site-announcement-bar, .dashboard-sidebar, .dashboard-shell,
 
 /* Table cells are part of a rounded wrapper, so keep them flush. */
 table, thead, tbody, tr, td, th { border-radius: 0 !important; }
+
+/* ============================================================
+   CHANGELOG PAGE
+   ============================================================ */
+.changelog-page { max-width: 900px; }
+.changelog-list { display: grid; gap: 18px; }
+.changelog-entry { background: var(--surface); border: 1px solid var(--border); padding: 26px 28px; }
+.changelog-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.changelog-version { font: 700 12px 'Inter', sans-serif; letter-spacing: .08em; text-transform: uppercase; color: #c4b5fd; background: rgba(124,92,255,.14); border: 1px solid rgba(124,92,255,.35); padding: 4px 12px; border-radius: 999px; }
+.changelog-meta time { color: var(--muted); font-size: 13px; }
+.changelog-entry h2 { font-family: 'Playfair Display', serif; font-size: 24px; margin: 4px 0 12px; color: var(--text); }
+.changelog-body p { color: #b9b6bf; line-height: 1.7; margin: 0 0 12px; font-size: 14.5px; }
+.changelog-body p:last-child { margin-bottom: 0; }
+.changelog-bullets { margin: 0 0 12px; padding-left: 20px; color: #b9b6bf; line-height: 1.7; font-size: 14.5px; }
+.changelog-bullets:last-child { margin-bottom: 0; }
+.changelog-bullets li { margin-bottom: 4px; }
+.changelog-bullets li::marker { color: #8e72ff; }
+
+/* Admin: two fields side by side */
+.admin-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+
+/* The nav has an extra link: collapse it before it can touch the logo. */
+@media (max-width: 980px) {
+  .nav-links { display: none; }
+  .hamburger { display: flex; }
+}
+
+@media (max-width: 640px) {
+  .admin-grid-2 { grid-template-columns: 1fr; }
+  .changelog-entry { padding: 20px; }
+}
