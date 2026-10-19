@@ -2132,9 +2132,10 @@ SUPPORT_TOPICS = (
     ("license_issue", re.compile(r"\b(licen[cs]e( key)? (is )?(not working|doesn'?t work|does not work|won'?t work|invalid|broken|rejected|error)|licentie (werkt niet( meer)?|is ongeldig|ongeldig)|key (is )?(not working|doesn'?t work|invalid))\b", re.I), _answer_license_issue),
     ("discord_link", re.compile(r"\b(link (my )?discord|discord (rank|role|link|koppel\w*)|champ\+)\b", re.I), _answer_discord_link),
     ("discount", re.compile(r"\b(discount|korting|coupon|promo ?code|voucher|goedkoper)\b", re.I), _answer_discount),
-    ("payment_methods", re.compile(r"\b(ideal|paypal|credit ?card|debit ?card|betaalmethod\w*|payment method\w*|stripe|crypto|bitcoin|apple pay|google pay)\b", re.I), _answer_payment_methods),
     ("billing", re.compile(r"\b(cancel|opzeg\w*|refund|money back|terugbetaling|chargeback|downgrade)\b", re.I), _answer_billing_change),
     ("pricing", re.compile(r"\b(price|prices|pricing|cost|costs|costly|how much|hoeveel|kost\w*|prijs|plans?|abonnement\w*|subscription|monthly|lifetime|buy|kopen|purchase|checkout|betalen|order|bestellen)\b", re.I), _answer_pricing),
+    # After pricing, because that answer already covers iDEAL and card payments.
+    ("payment_methods", re.compile(r"\b(ideal|paypal|credit ?card|debit ?card|betaalmethod\w*|payment method\w*|stripe|crypto|bitcoin|apple pay|google pay)\b", re.I), _answer_payment_methods),
     ("download", re.compile(r"\b(download\w*|licen[cs]e key|licentie|my key|serial|jar|dashboard)\b", re.I), _answer_download),
     ("install", re.compile(r"\b(install\w*|set ?up|setup|fabric|mods? folder|forge|optifine|loader)\b", re.I), _answer_install),
     ("requirements", re.compile(r"\b(version|versie|1\.\d{1,2}(\.\d+)?|requirements?|vereisten|java|minecraft|which mc|supported mc)\b", re.I), _answer_requirements),
