@@ -233,10 +233,16 @@ if (registerForm) {
           email_confirm: emailConfirm,
           password,
           password_confirm: passwordConfirm,
+          plan_type: selectedPlan || null,
+          referral_code: storedReferral() || null,
         }),
       });
       if (ok) {
-        window.location.href = `verify.html?email=${encodeURIComponent(email)}&plan=${encodeURIComponent(selectedPlan)}`;
+        if (data.verified) {
+          window.location.href = data.checkout_url || 'dashboard.html';
+        } else {
+          window.location.href = `verify.html?email=${encodeURIComponent(email)}&plan=${encodeURIComponent(selectedPlan)}`;
+        }
         return;
       }
       showMessage('formMessage', errorText(data, 'Could not create your account.'), true);
@@ -483,7 +489,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.querySelector('#checkout-auth-view a[href^="login.html"]').href = `login.html?next=${next}`;
     authMsg.textContent = me.ok
       ? `This link is for ${link.email}, but you are signed in as ${me.data.email}. Sign in with the right account.`
-      : `Sign in (or create an account) with ${link.email} to continue. Verify your email first if you just signed up.`;
+      : `Sign in (or create an account) with ${link.email} to continue.`;
     authView.style.display = 'block';
     return;
   }

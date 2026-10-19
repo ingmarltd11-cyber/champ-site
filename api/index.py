@@ -44,6 +44,9 @@ TEXTURE_PACK_BUCKET = os.getenv("TEXTURE_PACK_BUCKET", "texture-packs")
 MAX_TEXTURE_PACK_BYTES = 32 * 1024 * 1024
 FROM_EMAIL = os.getenv("FROM_EMAIL", "Champ Client <onboarding@resend.dev>")
 DEV_MODE = os.getenv("DEV_MODE", "").lower() in ("1", "true", "yes")
+# Email verification is off by default: without a domain there is no reliable sender,
+# and the shop can run with instant accounts. Set EMAIL_VERIFICATION=true to restore it.
+VERIFY_EMAIL = os.getenv("EMAIL_VERIFICATION", "false").lower() in ("1", "true", "yes")
 COOKIE_SECURE = not DEV_MODE
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
@@ -220,7 +223,7 @@ def current_user(session_token: Optional[str] = Cookie(None)) -> dict:
     if payload.get("purpose") != "session":
         raise HTTPException(401, "Invalid session.")
     user = db_get("users", {"email": eq(payload["sub"])})
-    if not user or not user["email_verified"] or payload.get("fp") != fingerprint(user["password_hash"]):
+    if not user or (VERIFY_EMAIL and not user["email_verified"]) or payload.get("fp") != fingerprint(user["password_hash"]):
         raise HTTPException(401, "Session expired. Please log in again.")
     return user
 
@@ -245,12 +248,17 @@ def email_html(title: str, intro: str, button_url: Optional[str] = None, button_
     )
 
 
+def email_transport() -> str:
+    """Which delivery path send_email() will use: resend, smtp, dev or none."""
+    if os.getenv("RESEND_API_KEY"):
+        return "resend"
+    if os.getenv("SMTP_HOST") and os.getenv("SMTP_USER") and os.getenv("SMTP_PASS"):
+        return "smtp"
+    return "dev" if DEV_MODE else "none"
+
+
 def email_configured() -> bool:
-    return bool(
-        os.getenv("RESEND_API_KEY")
-        or (os.getenv("SMTP_HOST") and os.getenv("SMTP_USER") and os.getenv("SMTP_PASS"))
-        or DEV_MODE
-    )
+    return email_transport() != "none"
 
 
 def send_email(to: str, subject: str, body_html: str) -> None:
@@ -518,6 +526,8 @@ class SignupReq(BaseModel):
     email_confirm: EmailStr
     password: str
     password_confirm: str
+    plan_type: Optional[str] = None
+    referral_code: Optional[str] = None
 
 
 class VerifyCodeReq(BaseModel):
@@ -725,7 +735,8 @@ def current_admin(admin_session: Optional[str] = Cookie(None, alias="admin_sessi
 # --------------------------------------------------------------------------
 @app.get("/api/health")
 def health():
-    return {"ok": True}
+    # Only the transport name: makes it obvious whether verification mail can be sent.
+    return {"ok": True, "email": email_transport()}
 
 
 @app.post("/api/admin/login")
@@ -792,7 +803,7 @@ def update_feature(slug: str, p: FeatureUpdateReq, admin: dict = Depends(current
 # Routes: authentication
 # --------------------------------------------------------------------------
 @app.post("/api/auth/signup", status_code=201)
-def signup(p: SignupReq):
+def signup(p: SignupReq, response: Response):
     username = p.username.strip()
     email = p.email.lower().strip()
     email_confirm = p.email_confirm.lower().strip()
@@ -810,7 +821,7 @@ def signup(p: SignupReq):
         raise HTTPException(409, taken)
 
     # Do not create an unverifiable account when e-mail delivery is not set up.
-    if not email_configured():
+    if VERIFY_EMAIL and not email_configured():
         raise HTTPException(503, "Email verification is temporarily unavailable. Please contact support.")
 
     try:
@@ -819,15 +830,30 @@ def signup(p: SignupReq):
             "username_lower": username.lower(),
             "email": email,
             "password_hash": hash_pw(p.password),
-            "email_verified": False,
+            "email_verified": not VERIFY_EMAIL,
         })
     except DBError as e:
         if e.status == 409:
             raise HTTPException(409, taken)
         raise
 
+    if not VERIFY_EMAIL:
+        # No verification step: sign the new account in right away and, when a plan was
+        # chosen, hand back a checkout link so the purchase flow is not interrupted.
+        set_session(response, user)
+        result = {"message": "Account created!", "verified": True}
+        plan = (p.plan_type or "").lower().strip()
+        if plan in PLANS and not license_active(db_get("licenses", {"email": eq(email), "plan_type": eq(plan)})):
+            uid = uuid.uuid4()
+            ref = (p.referral_code or "").strip().upper() or None
+            if ref and not db_get("referrals", {"code": eq(ref)}):
+                ref = None
+            db_insert("pending_payments", {"uid": str(uid), "email": email, "plan_type": plan, "referral_code": ref})
+            result["checkout_url"] = f"{SITE_URL}/payment.html?uid={uid}"
+        return result
+
     send_verification_code(user)
-    return {"message": "Account created! Check your email for your 6-digit verification code."}
+    return {"message": "Account created! Check your email for your 6-digit verification code.", "verified": False}
 
 
 @app.post("/api/auth/verify-code")
@@ -844,6 +870,13 @@ def verify_code(p: VerifyCodeReq, response: Response):
     user = db_get("users", {"email": eq(email)})
     if not user:
         raise HTTPException(400, "Invalid verification code.")
+    if not VERIFY_EMAIL:
+        # Verification is disabled, so a stale verify.html link just signs the user in.
+        db_update("users", {"id": eq(user["id"])}, {"email_verified": True})
+        user["email_verified"] = True
+        set_session(response, user)
+        return {"message": "Email verification is disabled. You are signed in.",
+                "verified": True, "checkout_url": f"{SITE_URL}/dashboard.html"}
     if user["email_verified"]:
         raise HTTPException(400, "This email is already verified.")
 
@@ -889,6 +922,8 @@ def verify_code(p: VerifyCodeReq, response: Response):
 
 @app.post("/api/auth/resend-verification")
 def resend_verification(p: EmailReq):
+    if not VERIFY_EMAIL:
+        return {"message": "Email verification is not required. You can sign in directly."}
     user = db_get("users", {"email": eq(p.email.lower())})
     if user and not user["email_verified"] and throttle_ok(user):
         send_verification_code(user)
@@ -901,6 +936,9 @@ def change_verification_email(p: ChangeEmailReq):
     new_email = p.new_email.lower().strip()
     if email == new_email:
         raise HTTPException(400, "Enter a different email address.")
+
+    if not VERIFY_EMAIL:
+        raise HTTPException(400, "Email verification is not required, so there is nothing to change.")
 
     user = db_get("users", {"email": eq(email)})
     if not user or user["email_verified"] or not check_pw(p.password, user["password_hash"]):
@@ -923,6 +961,10 @@ def login(p: LoginReq, response: Response):
         raise HTTPException(401, "Invalid username/email or password.")
     if not check_pw(p.password, user["password_hash"]):
         raise HTTPException(401, "Invalid username/email or password.")
+    if not user["email_verified"] and not VERIFY_EMAIL:
+        # Verification is disabled: treat older unverified rows as normal accounts.
+        db_update("users", {"id": eq(user["id"])}, {"email_verified": True})
+        user["email_verified"] = True
     if not user["email_verified"]:
         # Password was correct, so it is safe to help: send a fresh code and tell the
         # front-end which address to verify (the code is entered on verify.html).
@@ -962,6 +1004,8 @@ def me(user: dict = Depends(current_user)):
 
 @app.post("/api/auth/forgot")
 def forgot_password(p: EmailReq):
+    if not email_configured():
+        raise HTTPException(503, "Password reset by email is unavailable right now. Please contact support on Discord.")
     user = db_get("users", {"email": eq(p.email.lower())})
     if user and throttle_ok(user):
         token = make_token(user["email"], "reset", 60, {"fp": fingerprint(user["password_hash"])})
@@ -1374,7 +1418,7 @@ def active_license_for_session(session_token: Optional[str]) -> Optional[dict]:
         if payload.get("purpose") != "session":
             return None
         user = db_get("users", {"email": eq(payload.get("sub", ""))})
-        if not user or not user.get("email_verified") or payload.get("fp") != fingerprint(user["password_hash"]):
+        if not user or (VERIFY_EMAIL and not user.get("email_verified")) or payload.get("fp") != fingerprint(user["password_hash"]):
             return None
         return next((license_row for license_row in db_list("licenses", {"email": eq(user["email"])}, limit=20) if license_active(license_row)), None)
     except Exception:
@@ -1826,7 +1870,7 @@ Product: Champ Client is a native Minecraft Java Fabric mod (.jar) for Minecraft
 
 Plans and delivery: Monthly costs EUR 6.99 and can be cancelled anytime from the dashboard. Lifetime costs EUR 9.99 as a one-time payment and includes future 1.21.x updates. Checkout uses Stripe, which supports credit cards, debit cards, iDEAL and country-specific local payment methods. After successful payment the product is available in the customer's dashboard immediately, and a license confirmation email is sent. Downloads require an active license.
 
-Accounts: Customers register with a username, password and email address, then verify a 6-digit email code that is valid for 10 minutes. If the verification email does not arrive, ask the customer to check spam and request a new code; if it still fails, direct them to Discord support. Never ask for the code itself.
+Accounts: Customers register with a username, password and email address and can sign in immediately, because email verification is currently disabled. If a customer cannot sign in, ask them to confirm their exact username or email and to use the "Forgot password" page; if that fails, direct them to Discord support. Never ask for a password.
 
 Customer area: Texture Packs and Base Finds are customer features. Base Finds requires an active license. Both are only offered in the site navigation to signed-in customers; never promise them to visitors who are not signed in.
 

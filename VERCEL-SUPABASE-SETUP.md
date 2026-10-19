@@ -15,7 +15,13 @@ In the Champ Site project on Vercel, set the following under **Settings → Envi
 - `ADMIN_USERNAME` and `ADMIN_PASSWORD` — private admin credentials; use a unique, strong password.
 - Stripe keys and price IDs from `.env.example` when enabling real checkout/webhooks.
 
-Redeploy after changing environment variables. Email verification sends a six-digit code through the backend using Resend; it expires after 10 minutes and resend is throttled. For actual delivery, verify the sender domain in Resend and configure its required DNS records. The default `onboarding@resend.dev` sender is only suitable for limited Resend testing and is not a production sender for arbitrary customers.
+## Signup without email verification (current default)
+
+Email verification is **off** by default: `EMAIL_VERIFICATION` is unset, so new accounts are active immediately and are signed in on signup. No sender domain, Resend key or SMTP credentials are needed, and the signup form goes straight to the dashboard (or to checkout when a plan was chosen). Set `EMAIL_VERIFICATION=true` only after a sender is configured; without a working sender every signup then fails with a 503 instead of creating an account that can never be activated.
+
+With verification off, password reset by email is unavailable and returns a clear 503 — handle resets over Discord support. Existing accounts that were never verified are activated automatically on their next successful login.
+
+Redeploy after changing environment variables. When verification is enabled, a six-digit code is sent through the backend using Resend or SMTP; it expires after 10 minutes and resend is throttled. For actual delivery, verify the sender domain in Resend and configure its required DNS records. The default `onboarding@resend.dev` sender is only suitable for limited Resend testing and is not a production sender for arbitrary customers.
 
 ### No domain? Use SMTP instead
 
@@ -29,6 +35,8 @@ If you do not own a domain, leave `RESEND_API_KEY` unset and configure an SMTP s
 
 Gmail SMTP is suitable for low-volume verification mail but has daily sending limits and weaker deliverability than a verified domain. For a business, verify a domain with Resend or use a transactional SMTP relay with a verified single sender.
 
+Vercel blocks outbound port 25 but allows 465 (implicit TLS) and 587 (STARTTLS), so Gmail SMTP works from a Vercel function. Verify the active transport with `/api/health`: `{"ok":true,"email":"smtp"}` means the SMTP variables were picked up, `"resend"` means `RESEND_API_KEY` wins, and `"none"` means verification mail cannot be sent yet.
+
 ## Supabase database
 
 Connected Supabase project: **Champclient** (`ykmhjkkkskqyvdphzmkw`, `eu-west-1`). The website uses the service key server-side through PostgREST and Storage. Apply `supabase/schema.sql` when setting up the full website schema. Do not run the legacy instructions for creating a new Supabase project or for the Discord bot schema against this site project.
@@ -39,7 +47,7 @@ The `ai_knowledge` table was added to the connected project for the admin-manage
 
 1. Confirm all required Vercel variables are set for the environment currently deployed.
 2. Confirm Resend shows the sender domain as verified and `FROM_EMAIL` uses that domain.
-3. Open `/api/health` and confirm it returns `{"ok":true}`.
+3. Open `/api/health` and confirm it returns `{"ok":true}` with `email` set to `resend` or `smtp` (not `none`).
 4. Register with an address you control; check inbox and spam for the 6-digit verification code, enter it on `/verify.html`, then sign in.
 5. If delivery fails, inspect the Vercel function logs and Resend email logs. Never log or share verification codes, passwords, API keys, or Supabase service keys.
 6. Test Stripe using test credentials and a test webhook before switching any billing variable to live mode.
