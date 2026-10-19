@@ -20,6 +20,7 @@ alter table public.users add column if not exists totp_secret text;
 alter table public.users add column if not exists totp_enabled boolean not null default false;
 alter table public.users add column if not exists discord_id text;
 alter table public.users add column if not exists discord_username text;
+alter table public.users add column if not exists is_admin boolean not null default false;
 
 create table if not exists public.pending_payments (
   uid         uuid primary key,

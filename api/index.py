@@ -651,9 +651,11 @@ class ReviewSubmissionReq(BaseModel):
 # --------------------------------------------------------------------------
 # Admin authentication
 # --------------------------------------------------------------------------
-def admin_token() -> str:
-    secret = jwt_secret()
-    return jwt.encode({"sub": ADMIN_USERNAME, "purpose": "admin", "exp": int(time.time()) + 60 * 60 * 12}, secret, algorithm="HS256")
+def admin_token(subject: str, db_admin: bool = False) -> str:
+    payload = {"sub": subject, "purpose": "admin", "exp": int(time.time()) + 60 * 60 * 12}
+    if db_admin:
+        payload["db_admin"] = True
+    return jwt.encode(payload, jwt_secret(), algorithm="HS256")
 
 
 def current_admin(admin_session: Optional[str] = Cookie(None, alias="admin_session")) -> dict:
@@ -663,9 +665,16 @@ def current_admin(admin_session: Optional[str] = Cookie(None, alias="admin_sessi
         payload = jwt.decode(admin_session, jwt_secret(), algorithms=["HS256"])
     except Exception:
         raise HTTPException(401, "Admin login required.")
-    if payload.get("purpose") != "admin" or not ADMIN_USERNAME or payload.get("sub") != ADMIN_USERNAME:
+    if payload.get("purpose") != "admin":
         raise HTTPException(401, "Admin login required.")
-    return {"username": payload["sub"]}
+    subject = str(payload.get("sub") or "")
+    if ADMIN_USERNAME and subject == ADMIN_USERNAME:
+        return {"username": subject}
+    if payload.get("db_admin") is True and subject:
+        user = db_get("users", {"username_lower": eq(subject.lower())})
+        if user and user.get("is_admin"):
+            return {"username": user["username"]}
+    raise HTTPException(401, "Admin login required.")
 
 
 # --------------------------------------------------------------------------
@@ -678,12 +687,23 @@ def health():
 
 @app.post("/api/admin/login")
 def admin_login(p: AdminLoginReq, response: Response):
-    if not ADMIN_USERNAME or not ADMIN_PASSWORD:
-        raise HTTPException(503, "Admin login is not configured.")
-    if not hmac.compare_digest(p.username, ADMIN_USERNAME) or not hmac.compare_digest(p.password, ADMIN_PASSWORD):
-        raise HTTPException(401, "Invalid admin credentials.")
-    response.set_cookie("admin_session", admin_token(), httponly=True, secure=COOKIE_SECURE, samesite="lax", max_age=60 * 60 * 12, path="/")
-    return {"message": "Signed in."}
+    ident = p.username.strip()
+
+    # Environment-configured administrator (legacy / break-glass account).
+    if ADMIN_USERNAME and ADMIN_PASSWORD and ident == ADMIN_USERNAME and hmac.compare_digest(p.password, ADMIN_PASSWORD):
+        response.set_cookie("admin_session", admin_token(ADMIN_USERNAME), httponly=True, secure=COOKIE_SECURE, samesite="lax", max_age=60 * 60 * 12, path="/")
+        return {"message": "Signed in."}
+
+    # Database-backed administrator: a verified user with is_admin = true.
+    if ident:
+        field = "email" if "@" in ident else "username_lower"
+        user = db_get("users", {field: eq(ident.lower())})
+        if user and user.get("is_admin") and check_pw(p.password, user["password_hash"]):
+            subject = (user.get("username_lower") or user["username"]).lower()
+            response.set_cookie("admin_session", admin_token(subject, db_admin=True), httponly=True, secure=COOKIE_SECURE, samesite="lax", max_age=60 * 60 * 12, path="/")
+            return {"message": "Signed in."}
+
+    raise HTTPException(401, "Invalid admin credentials.")
 
 
 @app.post("/api/admin/logout")
