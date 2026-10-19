@@ -1,1 +1,112 @@
-<get full verified local content>
+{
+  "panel": {
+    "title": "🎫 Champ Support",
+    "description": "Choose a reason for your ticket below. A team member will help you as soon as possible.\n\n**Please note:** Do not open multiple tickets for the same issue.",
+    "placeholder": "Choose a support category...",
+    "color": "#FFC93C",
+    "footer": "Champ Client Support"
+  },
+  "settings": {
+    "ticketCategoryId": "TICKET_CATEGORY_ID",
+    "maxOpenTicketsPerUser": 1,
+    "defaultSupportRoleName": "Support",
+    "naming": "{emoji}-{username}",
+    "logChannelId": "LOG_CHANNEL_ID",
+    "deleteDelaySeconds": 5,
+    "sendTranscriptDm": true,
+    "transcriptFormat": "both",
+    "rating": {
+      "enabled": true,
+      "title": "⭐ Rate your support",
+      "message": "How satisfied were you with the support you received? Select a star rating."
+    },
+    "autoClose": {
+      "enabled": true,
+      "inactiveHours": 48,
+      "warningHours": 24,
+      "warningMessage": "⚠️ This ticket has been inactive for a while and will close automatically if there is no further activity.",
+      "reason": "Automatically closed due to inactivity."
+    }
+  },
+  "types": [
+    {
+      "id": "support",
+      "label": "General Support",
+      "emoji": "🛠️",
+      "description": "Questions or issues with the client",
+      "supportRoleId": "",
+      "pingSupport": true,
+      "claimEnabled": true,
+      "ratingEnabled": true,
+      "maxOpen": null,
+      "questions": [
+        { "id": "version", "label": "Client version", "style": "short", "required": true, "placeholder": "e.g. Beta 0.9.9.1", "maxLength": 20 },
+        { "id": "issue", "label": "Describe your issue", "style": "paragraph", "required": true, "placeholder": "What happens and when?", "maxLength": 1000 }
+      ]
+    },
+    {
+      "id": "billing",
+      "label": "Orders & Billing",
+      "emoji": "💳",
+      "description": "Questions about an order or payment (lifetime or subscription)",
+      "supportRoleId": "",
+      "pingSupport": true,
+      "claimEnabled": true,
+      "ratingEnabled": true,
+      "maxOpen": null,
+      "questions": [
+        { "id": "order", "label": "Order ID / email address", "style": "short", "required": true, "placeholder": "used for your purchase", "maxLength": 100 },
+        { "id": "plan", "label": "Lifetime or monthly?", "style": "short", "required": true, "placeholder": "lifetime / monthly", "maxLength": 20 },
+        { "id": "issue", "label": "What is the issue?", "style": "paragraph", "required": true, "placeholder": "Describe the issue in as much detail as possible", "maxLength": 1000 }
+      ]
+    },
+    {
+      "id": "bug",
+      "label": "Bug Report",
+      "emoji": "🐞",
+      "description": "Report a bug in the client",
+      "supportRoleId": "",
+      "pingSupport": true,
+      "claimEnabled": true,
+      "ratingEnabled": false,
+      "maxOpen": null,
+      "questions": [
+        { "id": "version", "label": "Client version", "style": "short", "required": true, "placeholder": "e.g. Beta 0.9.9.1", "maxLength": 20 },
+        { "id": "module", "label": "Which module?", "style": "short", "required": false, "placeholder": "e.g. Seed Xray", "maxLength": 50 },
+        { "id": "bug", "label": "Describe the bug", "style": "paragraph", "required": true, "placeholder": "What did you expect, and what happened instead?", "maxLength": 1000 },
+        { "id": "steps", "label": "Steps to reproduce", "style": "paragraph", "required": false, "placeholder": "1. ... 2. ...", "maxLength": 1000 }
+      ]
+    },
+    {
+      "id": "media",
+      "label": "Media Role Application",
+      "emoji": "🎬",
+      "description": "Apply for the Media role as a content creator",
+      "supportRoleId": "",
+      "pingSupport": false,
+      "claimEnabled": true,
+      "ratingEnabled": true,
+      "maxOpen": 1,
+      "questions": [
+        { "id": "channel", "label": "Link to your channel", "style": "short", "required": true, "placeholder": "YouTube / TikTok / Twitch link", "maxLength": 200 },
+        { "id": "subs", "label": "Follower / subscriber count", "style": "short", "required": true, "placeholder": "e.g. 2500", "maxLength": 20 },
+        { "id": "proposal", "label": "What would you like to create with Champ?", "style": "paragraph", "required": true, "placeholder": "Describe your content plans", "maxLength": 1000 }
+      ]
+    },
+    {
+      "id": "partner",
+      "label": "Partnership Application",
+      "emoji": "🤝",
+      "description": "Apply for a collaboration or partnership",
+      "supportRoleId": "",
+      "pingSupport": true,
+      "claimEnabled": true,
+      "ratingEnabled": true,
+      "maxOpen": 1,
+      "questions": [
+        { "id": "who", "label": "Who are you / what server?", "style": "short", "required": true, "placeholder": "name + member count", "maxLength": 100 },
+        { "id": "proposal", "label": "Describe your proposal", "style": "paragraph", "required": true, "placeholder": "What would the collaboration involve?", "maxLength": 1000 }
+      ]
+    }
+  ]
+}

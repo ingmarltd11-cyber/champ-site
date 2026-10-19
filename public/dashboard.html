@@ -1,1 +1,158 @@
-<get full validated local content>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Champ Client — Dashboard</title>
+<link rel="icon" type="image/png" href="assets/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+  body { background:#09090b; }
+  .dashboard-shell { min-height:100vh; display:flex; padding-top:64px; }
+  .dashboard-sidebar { width:250px; flex:0 0 250px; position:fixed; top:64px; bottom:0; left:0; padding:24px 16px; background:#0d0d10; border-right:1px solid var(--border); overflow-y:auto; display:flex; flex-direction:column; }
+  .sidebar-label { padding:0 12px; margin:20px 0 8px; color:var(--muted); font-size:10px; letter-spacing:.13em; text-transform:uppercase; font-weight:700; }
+  .sidebar-label:first-child { margin-top:0; }
+  .sidebar-link { width:100%; display:flex; align-items:center; gap:12px; padding:10px 12px; margin:3px 0; border:0; border-radius:8px; background:transparent; color:#aaa; text-align:left; font:500 13px Inter,sans-serif; cursor:pointer; text-decoration:none; transition:background .15s,color .15s; }
+  .sidebar-link:hover,.sidebar-link.active { background:rgba(124,92,255,.14); color:#fff; }
+  .sidebar-link.active { box-shadow:inset 2px 0 #8e72ff; }
+  .sidebar-icon { width:18px; text-align:center; color:#a78bfa; }
+  .sidebar-spacer { flex:1; }
+  .sidebar-account { margin-top:24px; padding:14px 12px; border-top:1px solid var(--border); color:#fff; font-size:13px; }
+  .sidebar-account small { display:block; color:var(--muted); margin-top:3px; overflow-wrap:anywhere; }
+  .dashboard-main { width:min(1100px,calc(100% - 290px)); margin:0 auto 0 290px; padding:38px 32px 80px; }
+  .dashboard-section { display:none; }
+  .dashboard-section.active { display:block; animation:dash-in .18s ease-out; }
+  @keyframes dash-in { from {opacity:0;transform:translateY(5px)} to {opacity:1;transform:translateY(0)} }
+  .dash-heading { margin-bottom:25px; }
+  .dash-heading h1 { font:900 clamp(30px,4vw,44px) 'Playfair Display',serif; margin:0 0 7px; }
+  .dash-heading p { color:var(--muted); margin:0; font-size:14px; }
+  .dashboard-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; margin:20px 0; }
+  .dash-card { background:#111114; border:1px solid var(--border); border-radius:14px; padding:22px; box-shadow:0 10px 30px rgba(0,0,0,.25); }
+  .card-title { font-size:16px; font-weight:650; color:#fff; margin-bottom:15px; display:flex; align-items:center; gap:10px; }
+  .status-badge { font-size:10px; padding:4px 9px; border-radius:20px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+  .status-active { background:rgba(0,255,136,.1); color:#00ff88; border:1px solid rgba(0,255,136,.2); }
+  .status-none { background:rgba(255,255,255,.05); color:#aaa; border:1px solid rgba(255,255,255,.1); }
+  .license-box { font:14px 'Courier New',monospace; background:#09090b; padding:12px; border-radius:7px; color:#fff; letter-spacing:1px; margin:14px 0; border:1px solid var(--border); text-align:center; overflow-wrap:anywhere; }
+  .btn-download,.btn-purchase-direct { display:block; padding:11px 16px; border-radius:7px; font-weight:650; text-align:center; text-decoration:none; width:100%; box-sizing:border-box; margin-top:10px; }
+  .btn-download { background:#7c5cff; color:white; }
+  .btn-purchase-direct { background:transparent; color:#a78bfa; border:1px solid #7c5cff; }
+  .no-license-text { color:#999; font-size:13px; margin:0 0 14px; line-height:1.55; }
+  .dashboard-message { display:none; margin-bottom:18px; padding:12px 15px; border-radius:8px; font-size:13px; }
+  .dashboard-list { display:grid; gap:12px; }
+  .dashboard-list .texture-card { background:#111114; }
+  .finds-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:16px; }
+  .find-card { overflow:hidden; background:#111114; border:1px solid var(--border); border-radius:12px; }
+  .find-image { width:100%; max-height:210px; object-fit:cover; }
+  .find-body { padding:16px; }
+  .find-body h2 { font-size:16px; margin-bottom:8px; }
+  .find-body p { color:#aaa; font-size:13px; }
+  .find-meta { margin-top:12px; color:#888!important; font-size:11px!important; }
+  .dash-steps { list-style:none; counter-reset:steps; display:grid; gap:12px; }
+  .dash-steps li { counter-increment:steps; background:#111114; border:1px solid var(--border); padding:16px 18px; border-radius:10px; }
+  .dash-steps li::before { content:counter(steps); display:inline-grid; place-items:center; width:24px; height:24px; margin-right:10px; background:#33206f; color:#c4b5fd; border-radius:50%; font-size:12px; font-weight:700; }
+  .dashboard-mobile-menu { display:none; }
+  @media(max-width:820px) {
+    .dashboard-sidebar { width:68px; flex-basis:68px; padding:18px 8px; }
+    .sidebar-label,.sidebar-link span:last-child,.sidebar-account { display:none; }
+    .sidebar-link { justify-content:center; padding:12px 6px; font-size:18px; }
+    .sidebar-icon { width:auto; }
+    .dashboard-main { width:calc(100% - 84px); margin-left:84px; padding:28px 16px 60px; }
+  }
+  @media(max-width:560px) {
+    nav { padding:0 14px; }
+    .dashboard-grid { grid-template-columns:1fr; }
+    .dashboard-main { padding:24px 12px 50px; }
+    .dashboard-sidebar { top:64px; width:58px; flex-basis:58px; }
+    .dashboard-main { width:calc(100% - 70px); margin-left:70px; }
+  }
+</style>
+</head>
+<body>
+<nav>
+  <a class="nav-logo" href="index.html"><img src="assets/logo.png" alt="Champ Client logo"><span>Champ <em>Client</em></span></a>
+  <div class="nav-actions"><a class="btn-ghost" href="support.html">Help</a><button id="logoutBtn" class="btn-ghost">Sign Out</button></div>
+</nav>
+<div class="dashboard-shell">
+  <aside class="dashboard-sidebar" aria-label="Dashboard navigation">
+    <div class="sidebar-label">Workspace</div>
+    <button class="sidebar-link active" data-section="overview"><span class="sidebar-icon">⌂</span><span>Overview</span></button>
+    <button class="sidebar-link" data-section="install"><span class="sidebar-icon">↓</span><span>Install</span></button>
+    <button class="sidebar-link" data-section="texture-packs"><span class="sidebar-icon">▧</span><span>Texture Packs</span></button>
+    <button class="sidebar-link" data-section="base-finds"><span class="sidebar-icon">⌖</span><span>Base Finds</span></button>
+    <div class="sidebar-label">Account</div>
+    <button class="sidebar-link" data-section="keys"><span class="sidebar-icon">⌘</span><span>Keys &amp; Licenses</span></button>
+    <button class="sidebar-link" data-section="billing"><span class="sidebar-icon">◷</span><span>Subscriptions</span></button>
+    <button class="sidebar-link" data-section="referrals"><span class="sidebar-icon">↗</span><span>Referrals</span></button>
+    <button class="sidebar-link" data-section="discord"><span class="sidebar-icon">◉</span><span>Discord</span></button>
+    <button class="sidebar-link" data-section="security"><span class="sidebar-icon">◇</span><span>Security</span></button>
+    <div class="sidebar-label">Support</div>
+    <button class="sidebar-link" data-section="help"><span class="sidebar-icon">?</span><span>Help &amp; troubleshooting</span></button>
+    <a class="sidebar-link" href="index.html#reviews"><span class="sidebar-icon">✦</span><span>What's new</span></a>
+    <div class="sidebar-account"><b id="sidebar-username">Account</b><small id="sidebar-email"></small></div>
+  </aside>
+
+  <main class="dashboard-main">
+    <div id="dash-notice" class="dashboard-message"></div>
+    <section id="dash-section-overview" class="dashboard-section active">
+      <header class="dash-heading"><h1>Welcome back, <span id="dash-username">User</span>.</h1><p id="dash-email">Loading account session…</p></header>
+      <div class="dashboard-grid">
+        <article class="dash-card"><div class="card-title">Monthly subscription <span class="status-badge status-none" id="badge-monthly">Inactive</span></div><div id="content-monthly"><p class="no-license-text">No active monthly subscription on this account.</p><a href="index.html#pricing" class="btn-purchase-direct">Browse plans</a></div></article>
+        <article class="dash-card"><div class="card-title">Lifetime access <span class="status-badge status-none" id="badge-lifetime">Inactive</span></div><div id="content-lifetime"><p class="no-license-text">No lifetime license is linked to this account.</p><a href="index.html#pricing" class="btn-purchase-direct">Get lifetime access</a></div></article>
+      </div>
+      <article class="dash-card"><div class="card-title">Activate a license key</div><p class="no-license-text">Bought a key? Redeem it here to link it to your account and unlock downloads.</p><form id="redeemForm" style="display:flex;gap:10px;flex-wrap:wrap"><input id="redeemKey" class="pay-input" style="margin:0;flex:1;min-width:200px" placeholder="CHAMP-XXXX-XXXX-XXXX-XXXX" autocomplete="off"><button class="btn-primary" type="submit">Activate key</button></form><p id="redeemMessage" style="display:none;margin-top:12px;font-size:13px"></p></article>
+    </section>
+
+    <section id="dash-section-install" class="dashboard-section">
+      <header class="dash-heading"><h1>Install Champ Client</h1><p>Get it running in a few minutes.</p></header>
+      <article class="dash-card"><ol class="dash-steps"><li><b>Download your client</b><p class="no-license-text">Use the license card on Overview. Downloads require an active license.</p><button class="btn-ghost" type="button" data-section-link="overview">Go to Overview</button></li><li><b>Install Fabric Loader</b><p class="no-license-text">Use Fabric Loader for the Minecraft version listed with your current release.</p></li><li><b>Install Fabric API</b><p class="no-license-text">Install the required Fabric API version documented for that release.</p></li><li><b>Put both JAR files in your mods folder and launch the matching Fabric profile.</b></li></ol></article>
+    </section>
+
+    <section id="dash-section-texture-packs" class="dashboard-section">
+      <header class="dash-heading"><h1>Texture Packs</h1><p>Downloads and pack details are available to active customers only.</p></header>
+      <div id="dashboardTexturePacks" class="dashboard-list"><p class="no-license-text">An active license is required to view customer packs.</p></div>
+    </section>
+
+    <section id="dash-section-base-finds" class="dashboard-section">
+      <header class="dash-heading"><h1>Base Finds</h1><p>Private community finds for active Champ Client customers.</p></header>
+      <article class="dash-card" style="margin-bottom:18px"><div class="card-title">Share a find</div><form id="findUploadForm" class="admin-editor" style="display:none"><label>Title<input id="findTitle" maxlength="80" required placeholder="Give this find a title"></label><label>Description<textarea id="findDesc" maxlength="1000" placeholder="Description and verified location hints"></textarea></label><label>Screenshot (PNG/JPG/WEBP, max 4 MB)<input id="findImage" type="file" accept="image/png,image/jpeg,image/webp"></label><button class="btn-primary" type="submit">Submit for review</button><p id="findUploadMessage" style="display:none;font-size:13px"></p></form></article>
+      <div id="dashboardFindsGrid" class="finds-grid"><p class="no-license-text">An active license is required to view customer finds.</p></div>
+    </section>
+
+    <section id="dash-section-keys" class="dashboard-section">
+      <header class="dash-heading"><h1>Keys &amp; Licenses</h1><p>View your current access or activate a key from a purchase email.</p></header>
+      <div class="dashboard-grid"><article class="dash-card"><div class="card-title">Monthly license <span class="status-badge status-none" id="badge-monthly-copy">Inactive</span></div><div id="content-monthly-copy"><p class="no-license-text">No monthly license.</p></div></article><article class="dash-card"><div class="card-title">Lifetime license <span class="status-badge status-none" id="badge-lifetime-copy">Inactive</span></div><div id="content-lifetime-copy"><p class="no-license-text">No lifetime license.</p></div></article></div>
+      <article class="dash-card"><div class="card-title">Redeem a key</div><p class="no-license-text">The activation form is on the Overview tab.</p><button class="btn-ghost" type="button" data-section-link="overview">Go to activation</button></article>
+    </section>
+
+    <section id="dash-section-billing" class="dashboard-section">
+      <header class="dash-heading"><h1>Subscriptions</h1><p>Manage your recurring plan and billing in Stripe.</p></header>
+      <article class="dash-card"><div id="billingOverview"><p class="no-license-text">Loading subscription status…</p></div><button id="manageBillingBtn" class="btn-primary" type="button" style="display:none">Manage subscription</button></article>
+    </section>
+
+    <section id="dash-section-referrals" class="dashboard-section">
+      <header class="dash-heading"><h1>Referrals</h1><p>Share your personal link and track referral credits.</p></header>
+      <article class="dash-card"><div class="license-box" id="refLink">Loading…</div><button class="btn-ghost" id="refCopyBtn" type="button">Copy referral link</button><p class="no-license-text" id="refStats" style="margin-top:14px"></p></article>
+    </section>
+
+    <section id="dash-section-discord" class="dashboard-section">
+      <header class="dash-heading"><h1>Discord</h1><p>Link Discord to your customer account and get customer role access.</p></header>
+      <article class="dash-card"><p class="no-license-text" id="discordStatus">Connect your Discord account to get the Champ+ rank when you own a license.</p><a class="btn-discord" id="discordLinkBtn" href="/api/discord/link">Link Discord account</a><button class="btn-ghost" id="discordRoleBtn" type="button" style="display:none;margin-left:8px">Retry role sync</button><p id="discordMessage" style="display:none;margin-top:12px;font-size:13px"></p></article>
+    </section>
+
+    <section id="dash-section-security" class="dashboard-section">
+      <header class="dash-heading"><h1>Account security</h1><p>Protect your Champ Client account.</p></header>
+      <article class="dash-card"><p class="no-license-text" id="twofaStatus">Set up authenticator-based two-factor authentication.</p><div id="twofaOffBox"><button class="btn-primary" id="twofaSetupBtn" type="button">Set up 2FA</button></div><div id="twofaSetupBox" style="display:none;margin-top:14px"><p class="no-license-text">Add this secret to your authenticator app:</p><div class="license-box" id="twofaSecret"></div><form id="twofaEnableForm" style="display:flex;gap:10px;flex-wrap:wrap"><input id="twofaCode" class="pay-input" style="margin:0;flex:1;min-width:120px" placeholder="123456" inputmode="numeric" autocomplete="one-time-code"><input id="twofaPhone" class="pay-input" style="margin:0;flex:1;min-width:140px" placeholder="Phone (optional)" inputmode="tel" autocomplete="tel"><button class="btn-primary" type="submit">Enable 2FA</button></form></div><div id="twofaOnBox" style="display:none;margin-top:14px"><form id="twofaDisableForm" style="display:flex;gap:10px;flex-wrap:wrap"><input id="twofaDisablePw" type="password" class="pay-input" style="margin:0;flex:1;min-width:160px" placeholder="Current password" autocomplete="current-password"><button class="btn-ghost" type="submit">Turn 2FA off</button></form></div><p id="twofaMessage" style="display:none;margin-top:12px;font-size:13px"></p></article>
+    </section>
+
+    <section id="dash-section-help" class="dashboard-section">
+      <header class="dash-heading"><h1>Help &amp; troubleshooting</h1><p>Ask the assistant a question, or hand it to our support team.</p></header>
+      <article class="dash-card"><p class="no-license-text">For personalized help, use the Champ Assistant on the homepage. If it cannot resolve your issue, the chat will give you the Discord support link and suggested details to include.</p><a href="index.html#aiChatWidget" class="btn-primary">Open Champ Assistant</a><p class="no-license-text" style="margin-top:18px">Prefer a person? <a href="https://discord.gg/ETuFknzhy" target="_blank" rel="noopener" style="color:#a78bfa">Open Discord support</a>.</p></article>
+    </section>
+  </main>
+</div>
+<script src="main.js"></script>
+</body>
+</html>
