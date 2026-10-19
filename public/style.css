@@ -31,7 +31,7 @@ body {
 
 /* ---- NAV ---- */
 nav {
-  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  position: fixed; top: var(--announcement-h, 0px); left: 0; right: 0; z-index: 100;
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 48px; height: 64px;
   background: rgba(8,8,8,.88);
@@ -71,6 +71,7 @@ nav {
 
 .nav-links a:hover { color: var(--text); }
 .nav-actions { display: flex; gap: 12px; align-items: center; }
+.nav-actions .btn-ghost, .nav-actions .btn-primary { white-space: nowrap; }
 
 /* ---- BUTTONS ---- */
 .btn-ghost {
@@ -358,7 +359,7 @@ nav {
 }
 .hamburger span { display: block; width: 22px; height: 2px; background: var(--text); border-radius: 2px; transition: all .3s; }
 .mobile-menu {
-  display: none; position: fixed; top: 64px; left: 0; right: 0;
+  display: none; position: fixed; top: calc(64px + var(--announcement-h, 0px)); left: 0; right: 0;
   background: rgba(8,8,8,.97); border-bottom: 1px solid var(--border);
   padding: 16px 24px; z-index: 99; flex-direction: column; gap: 0;
 }

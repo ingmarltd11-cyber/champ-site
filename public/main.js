@@ -991,6 +991,10 @@ async function loadPublicData() {
         if (banner && text && localStorage.getItem('dismissed_announcement') !== s.announcement_text) {
           text.textContent = s.announcement_text;
           banner.style.display = 'flex';
+          document.body.classList.add('has-announcement');
+          requestAnimationFrame(() => {
+            document.documentElement.style.setProperty('--announcement-h', `${banner.offsetHeight}px`);
+          });
         }
       }
       if (s.discord_link) {
@@ -1042,6 +1046,8 @@ function dismissAnnouncement() {
   const text = document.getElementById('siteAnnouncementText');
   if (banner) banner.style.display = 'none';
   if (text) localStorage.setItem('dismissed_announcement', text.textContent);
+  document.body.classList.remove('has-announcement');
+  document.documentElement.style.removeProperty('--announcement-h');
 }
 
 // ============================================================
