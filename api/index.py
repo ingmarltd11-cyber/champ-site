@@ -16,10 +16,12 @@ import json
 import os
 import re
 import secrets
+import smtplib
 import struct
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
+from email.message import EmailMessage
 from typing import Optional
 from urllib.parse import quote
 
@@ -243,22 +245,63 @@ def email_html(title: str, intro: str, button_url: Optional[str] = None, button_
     )
 
 
+def email_configured() -> bool:
+    return bool(
+        os.getenv("RESEND_API_KEY")
+        or (os.getenv("SMTP_HOST") and os.getenv("SMTP_USER") and os.getenv("SMTP_PASS"))
+        or DEV_MODE
+    )
+
+
 def send_email(to: str, subject: str, body_html: str) -> None:
     key = os.getenv("RESEND_API_KEY")
-    if not key:
-        if DEV_MODE:
-            print(f"[DEV] e-mail to {to}: {subject}")
-            return
-        raise HTTPException(503, "E-mail service is not configured.")
-    r = requests.post(
-        "https://api.resend.com/emails",
-        headers={"Authorization": f"Bearer {key}"},
-        json={"from": FROM_EMAIL, "to": [to], "subject": subject, "html": body_html},
-        timeout=15,
-    )
-    if r.status_code >= 300:
-        print("Resend error:", r.status_code, r.text)
-        raise HTTPException(502, "Could not send e-mail. Please try again later.")
+    if key:
+        r = requests.post(
+            "https://api.resend.com/emails",
+            headers={"Authorization": f"Bearer {key}"},
+            json={"from": FROM_EMAIL, "to": [to], "subject": subject, "html": body_html},
+            timeout=15,
+        )
+        if r.status_code >= 300:
+            print("Resend error:", r.status_code, r.text)
+            raise HTTPException(502, "Could not send e-mail. Please try again later.")
+        return
+
+    # No-domain fallback: Gmail SMTP (App Password) or any SMTP relay.
+    host = (os.getenv("SMTP_HOST") or "").strip()
+    user = (os.getenv("SMTP_USER") or "").strip()
+    password = os.getenv("SMTP_PASS") or ""
+    if host and user and password:
+        try:
+            port = int(os.getenv("SMTP_PORT") or "465")
+        except ValueError:
+            port = 465
+        sender = os.getenv("SMTP_FROM") or f"Champ Client <{user}>"
+        message = EmailMessage()
+        message["From"] = sender
+        message["To"] = to
+        message["Subject"] = subject
+        message.set_content("Please view this message in an HTML-capable email client.")
+        message.add_alternative(body_html, subtype="html")
+        try:
+            if port == 465:
+                with smtplib.SMTP_SSL(host, port, timeout=20) as smtp:
+                    smtp.login(user, password)
+                    smtp.send_message(message)
+            else:
+                with smtplib.SMTP(host, port, timeout=20) as smtp:
+                    smtp.starttls()
+                    smtp.login(user, password)
+                    smtp.send_message(message)
+        except Exception as exc:
+            print("SMTP error:", type(exc).__name__)
+            raise HTTPException(502, "Could not send e-mail. Please try again later.")
+        return
+
+    if DEV_MODE:
+        print(f"[DEV] e-mail to {to}: {subject}")
+        return
+    raise HTTPException(503, "E-mail service is not configured.")
 
 
 def throttle_ok(user: dict, seconds: int = 60) -> bool:
@@ -767,7 +810,7 @@ def signup(p: SignupReq):
         raise HTTPException(409, taken)
 
     # Do not create an unverifiable account when e-mail delivery is not set up.
-    if not os.getenv("RESEND_API_KEY") and not DEV_MODE:
+    if not email_configured():
         raise HTTPException(503, "Email verification is temporarily unavailable. Please contact support.")
 
     try:

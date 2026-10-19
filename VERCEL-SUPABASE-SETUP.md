@@ -17,6 +17,18 @@ In the Champ Site project on Vercel, set the following under **Settings → Envi
 
 Redeploy after changing environment variables. Email verification sends a six-digit code through the backend using Resend; it expires after 10 minutes and resend is throttled. For actual delivery, verify the sender domain in Resend and configure its required DNS records. The default `onboarding@resend.dev` sender is only suitable for limited Resend testing and is not a production sender for arbitrary customers.
 
+### No domain? Use SMTP instead
+
+If you do not own a domain, leave `RESEND_API_KEY` unset and configure an SMTP sender instead:
+
+- `SMTP_HOST=smtp.gmail.com`
+- `SMTP_PORT=465`
+- `SMTP_USER=your@gmail.com`
+- `SMTP_PASS=<16-character Google App Password>` (requires 2-Step Verification)
+- `SMTP_FROM=Champ Client <your@gmail.com>` (optional; defaults to `SMTP_USER`)
+
+Gmail SMTP is suitable for low-volume verification mail but has daily sending limits and weaker deliverability than a verified domain. For a business, verify a domain with Resend or use a transactional SMTP relay with a verified single sender.
+
 ## Supabase database
 
 Connected Supabase project: **Champclient** (`ykmhjkkkskqyvdphzmkw`, `eu-west-1`). The website uses the service key server-side through PostgREST and Storage. Apply `supabase/schema.sql` when setting up the full website schema. Do not run the legacy instructions for creating a new Supabase project or for the Discord bot schema against this site project.
