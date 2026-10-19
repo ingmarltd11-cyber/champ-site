@@ -138,6 +138,65 @@ async function handleGetStarted(event) {
   }
 }
 
+// Customer-only navigation. Texture Packs and Base Finds are never part of the
+// public nav: they are added after the server confirms a signed-in session.
+(async function addCustomerNav() {
+  let session;
+  try {
+    const res = await api('/api/auth/me');
+    if (!res.ok || !res.data || !res.data.email) return;
+    session = res.data;
+  } catch (_) {
+    return;
+  }
+  if (!session) return;
+
+  document.querySelectorAll('.nav-links').forEach(function (list) {
+    if (list.querySelector('[data-customer-nav]')) return;
+    const pricingLink = Array.from(list.querySelectorAll('a')).find(function (a) {
+      return (a.getAttribute('href') || '').indexOf('#pricing') !== -1;
+    });
+    const packs = document.createElement('li');
+    packs.setAttribute('data-customer-nav', 'texture-packs');
+    packs.innerHTML = '<a href="dashboard.html#texture-packs">Texture Packs</a>';
+    const finds = document.createElement('li');
+    finds.setAttribute('data-customer-nav', 'base-finds');
+    finds.innerHTML = '<a href="finds.html">Base Finds</a>';
+    const pricingItem = pricingLink && pricingLink.parentElement;
+    if (pricingItem && pricingItem.parentElement) {
+      pricingItem.parentElement.insertBefore(packs, pricingItem);
+      pricingItem.parentElement.insertBefore(finds, pricingItem);
+    } else {
+      list.appendChild(packs);
+      list.appendChild(finds);
+    }
+  });
+
+  document.querySelectorAll('.mobile-menu').forEach(function (menu) {
+    if (menu.querySelector('[data-customer-nav]')) return;
+    const loginLink = Array.from(menu.querySelectorAll('a')).find(function (a) {
+      return (a.getAttribute('href') || '').indexOf('login.html') === 0;
+    });
+    const packs = document.createElement('a');
+    packs.setAttribute('data-customer-nav', 'texture-packs');
+    packs.href = 'dashboard.html#texture-packs';
+    packs.textContent = 'Texture Packs';
+    packs.onclick = toggleMenu;
+    const finds = document.createElement('a');
+    finds.setAttribute('data-customer-nav', 'base-finds');
+    finds.href = 'finds.html';
+    finds.textContent = 'Base Finds';
+    finds.onclick = toggleMenu;
+    if (loginLink) {
+      menu.insertBefore(packs, loginLink);
+      menu.insertBefore(finds, loginLink);
+    } else {
+      menu.appendChild(packs);
+      menu.appendChild(finds);
+    }
+  });
+})();
+
 // ============================================================
 // Sign up
 // ============================================================

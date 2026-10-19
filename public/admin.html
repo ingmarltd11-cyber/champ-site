@@ -2,7 +2,7 @@
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Admin — Champ Client</title><link rel="icon" href="assets/logo.png"><link rel="stylesheet" href="style.css"></head>
 <body>
 <nav><a class="nav-logo" href="index.html"><img src="assets/logo.png" alt="Champ"><span>Champ <em>Admin</em></span></a><div class="nav-actions"><button id="adminLogout" class="btn-ghost" style="display:none">Sign Out</button><button class="hamburger" onclick="toggleMenu()" aria-label="Menu"><span></span><span></span><span></span></button></div></nav>
-<div class="mobile-menu" id="mobileMenu"><a href="index.html" onclick="toggleMenu()">Homepage</a><a href="features.html" onclick="toggleMenu()">Features</a><a href="finds.html" onclick="toggleMenu()">Base Finds</a></div>
+<div class="mobile-menu" id="mobileMenu"><a href="index.html" onclick="toggleMenu()">Homepage</a><a href="features.html" onclick="toggleMenu()">Features</a></div>
 <main class="admin-wrap">
   <section id="adminLoginCard" class="admin-card" style="max-width:430px;margin:40px auto">
     <h1>Admin Login</h1>
@@ -28,6 +28,7 @@
       <button class="admin-tab" data-tab="texture-packs" type="button">Texture Packs</button>
       <button class="admin-tab" data-tab="features" type="button">Features &amp; Videos</button>
       <button class="admin-tab" data-tab="reviews" type="button">Reviews</button>
+      <button class="admin-tab" data-tab="ai-knowledge" type="button">AI Knowledge</button>
       <button class="admin-tab" data-tab="finds" type="button">Base Finds</button>
       <button class="admin-tab" data-tab="referrals" type="button">Referrals</button>
     </div>
@@ -142,6 +143,27 @@
       </div>
 
       <div id="adminReviewsList" class="admin-table-wrap"><p class="no-license-text">Loading reviews...</p></div>
+    </div>
+
+    <!-- TAB: AI KNOWLEDGE -->
+    <div class="admin-tabpage" id="tab-ai-knowledge" style="display:none">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin:18px 0; flex-wrap:wrap; gap:12px;">
+        <div>
+          <h2>AI Assistant Knowledge</h2>
+          <p class="no-license-text">Maintain verified product facts used to answer customer questions. Never add secrets or private customer data.</p>
+        </div>
+        <button class="btn-primary" type="button" onclick="showAddAIKnowledgeForm()">+ Add Knowledge</button>
+      </div>
+      <div id="addAIKnowledgeContainer" style="display:none; margin-bottom:24px; padding:20px; background:var(--surface); border:1px solid var(--border); border-radius:10px;">
+        <h3>Add Knowledge</h3>
+        <form id="createAIKnowledgeForm" class="admin-editor">
+          <label>Title<input name="title" required maxlength="120"></label>
+          <label>Verified answer facts<textarea name="body" required maxlength="8000" rows="6"></textarea></label>
+          <div style="display:flex;gap:10px"><button class="btn-primary" type="submit">Save Knowledge</button><button class="btn-ghost" type="button" onclick="document.getElementById('addAIKnowledgeContainer').style.display='none'">Cancel</button></div>
+          <p id="createAIKnowledgeMsg" class="save-message" style="display:none"></p>
+        </form>
+      </div>
+      <div id="adminAIKnowledgeList" class="admin-table-wrap"><p class="no-license-text">Loading AI knowledge...</p></div>
     </div>
 
     <!-- TAB: BASE FINDS -->
