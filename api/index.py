@@ -1950,8 +1950,14 @@ def trim_to_sentence(text: str, limit: int) -> str:
     if len(text) <= limit:
         return text
     cut = text[:limit]
-    stop = max(cut.rfind(". "), cut.rfind("! "), cut.rfind("? "), cut.rfind(chr(10)))
-    return (cut[: stop + 1] if stop > limit // 2 else cut).rstrip()
+    for marker in (". ", "! ", "? "):
+        stop = cut.rfind(marker)
+        if stop > limit // 2:
+            return cut[: stop + 1].rstrip()
+    stop = cut.rfind(chr(10))
+    if stop > limit // 2:
+        return cut[:stop].rstrip()
+    return cut.rstrip()
 
 
 def link_target(question: str, answer: str):
@@ -1997,7 +2003,7 @@ LINKS: these are the only URLs that exist. Always write them as full plain https
 - Discord support: {DISCORD_INVITE}
 Every answer about the product, prices, accounts, installation, downloads or problems must include the matching link on its own line, so the customer can click it. For a pure greeting or small talk, reply in one friendly sentence without a link.
 If a product detail is missing from the verified knowledge, say you are not sure and direct the customer to Discord support: https://discord.gg/ETuFknzhy.
-Keep answers short and friendly, at most 3 short paragraphs. Write plain conversational text: no headings like ###, no horizontal rules like ---, and no code blocks, fences or backticks.""",
+Keep answers short and friendly, at most 3 short paragraphs. Write plain conversational text with short paragraphs and simple dash lists. Never use headings, horizontal rules, code blocks, fences or backticks, and never output the character sequences ### or --- anywhere in a reply.""",
         AI_DEFAULT_KNOWLEDGE,
     ]
     try:
