@@ -1037,7 +1037,18 @@ async function loadPublicData() {
           text.textContent = s.announcement_text;
           banner.style.display = 'flex';
           document.body.classList.add('has-announcement');
-          document.documentElement.style.setProperty('--announcement-h', `${banner.offsetHeight}px`);
+          // The banner wraps to more lines on narrow screens, so keep the fixed
+          // navigation offset in sync with its real height instead of measuring once.
+          const syncAnnouncementHeight = () => {
+            if (banner.style.display === 'none') return;
+            document.documentElement.style.setProperty('--announcement-h', `${banner.offsetHeight}px`);
+          };
+          syncAnnouncementHeight();
+          if (!banner.dataset.heightTracked) {
+            banner.dataset.heightTracked = 'true';
+            if ('ResizeObserver' in window) new ResizeObserver(syncAnnouncementHeight).observe(banner);
+            window.addEventListener('resize', syncAnnouncementHeight);
+          }
         }
       }
       if (s.discord_link) {
