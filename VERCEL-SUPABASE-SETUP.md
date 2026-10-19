@@ -52,13 +52,13 @@ The `ai_knowledge` table was added to the connected project for the admin-manage
 ## Verification checklist
 
 1. Confirm `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` and `JWT_SECRET` are set for the environment currently deployed.
-2. Open `/api/health` and confirm it returns `{"ok":true}`.
+2. Open `/api/health` and confirm it returns `{"ok":true}` with `"database":true`. A deployment that reports `"database":false` is missing `SUPABASE_URL` / `SUPABASE_SERVICE_KEY` in that environment; check the Preview/Production boxes when adding them.
 3. Open `/api/ai/status` and confirm `"ready":true`; `mode` shows which assistant layer is active.
 4. Create an account on `/signup.html` and confirm you land signed in (dashboard, or checkout when a plan was chosen).
 5. Ask the assistant a pricing question and confirm it answers with the pricing link.
-6. Never log or share passwords, API keys or Supabase service keys.
 6. Test Stripe using test credentials and a test webhook before switching any billing variable to live mode.
-7. Set `OPENAI_API_KEY` or `GROQ_API_KEY` on Vercel to enable the interactive support assistant; add the same model provider key to the backend runtime only. The Discord bot calls `/api/ai/chat` with `channel=discord` and uses the same database-backed knowledge and per-ticket conversation history.
+7. Never log or share passwords, API keys or Supabase service keys.
+8. The support assistant already answers from its built-in knowledge. Add `GROQ_API_KEY` (or `OPENAI_API_KEY`) only for free-form answers to everything else; `/api/health` shows `"ai":"built-in"` or `"ai":"llm"`. The Discord bot calls `/api/ai/chat` with `channel=discord` and uses the same database-backed knowledge and per-ticket conversation history.
 
 Vercel CLI authentication on this workstation was not available during setup. To connect the CLI persistently, install Vercel CLI and run `vercel login` in a terminal where you can complete the browser sign-in; then link the project with `vercel link`. This does not require sharing a token in chat. GitHub deployments normally trigger Vercel automatically when the Git integration is connected to this repository.
 
