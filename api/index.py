@@ -1875,26 +1875,37 @@ def ai_chat(p: AIChatReq):
 
     openai_key = os.getenv("OPENAI_API_KEY")
     groq_key = os.getenv("GROQ_API_KEY")
-    provider = (os.getenv("AI_PROVIDER") or ("groq" if groq_key else "openai")).lower()
-    endpoint, api_key, models = (None, None, [])
-    if provider == "openai" and openai_key:
-        endpoint, api_key = "https://api.openai.com/v1/chat/completions", openai_key
-        models = [os.getenv("OPENAI_MODEL", "gpt-4o-mini")]
-    elif provider == "groq" and groq_key:
-        endpoint, api_key = "https://api.groq.com/openai/v1/chat/completions", groq_key
-        # Prefer Groq's strongest production model for support reasoning; fall
-        # back to smaller models if the preferred one is unavailable.
-        groq_model = (os.getenv("GROQ_MODEL") or "openai/gpt-oss-120b").strip()
-        if groq_model in {
-            "llama-3.3-70b-versatile",
-            "llama-3.1-70b-versatile",
-            "mixtral-8x7b-32768",
-            "moonshotai/kimi-k2-instruct",
-        }:
-            groq_model = "openai/gpt-oss-120b"
-        models = [groq_model, "openai/gpt-oss-20b", "llama-3.1-8b-instant"]
+    preferred = (os.getenv("AI_PROVIDER") or ("groq" if groq_key else "openai")).lower()
 
-    if endpoint and api_key:
+    # Prefer Groq's strongest production model for support reasoning; ignore
+    # model names Groq has retired so an old environment value cannot break it.
+    groq_model = (os.getenv("GROQ_MODEL") or "openai/gpt-oss-120b").strip()
+    if groq_model in {
+        "llama-3.3-70b-versatile",
+        "llama-3.1-70b-versatile",
+        "mixtral-8x7b-32768",
+        "moonshotai/kimi-k2-instruct",
+    }:
+        groq_model = "openai/gpt-oss-120b"
+
+    openai_provider = ("openai", "https://api.openai.com/v1/chat/completions", openai_key,
+                       [os.getenv("OPENAI_MODEL", "gpt-4o-mini")])
+    groq_provider = ("groq", "https://api.groq.com/openai/v1/chat/completions", groq_key,
+                     [groq_model, "openai/gpt-oss-20b", "llama-3.1-8b-instant"])
+
+    providers = []
+    if preferred == "openai":
+        if openai_key:
+            providers.append(openai_provider)
+        if groq_key:
+            providers.append(groq_provider)
+    else:
+        if groq_key:
+            providers.append(groq_provider)
+        if openai_key:
+            providers.append(openai_provider)
+
+    for provider, endpoint, api_key, models in providers:
         for model in dict.fromkeys(m for m in models if m):
             try:
                 payload = {
@@ -1929,7 +1940,7 @@ def ai_chat(p: AIChatReq):
                             result["session_id"] = supplied_id
                         return result
                 print("AI provider request failed:", provider, model, response.status_code)
-                if response.status_code not in (400, 404):
+                if response.status_code in (401, 403, 429):
                     break
             except Exception as exc:
                 print("AI provider request failed:", provider, model, type(exc).__name__)
