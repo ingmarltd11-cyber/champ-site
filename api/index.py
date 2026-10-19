@@ -200,6 +200,25 @@ def db_update(table: str, filters: dict, values: dict):
     return _sb("PATCH", table, params=dict(filters), body=values, prefer="return=representation")
 
 
+def storage_delete(bucket: str, *paths: str) -> bool:
+    """Delete stored objects through the batch endpoint used by storage.from().remove()."""
+    wanted = [p for p in paths if p]
+    if not wanted or not SUPABASE_URL or not SUPABASE_KEY:
+        return False
+    try:
+        r = requests.delete(
+            f"{SUPABASE_URL}/storage/v1/object/{bucket}",
+            headers=_sb_headers(), json={"prefixes": wanted}, timeout=15,
+        )
+    except Exception as exc:
+        print("Storage delete failed:", type(exc).__name__)
+        return False
+    if r.status_code >= 400:
+        print("Storage delete failed:", r.status_code, r.text)
+        return False
+    return True
+
+
 # --------------------------------------------------------------------------
 # Passwords, tokens, sessions
 # --------------------------------------------------------------------------
@@ -1411,7 +1430,7 @@ def admin_save_download(p: JarConfirmReq, admin: dict = Depends(current_admin)):
                 raise
             rows = db_update("download_files", {"plan": eq(p.plan)}, values)
     if old_path and old_path != path:
-        requests.delete(f"{SUPABASE_URL}/storage/v1/object/{DOWNLOAD_BUCKET}/{old_path}", headers=_sb_headers(), timeout=15)
+        storage_delete(DOWNLOAD_BUCKET, old_path)
     return rows[0]
 
 
@@ -1424,7 +1443,7 @@ def admin_delete_download(plan: str, admin: dict = Depends(current_admin)):
         raise HTTPException(404, "No custom JAR is set for this plan.")
     _sb("DELETE", "download_files", params={"plan": eq(plan)})
     if row.get("storage_path"):
-        requests.delete(f"{SUPABASE_URL}/storage/v1/object/{DOWNLOAD_BUCKET}/{row['storage_path']}", headers=_sb_headers(), timeout=15)
+        storage_delete(DOWNLOAD_BUCKET, row["storage_path"])
     return {"message": "Custom JAR removed. The default file is used again."}
 
 
@@ -2198,7 +2217,7 @@ def admin_upload_texture_pack(p: TexturePackUploadReq, admin: dict = Depends(cur
             "created_at": iso(now()),
         })
     except Exception:
-        requests.delete(f"{SUPABASE_URL}/storage/v1/object/{TEXTURE_PACK_BUCKET}/{path}", headers=_sb_headers(), timeout=15)
+        storage_delete(TEXTURE_PACK_BUCKET, path)
         raise
     return {"id": row["id"], "name": row["name"], "message": "Texture pack uploaded."}
 
@@ -2231,11 +2250,11 @@ def admin_delete_texture_pack(pack_id: int, admin: dict = Depends(current_admin)
         raise HTTPException(404, "Texture pack not found.")
     try:
         _sb("DELETE", "texture_packs", params={"id": eq(pack_id)})
-        if pack.get("storage_path"):
-            requests.delete(f"{SUPABASE_URL}/storage/v1/object/{TEXTURE_PACK_BUCKET}/{pack['storage_path']}", headers=_sb_headers(), timeout=15)
+        doomed = [pack.get("storage_path")]
         object_path = (pack.get("download_url") or "").split(f"/object/public/{TEXTURE_PACK_BUCKET}/", 1)
         if len(object_path) == 2:
-            requests.delete(f"{SUPABASE_URL}/storage/v1/object/{TEXTURE_PACK_BUCKET}/{object_path[1]}", headers=_sb_headers(), timeout=15)
+            doomed.append(object_path[1])
+        storage_delete(TEXTURE_PACK_BUCKET, *doomed)
     except DBError:
         raise HTTPException(404, "Could not delete texture pack.")
     return {"message": "Texture pack deleted."}
