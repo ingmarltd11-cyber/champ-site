@@ -1864,6 +1864,17 @@ def hide_hidden_hosts(text: str) -> str:
     )
 
 
+HIDDEN_HOST_PATTERN = re.compile(
+    r"(?<![a-z0-9@-])(?:[a-z0-9-]+\.)*(?:" + "|".join(re.escape(h) for h in HIDDEN_HOSTS) + r")",
+    re.IGNORECASE,
+)
+OFFICIAL_REPLY = "The only official website is " + OFFICIAL_SITE + ". Use it for downloads, pricing and your dashboard."
+
+
+def mentions_hidden_host(text: str) -> bool:
+    return bool(HIDDEN_HOSTS) and bool(HIDDEN_HOST_PATTERN.search(text or ""))
+
+
 def wants_features(text: str) -> bool:
     if re.search(r"\b(feature|functie|module)\s*(request|suggestie|verzoek)\b", text, re.IGNORECASE):
         return False
@@ -1966,6 +1977,7 @@ def ai_chat(p: AIChatReq):
     if p.channel not in (None, "discord", "website"):
         raise HTTPException(400, "Unsupported support channel.")
 
+    asked_hidden_host = mentions_hidden_host(user_msg)
     user_msg = hide_hidden_hosts(user_msg)
     lowered = user_msg.lower()
     if any(k in lowered for k in ["admin password", "supabase_key", "stripe_secret", "jwt_secret", "leak token", "api key", "service role"]):
@@ -1982,6 +1994,14 @@ def ai_chat(p: AIChatReq):
     if CODE_PATTERN.search(user_msg) or any(marker in lowered for marker in code_request_markers):
         return {
             "reply": REFUSAL,
+            "escalation_url": DISCORD_INVITE,
+            "needs_escalation": False,
+        }
+
+    # A hidden domain does not exist for the assistant; point at the official site instead.
+    if asked_hidden_host:
+        return {
+            "reply": OFFICIAL_REPLY,
             "escalation_url": DISCORD_INVITE,
             "needs_escalation": False,
         }
