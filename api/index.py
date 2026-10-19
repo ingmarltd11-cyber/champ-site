@@ -2208,7 +2208,7 @@ TOPIC_HINTS = {
     "base_finds": ("finds", "coords"),
     "safety": ("banned", "detect", "veilig", "virus", "injector"),
     "account": ("account", "login", "password", "wachtwoord", "register", "email", "verify"),
-    "what_is_it": ("champ", "client"),
+    "what_is_it": ("champ", "champclient"),
     "contact": ("discord", "ticket", "support", "contact", "staff"),
 }
 
@@ -2387,7 +2387,7 @@ LINKS: these are the only URLs that exist. Always write them as full plain https
 - Support page: {OFFICIAL_SITE}/support.html
 - Discord support: {DISCORD_INVITE}
 Every answer about the product, prices, accounts, installation, downloads or problems must include the matching link on its own line, so the customer can click it. For a pure greeting or small talk, reply in one friendly sentence without a link.
-If a product detail is missing from the verified knowledge, say you are not sure and direct the customer to Discord support: https://discord.gg/ETuFknzhy.
+If a product detail is missing from the verified knowledge, say you are not sure and direct the customer to Discord support: https://discord.gg/ETuFknzhy. If the report is vague, ask one short clarifying question about what they see or which step fails instead of guessing.
 Keep answers short and friendly, at most 3 short paragraphs. Write plain conversational text with short paragraphs and simple dash lists. Never use headings, horizontal rules, code blocks, fences or backticks, and never output the character sequences ### or --- anywhere in a reply.""",
         AI_DEFAULT_KNOWLEDGE,
     ]
