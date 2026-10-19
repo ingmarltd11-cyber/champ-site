@@ -1889,13 +1889,16 @@ def ai_chat(p: AIChatReq):
     if endpoint and api_key:
         for model in dict.fromkeys(m for m in models if m):
             try:
-                response = requests.post(endpoint, headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}, json={
+                payload = {
                     "model": model,
                     "messages": messages,
                     "temperature": 0.2,
                     "top_p": 0.9,
-                    "max_tokens": 900,
-                }, timeout=25)
+                    "max_completion_tokens": 1200,
+                }
+                if model.startswith("openai/gpt-oss"):
+                    payload["reasoning_effort"] = "low"
+                response = requests.post(endpoint, headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}, json=payload, timeout=25)
                 if response.status_code == 200:
                     answer = response.json()["choices"][0]["message"]["content"].strip()
                     if answer:
