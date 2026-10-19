@@ -442,7 +442,9 @@ footer {
 .admin-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:28px; }
 .admin-editor { display:grid; gap:18px; margin-top:22px; }
 .admin-editor label { display:grid; gap:8px; color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.08em; }
-.admin-editor input,.admin-editor textarea { width:100%; background:#0c1020; color:var(--text); border:1px solid var(--border); border-radius:8px; padding:12px 14px; font:inherit; outline:none; }
+.admin-editor input,.admin-editor textarea,.admin-editor select { width:100%; background:#0c1020; color:var(--text); border:1px solid var(--border); border-radius:8px; padding:12px 14px; font:inherit; outline:none; }
+.admin-editor input[type="file"] { padding:10px 12px; }
+.admin-editor input[type="checkbox"] { width:auto; }
 .admin-editor textarea { min-height:120px; resize:vertical; }
 .admin-feature { padding:20px 0; border-top:1px solid var(--border); }
 @media (max-width: 1000px) { .pricing-grid-3 { grid-template-columns:repeat(2,minmax(0,1fr)); } .pricing-grid-4 { grid-template-columns:repeat(2,minmax(0,1fr)); } .feature-admin-grid { grid-template-columns:1fr; } }
@@ -859,3 +861,52 @@ footer {
 @media (max-width: 580px) {
   .proof-strip { grid-template-columns: 1fr; gap: 20px; }
 }
+
+/* ============================================================
+   ROUNDED CORNERS EVERYWHERE
+   One soft radius for every box; pills and circles keep their shape.
+   ============================================================ */
+:root { --radius: 16px; --radius-sm: 10px; }
+
+/* Anything that did not set its own radius gets the default. */
+*:not(html):not(body):not(table):not(thead):not(tbody):not(tr):not(td):not(th) {
+  border-radius: var(--radius);
+}
+
+/* Core components: no square corners left, whatever their old value was. */
+button, input, textarea, select,
+.btn-primary, .btn-ghost, .btn-hero, .btn-discord, .plan-cta, .modal-btn,
+.btn-download, .btn-purchase-direct, .btn-texture-download, .btn-texture-locked,
+.sidebar-link, .admin-tab, .admin-status-select, .ai-widget-button,
+.plan-card, .faq-item, .modal, .pay-method, .pay-input,
+.admin-editor input, .admin-editor textarea, .admin-card,
+.discord-card, .discord-icon-wrap, .feature-content-card, .feature-video,
+.texture-card, .texture-card-img, .find-card, .find-image,
+.review-card, .showcase-card, .proof-strip,
+.dash-card, .license-box, .dashboard-message, .dash-steps li,
+.ai-chat-window, .ai-msg, .ai-chat-form input, .ai-chat-form button,
+.admin-table-wrap {
+  border-radius: var(--radius) !important;
+}
+
+/* Pills stay pills. */
+.status-badge, .plan-badge, .pay-badge, .badge-vip, .admin-tab, .ai-widget-button {
+  border-radius: 999px !important;
+}
+
+/* Circles stay circles. */
+.discord-icon-wrap, .trust-dot, .plan-features li::before, .dash-steps li::before,
+.ai-badge-dot, input[type="radio"] {
+  border-radius: 50% !important;
+}
+
+/* Checkboxes should stay small and square-ish, not turn into pills. */
+input[type="checkbox"] { border-radius: 5px !important; }
+
+/* Full-bleed structural bars keep square screen edges. */
+nav, .mobile-menu, .site-announcement-bar, .dashboard-sidebar, .dashboard-shell, footer {
+  border-radius: 0 !important;
+}
+
+/* Table cells are part of a rounded wrapper, so keep them flush. */
+table, thead, tbody, tr, td, th { border-radius: 0 !important; }

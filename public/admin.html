@@ -60,6 +60,22 @@
           Hero Tagline (e.g. Minecraft 1.21.11 Fabric Mod)
           <input name="hero_tagline" id="settingHeroTagline" placeholder="Minecraft 1.21.11 Fabric Mod">
         </label>
+
+        <h3 style="margin-top:10px">Page texts</h3>
+        <p class="no-license-text" style="margin-top:-10px">Use <code>*text*</code> for the purple highlight and <code>|</code> for a line break.</p>
+        <label>Homepage hero title<input name="hero_title" id="settingHeroTitle" placeholder="Play at the|*highest level.*"></label>
+        <label>Homepage hero subtitle<textarea name="hero_sub" id="settingHeroSub" rows="3"></textarea></label>
+        <label>Pricing heading<input name="pricing_title" id="settingPricingTitle" placeholder="Simple *Pricing*"></label>
+        <label>Pricing subtitle<input name="pricing_sub" id="settingPricingSub"></label>
+        <label>Features heading<input name="features_title" id="settingFeaturesTitle" placeholder="Explore the *Features.*"></label>
+        <label>Features subtitle<textarea name="features_sub" id="settingFeaturesSub" rows="3"></textarea></label>
+        <label>Support heading<input name="support_title" id="settingSupportTitle" placeholder="Need *help?*"></label>
+        <label>Support subtitle<textarea name="support_sub" id="settingSupportSub" rows="2"></textarea></label>
+
+        <h3 style="margin-top:10px">Dashboard icons</h3>
+        <p class="no-license-text" style="margin-top:-10px">Pick the icon shown next to each dashboard item. Labels stay visible on mobile.</p>
+        <div id="adminDashboardIcons" class="admin-editor"></div>
+
         <button class="btn-primary" type="submit">Save Site Settings</button>
         <p id="settingsSaveMsg" class="save-message" style="display:none;"></p>
       </form>
@@ -89,7 +105,9 @@
         <form id="createTexturePackForm" class="admin-editor">
           <label>Pack Name<input name="name" required placeholder="e.g. Champ 16x Dark PvP"></label>
           <label>Description<textarea name="description" required placeholder="Description of swords, GUI, particles..."></textarea></label>
-          <label>Download URL<input name="download_url" required placeholder="https://... direct zip download or drive link"></label>
+          <label>Pack file (ZIP, max 32 MB)<input name="pack_file" id="packFile" type="file" accept=".zip,application/zip"></label>
+          <p class="no-license-text" style="margin-top:-8px">Upload the ZIP to host it here, or leave this empty and use an external download URL below.</p>
+          <label>Download URL (only when not uploading)<input name="download_url" placeholder="https://... direct zip download or drive link"></label>
           <label>Category<input name="category" value="PvP" required placeholder="e.g. PvP, Default, VIP Exclusive"></label>
           <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
             <input type="checkbox" name="is_customer_only" style="width:auto; margin:0;">

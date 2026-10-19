@@ -937,6 +937,46 @@ function escapeHtml(value) {
 function escapeAttr(value) { return escapeHtml(value); }
 
 // ============================================================
+// Editable page texts and dashboard icons
+// ============================================================
+const SITE_TEXT_KEYS = ['hero_title', 'hero_sub', 'pricing_title', 'pricing_sub',
+  'features_title', 'features_sub', 'support_title', 'support_sub'];
+const DASH_ICON_CHOICES = ['grid', 'download', 'layers', 'pin', 'key', 'card', 'gift',
+  'message', 'shield', 'help', 'star', 'sliders', 'user', 'box', 'zap'];
+const DASH_ICON_SECTIONS = [
+  ['overview', 'Overview'], ['install', 'Install'], ['texture-packs', 'Texture Packs'],
+  ['base-finds', 'Base Finds'], ['keys', 'Keys & Licenses'], ['billing', 'Subscriptions'],
+  ['referrals', 'Referrals'], ['discord', 'Discord'], ['security', 'Security'],
+  ['help', 'Help'], ['whats-new', "What's new"],
+];
+
+// *highlight* -> purple emphasis, | -> line break; everything else stays escaped text.
+function renderSiteText(value) {
+  return escapeHtml(value)
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+    .replace(/\|/g, '<br>');
+}
+
+function parseDashboardIcons(raw) {
+  if (!raw) return {};
+  if (typeof raw === 'object') return raw;
+  try { return JSON.parse(raw) || {}; } catch (_) { return {}; }
+}
+
+function applyDashboardIcons(raw) {
+  const icons = parseDashboardIcons(raw);
+  document.querySelectorAll('.sidebar-link').forEach(link => {
+    const section = link.dataset.section || link.dataset.dashSection;
+    const span = link.querySelector('[data-dash-icon]');
+    const icon = icons[section];
+    if (!span || !icon || !DASH_ICON_CHOICES.includes(icon)) return;
+    span.dataset.dashIcon = icon;
+    const use = span.querySelector('use');
+    if (use) use.setAttribute('href', `#i-${icon}`);
+  });
+}
+
+// ============================================================
 // Public Texture Packs Section & Announcement & Reviews
 // ============================================================
 async function loadPublicData() {
@@ -960,6 +1000,14 @@ async function loadPublicData() {
         const eb = document.getElementById('heroEyebrow');
         if (eb) eb.textContent = s.hero_tagline;
       }
+      SITE_TEXT_KEYS.forEach(key => {
+        const value = s[key];
+        if (typeof value !== 'string' || !value) return;
+        document.querySelectorAll(`[data-site-text="${key}"]`).forEach(el => {
+          el.innerHTML = renderSiteText(value);
+        });
+      });
+      applyDashboardIcons(s.dashboard_icons);
       if (s.youtube_video_url) {
         const wrap = document.getElementById('heroVideoEmbedWrap');
         const iframe = document.getElementById('heroVideoIframe');
@@ -1366,6 +1414,12 @@ async function loadAdminSettings() {
       if (document.getElementById('settingDiscordLink')) document.getElementById('settingDiscordLink').value = s.discord_link || '';
       if (document.getElementById('settingYoutubeUrl')) document.getElementById('settingYoutubeUrl').value = s.youtube_video_url || '';
       if (document.getElementById('settingHeroTagline')) document.getElementById('settingHeroTagline').value = s.hero_tagline || '';
+      SITE_TEXT_KEYS.forEach(key => {
+        const input = document.getElementById(`setting${key.replace(/(^|_)([a-z])/g, (_, __, c) => c.toUpperCase())}`);
+        if (!input) return;
+        input.value = typeof s[key] === 'string' ? s[key] : '';
+      });
+      renderAdminDashboardIcons(s.dashboard_icons);
     }
   } catch (_) {}
 
@@ -1383,6 +1437,15 @@ async function loadAdminSettings() {
       youtube_video_url: document.getElementById('settingYoutubeUrl').value,
       hero_tagline: document.getElementById('settingHeroTagline').value,
     };
+    SITE_TEXT_KEYS.forEach(key => {
+      const input = document.getElementById(`setting${key.replace(/(^|_)([a-z])/g, (_, __, c) => c.toUpperCase())}`);
+      if (input) payload[key] = input.value;
+    });
+    const iconPayload = {};
+    document.querySelectorAll('#adminDashboardIcons select[data-icon-section]').forEach(sel => {
+      iconPayload[sel.dataset.iconSection] = sel.value;
+    });
+    payload.dashboard_icons = JSON.stringify(iconPayload);
 
     const res = await api('/api/admin/settings', { method: 'POST', body: JSON.stringify(payload) });
     msg.style.display = 'block';
@@ -1390,6 +1453,18 @@ async function loadAdminSettings() {
     msg.textContent = res.ok ? 'Settings saved successfully!' : errorText(res.data, 'Could not save settings.');
     btn.disabled = false;
   });
+}
+
+function renderAdminDashboardIcons(raw) {
+  const wrap = document.getElementById('adminDashboardIcons');
+  if (!wrap) return;
+  const icons = parseDashboardIcons(raw);
+  wrap.innerHTML = DASH_ICON_SECTIONS.map(([section, label]) => {
+    const current = icons[section] || 'grid';
+    const options = DASH_ICON_CHOICES.map(name =>
+      `<option value="${name}"${name === current ? ' selected' : ''}>${name}</option>`).join('');
+    return `<label>${label}<select data-icon-section="${section}">${options}</select></label>`;
+  }).join('');
 }
 
 // Admin: Texture Packs
@@ -1415,7 +1490,7 @@ async function loadAdminTexturePacks() {
           <td><b>${escapeHtml(p.name)}</b></td>
           <td>${escapeHtml(p.category)}</td>
           <td>${p.is_customer_only ? '<span class="badge-vip">VIP Customers</span>' : '<span style="color:#4ade80">Public Free</span>'}</td>
-          <td><a href="${escapeAttr(p.download_url)}" target="_blank" style="color:#38bdf8">Link</a></td>
+          <td>${p.download_url ? `<a href="${escapeAttr(p.download_url)}" target="_blank" style="color:#38bdf8">Link</a>` : '<span style="color:#a78bfa">Hosted file</span>'}</td>
           <td><button class="btn-ghost" onclick="deleteAdminTexturePack(${p.id})" style="padding:4px 8px;font-size:12px;">Delete</button></td>
         </tr>
       `).join('') + `</tbody></table>`;
@@ -1435,22 +1510,60 @@ document.getElementById('createTexturePackForm')?.addEventListener('submit', asy
   e.preventDefault();
   const btn = this.querySelector('button[type="submit"]');
   const msg = document.getElementById('createPackMsg');
+  const file = this.elements['pack_file']?.files?.[0];
+  const url = this.elements['download_url'].value.trim();
   btn.disabled = true;
+  msg.style.display = 'none';
+
+  const fail = (text) => {
+    msg.style.display = 'block';
+    msg.style.color = '#ff6b6b';
+    msg.textContent = text;
+    btn.disabled = false;
+  };
 
   const data = {
-    name: this.elements['name'].value,
-    description: this.elements['description'].value,
-    download_url: this.elements['download_url'].value,
-    category: this.elements['category'].value,
+    name: this.elements['name'].value.trim(),
+    description: this.elements['description'].value.trim(),
+    category: this.elements['category'].value.trim() || 'PvP',
     is_customer_only: this.elements['is_customer_only'].checked,
-    image_url: this.elements['image_url'].value,
+    image_url: this.elements['image_url'].value.trim(),
     sort_order: parseInt(this.elements['sort_order'].value || '1', 10),
   };
 
-  const res = await api('/api/admin/texture-packs', { method: 'POST', body: JSON.stringify(data) });
+  let res;
+  if (file) {
+    if (!/\.zip$/i.test(file.name)) return fail('Choose a .zip texture pack.');
+    if (file.size > 32 * 1024 * 1024) return fail('The ZIP must be 32 MB or smaller.');
+    let base64;
+    try {
+      base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || '').split(',', 2)[1] || '');
+        reader.onerror = () => reject(new Error('read'));
+        reader.readAsDataURL(file);
+      });
+    } catch (_) {
+      return fail('Could not read that file. Please try again.');
+    }
+    if (!base64) return fail('Could not read that file. Please try again.');
+    res = await api('/api/admin/texture-packs/upload', {
+      method: 'POST',
+      body: JSON.stringify({ ...data, filename: file.name, file_base64: base64 }),
+    });
+  } else {
+    if (!url.startsWith('https://')) return fail('Enter an HTTPS download URL or choose a ZIP to upload.');
+    res = await api('/api/admin/texture-packs', {
+      method: 'POST',
+      body: JSON.stringify({ ...data, download_url: url }),
+    });
+  }
+
   msg.style.display = 'block';
   msg.style.color = res.ok ? '#4ade80' : '#ff6b6b';
-  msg.textContent = res.ok ? 'Texture pack created!' : errorText(res.data, 'Could not create pack.');
+  msg.textContent = res.ok
+    ? (file ? 'Texture pack uploaded!' : 'Texture pack created!')
+    : errorText(res.data, 'Could not create pack.');
   if (res.ok) {
     this.reset();
     loadAdminTexturePacks();

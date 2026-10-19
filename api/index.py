@@ -662,6 +662,15 @@ class SettingsUpdateReq(BaseModel):
     discord_link: Optional[str] = None
     youtube_video_url: Optional[str] = None
     hero_tagline: Optional[str] = None
+    hero_title: Optional[str] = None
+    hero_sub: Optional[str] = None
+    pricing_title: Optional[str] = None
+    pricing_sub: Optional[str] = None
+    features_title: Optional[str] = None
+    features_sub: Optional[str] = None
+    support_title: Optional[str] = None
+    support_sub: Optional[str] = None
+    dashboard_icons: Optional[str] = None
 
 
 class ReviewCreateReq(BaseModel):
@@ -1635,6 +1644,21 @@ def admin_update_find(find_id: int, p: AdminFindUpdateReq, admin: dict = Depends
 # --------------------------------------------------------------------------
 # Site Settings (Announcements, links, global video, etc.)
 # --------------------------------------------------------------------------
+DASH_ICON_CHOICES = ("grid", "download", "layers", "pin", "key", "card", "gift", "message",
+                     "shield", "help", "star", "sliders", "user", "box", "zap")
+DEFAULT_DASH_ICONS = {
+    "overview": "grid",
+    "install": "download",
+    "texture-packs": "layers",
+    "base-finds": "pin",
+    "keys": "key",
+    "billing": "card",
+    "referrals": "gift",
+    "discord": "message",
+    "security": "shield",
+    "help": "help",
+    "whats-new": "star",
+}
 @app.get("/api/settings")
 def get_site_settings():
     try:
@@ -1647,7 +1671,16 @@ def get_site_settings():
         "announcement_enabled": "true",
         "discord_link": "https://discord.gg/6vyQnVjeX",
         "youtube_video_url": "",
-        "hero_tagline": "The Ultimate Minecraft 1.21.11 Fabric Mod"
+        "hero_tagline": "The Ultimate Minecraft 1.21.11 Fabric Mod",
+        "hero_title": "Play at the|*highest level.*",
+        "hero_sub": "Champ Client is a 100% native Fabric Mod for Minecraft 1.21.11. Drop it straight into your mods folder — no injection, no external loaders.",
+        "pricing_title": "Simple *Pricing*",
+        "pricing_sub": "Pick your plan. Safe and instant checkout via Stripe.",
+        "features_title": "Explore the *Features.*",
+        "features_sub": "Native Fabric mod architecture with 178 modules, custom Dear ImGui render overlays, crystal macros, and DonutSMP base raiding suites. Preview clips can be updated directly from the admin panel.",
+        "support_title": "Need *help?*",
+        "support_sub": "The fastest way to reach us is on Discord — real support from the team, usually within hours.",
+        "dashboard_icons": json.dumps(DEFAULT_DASH_ICONS, separators=(",", ":")),
     }
     for r in rows:
         settings[r["key"]] = r["value"]
@@ -1667,6 +1700,23 @@ def update_site_settings(p: SettingsUpdateReq, admin: dict = Depends(current_adm
         updates["youtube_video_url"] = p.youtube_video_url.strip()
     if p.hero_tagline is not None:
         updates["hero_tagline"] = p.hero_tagline.strip()
+    for field in ("hero_title", "hero_sub", "pricing_title", "pricing_sub",
+                  "features_title", "features_sub", "support_title", "support_sub"):
+        value = getattr(p, field)
+        if value is not None:
+            updates[field] = value.strip()[:1200]
+    if p.dashboard_icons is not None:
+        try:
+            chosen = json.loads(p.dashboard_icons or "{}")
+        except Exception:
+            raise HTTPException(400, "Dashboard icons must be valid JSON.")
+        if not isinstance(chosen, dict):
+            raise HTTPException(400, "Dashboard icons must be a JSON object.")
+        icons = dict(DEFAULT_DASH_ICONS)
+        for section, icon in chosen.items():
+            if section in icons and icon in DASH_ICON_CHOICES:
+                icons[section] = icon
+        updates["dashboard_icons"] = json.dumps(icons, separators=(",", ":"))
 
     for k, v in updates.items():
         existing = db_get("site_settings", {"key": eq(k)})
