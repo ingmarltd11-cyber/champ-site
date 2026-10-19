@@ -115,7 +115,7 @@ def _sb_headers(extra: Optional[dict] = None) -> dict:
 
 def _sb(method: str, table: str, params=None, body=None, prefer: Optional[str] = None):
     if not SUPABASE_URL or not SUPABASE_KEY:
-        raise RuntimeError("SUPABASE_URL / SUPABASE_SERVICE_KEY are not configured.")
+        raise HTTPException(503, "Database is not configured on this deployment.")
     extra = {"Prefer": prefer} if prefer else None
     r = requests.request(
         method, f"{SUPABASE_URL}/rest/v1/{table}",
@@ -719,7 +719,11 @@ def admin_me(admin: dict = Depends(current_admin)):
 
 @app.get("/api/features")
 def public_features():
-    rows = db_list("features", {}, order="sort_order.asc")
+    try:
+        rows = db_list("features", {}, order="sort_order.asc")
+    except Exception as exc:
+        print("Features unavailable:", type(exc).__name__)
+        rows = []
     return {"features": rows}
 
 
@@ -1472,7 +1476,11 @@ def admin_update_find(find_id: int, p: AdminFindUpdateReq, admin: dict = Depends
 # --------------------------------------------------------------------------
 @app.get("/api/settings")
 def get_site_settings():
-    rows = db_list("site_settings", {}) or []
+    try:
+        rows = db_list("site_settings", {}) or []
+    except Exception as exc:
+        print("Site settings unavailable:", type(exc).__name__)
+        rows = []
     settings = {
         "announcement_text": "🔥 Champ Client 0.9.9.1 is out for Minecraft 1.21.11 Fabric Loader! Get Lifetime for €9.99 or Monthly for €6.99.",
         "announcement_enabled": "true",
@@ -1513,7 +1521,11 @@ def update_site_settings(p: SettingsUpdateReq, admin: dict = Depends(current_adm
 # --------------------------------------------------------------------------
 @app.get("/api/reviews")
 def get_reviews():
-    rows = db_list("reviews", {"status": eq("approved")}, limit=50, order="sort_order.asc")
+    try:
+        rows = db_list("reviews", {"status": eq("approved")}, limit=50, order="sort_order.asc")
+    except Exception as exc:
+        print("Reviews unavailable:", type(exc).__name__)
+        rows = []
     return {"reviews": rows}
 
 
