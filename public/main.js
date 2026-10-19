@@ -992,9 +992,7 @@ async function loadPublicData() {
           text.textContent = s.announcement_text;
           banner.style.display = 'flex';
           document.body.classList.add('has-announcement');
-          requestAnimationFrame(() => {
-            document.documentElement.style.setProperty('--announcement-h', `${banner.offsetHeight}px`);
-          });
+          document.documentElement.style.setProperty('--announcement-h', `${banner.offsetHeight}px`);
         }
       }
       if (s.discord_link) {
