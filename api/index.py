@@ -1907,6 +1907,11 @@ def ai_status():
         "model": (os.getenv("GROQ_MODEL") or "openai/gpt-oss-20b").strip(),
         "providers": {"groq": bool(groq_key), "openai": bool(openai_key)},
         "official_site": OFFICIAL_SITE,
+        "vercel_env": os.getenv("VERCEL_ENV"),
+        "provider_env_names": sorted(
+            name for name in os.environ
+            if re.search(r"(GROQ|OPENAI|LLM|AI_|_AI)", name, re.IGNORECASE)
+        ),
     }
 
 
