@@ -37,6 +37,12 @@ Gmail SMTP is suitable for low-volume verification mail but has daily sending li
 
 Vercel blocks outbound port 25 but allows 465 (implicit TLS) and 587 (STARTTLS), so Gmail SMTP works from a Vercel function. Verify the active transport with `/api/health`: `{"ok":true,"email":"smtp"}` means the SMTP variables were picked up, `"resend"` means `RESEND_API_KEY` wins, and `"none"` means verification mail cannot be sent yet.
 
+## Support assistant
+
+The assistant has two layers. The built-in layer runs first and needs no key, no admin knowledge and no network: it answers pricing, plans, payment methods, cancelling, installation, downloads and licences, account and password help, supported versions and compatibility, updates, texture packs, Base Finds, Discord linking, order problems, safety and contact questions, in English and for common Dutch phrasing. It returns the same answers on the website and through the Discord bot.
+
+With `GROQ_API_KEY` set, every question the built-in layer does not recognise is sent to Groq (`openai/gpt-oss-120b`, falling back to `llama-3.1-8b-instant`) with the product facts, live site settings, features and admin knowledge as context. If the key is missing, invalid or rate limited, the assistant falls back to the built-in answer instead of showing an error. Check the active layer at `/api/ai/status`: `"mode":"built-in"` or `"mode":"llm"`.
+
 ## Supabase database
 
 Connected Supabase project: **Champclient** (`ykmhjkkkskqyvdphzmkw`, `eu-west-1`). The website uses the service key server-side through PostgREST and Storage. Apply `supabase/schema.sql` when setting up the full website schema. Do not run the legacy instructions for creating a new Supabase project or for the Discord bot schema against this site project.
@@ -45,11 +51,12 @@ The `ai_knowledge` table was added to the connected project for the admin-manage
 
 ## Verification checklist
 
-1. Confirm all required Vercel variables are set for the environment currently deployed.
-2. Confirm Resend shows the sender domain as verified and `FROM_EMAIL` uses that domain.
-3. Open `/api/health` and confirm it returns `{"ok":true}` with `email` set to `resend` or `smtp` (not `none`).
-4. Register with an address you control; check inbox and spam for the 6-digit verification code, enter it on `/verify.html`, then sign in.
-5. If delivery fails, inspect the Vercel function logs and Resend email logs. Never log or share verification codes, passwords, API keys, or Supabase service keys.
+1. Confirm `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` and `JWT_SECRET` are set for the environment currently deployed.
+2. Open `/api/health` and confirm it returns `{"ok":true}`.
+3. Open `/api/ai/status` and confirm `"ready":true`; `mode` shows which assistant layer is active.
+4. Create an account on `/signup.html` and confirm you land signed in (dashboard, or checkout when a plan was chosen).
+5. Ask the assistant a pricing question and confirm it answers with the pricing link.
+6. Never log or share passwords, API keys or Supabase service keys.
 6. Test Stripe using test credentials and a test webhook before switching any billing variable to live mode.
 7. Set `OPENAI_API_KEY` or `GROQ_API_KEY` on Vercel to enable the interactive support assistant; add the same model provider key to the backend runtime only. The Discord bot calls `/api/ai/chat` with `channel=discord` and uses the same database-backed knowledge and per-ticket conversation history.
 

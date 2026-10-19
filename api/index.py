@@ -1868,7 +1868,13 @@ CHAMP CLIENT PRODUCT FACTS
 
 Product: Champ Client is a native Minecraft Java Fabric mod (.jar) for Minecraft 1.21.11. It is not an injection tool and needs no DLL injector. Install Fabric Loader 0.16 or newer, then place the .jar in the Minecraft mods folder. It is designed to work alongside Sodium, Lithium, FerriteCore and Iris shaders on 1.21.11.
 
-Plans and delivery: Monthly costs EUR 6.99 and can be cancelled anytime from the dashboard. Lifetime costs EUR 9.99 as a one-time payment and includes future 1.21.x updates. Checkout uses Stripe, which supports credit cards, debit cards, iDEAL and country-specific local payment methods. After successful payment the product is available in the customer's dashboard immediately, and a license confirmation email is sent. Downloads require an active license.
+Plans and delivery: Monthly costs EUR 6.99 and can be cancelled anytime from the dashboard. Lifetime costs EUR 9.99 as a one-time payment and includes future 1.21.x updates. Checkout uses Stripe, which supports credit cards, debit cards, iDEAL and country-specific local payment methods. After successful payment the product is available in the customer's dashboard immediately, and a license confirmation email is sent. Downloads require an active license. PayPal, crypto and other payment providers are not available in this shop; never suggest them.
+
+Refunds and billing: a Monthly plan can be cancelled at any time and stays active until the paid period ends. Refund terms are not confirmed here, so for refunds or billing mistakes say a staff member must review the order and point to Discord support. Never promise a refund.
+
+Compatibility and versions: the current build is 0.9.9.1 for Minecraft Java 1.21.11 with Fabric Loader 0.16 or newer. Forge and OptiFine are not supported. There is no support for Minecraft versions outside the 1.21.x line. Sodium, Lithium, FerriteCore and Iris shaders are the tested companions.
+
+Safety: it is a normal Fabric .jar in the mods folder, with no injector and no background program, and it is only distributed through this website and the customer dashboard. Never promise that a specific server or anti-cheat will not react to it, never promise it is undetectable, and never state or guess that it will or will not get someone banned.
 
 Accounts: Customers register with a username, password and email address and can sign in immediately, because email verification is currently disabled. If a customer cannot sign in, ask them to confirm their exact username or email and to use the "Forgot password" page; if that fails, direct them to Discord support. Never ask for a password.
 
@@ -1927,6 +1933,255 @@ def wants_features(text: str) -> bool:
 
 def features_answer() -> str:
     return FEATURES_REPLY.format(url=OFFICIAL_SITE + "/features.html")
+
+
+# --------------------------------------------------------------------------
+# Built-in support answers
+# --------------------------------------------------------------------------
+# These run before any AI provider is called and need no API key, no admin input
+# and no network access. They cover the questions support actually receives, so
+# the assistant keeps answering even when no provider is configured.
+SITE_LINKS = {
+    "home": OFFICIAL_SITE + "/",
+    "pricing": OFFICIAL_SITE + "/index.html#pricing",
+    "features": OFFICIAL_SITE + "/features.html",
+    "dashboard": OFFICIAL_SITE + "/dashboard.html",
+    "support": OFFICIAL_SITE + "/support.html",
+    "discord": DISCORD_INVITE,
+}
+
+
+def _answer_pricing() -> str:
+    return (
+        "Champ Client has two plans: Monthly is EUR 6.99 and you can cancel it any time from your dashboard. "
+        "Lifetime is EUR 9.99 as a one-time payment and includes future 1.21.x updates.\n\n"
+        "Checkout runs through Stripe, which accepts credit cards, debit cards, iDEAL and several local "
+        "payment methods. Your download and licence appear in your dashboard right after payment.\n\n"
+        f"Plans and pricing: {SITE_LINKS['pricing']}"
+    )
+
+
+def _answer_payment_methods() -> str:
+    return (
+        "Payments go through Stripe: credit cards, debit cards, iDEAL and country-specific local methods all work. "
+        "PayPal and crypto are not confirmed for this shop, so please do not count on them.\n\n"
+        f"Plans and pricing: {SITE_LINKS['pricing']}"
+    )
+
+
+def _answer_billing_change() -> str:
+    return (
+        "A Monthly plan can be cancelled any time from your dashboard; access stays active until the paid period ends. "
+        "Refunds are not something I can confirm here, so for a billing question a staff member should look at your "
+        "order with you.\n\n"
+        f"Dashboard: {SITE_LINKS['dashboard']}\nDiscord support: {SITE_LINKS['discord']}"
+    )
+
+
+def _answer_install() -> str:
+    return (
+        "Champ Client is a native Fabric mod for Minecraft 1.21.11, not an injector, so there is nothing to "
+        "inject. Install Fabric Loader 0.16 or newer, then drop the .jar from your dashboard into the Minecraft "
+        "mods folder and start the Fabric profile.\n\n"
+        "It is built to run alongside Sodium, Lithium, FerriteCore and Iris shaders on 1.21.11. Forge and "
+        "OptiFine are not supported.\n\n"
+        f"Download from your dashboard: {SITE_LINKS['dashboard']}\nSetup help: {SITE_LINKS['support']}"
+    )
+
+
+def _answer_download() -> str:
+    return (
+        "Downloads and your licence key live in your dashboard, and downloading needs an active licence. "
+        "After a successful payment they appear there immediately.\n\n"
+        f"Dashboard: {SITE_LINKS['dashboard']}"
+    )
+
+
+def _answer_account() -> str:
+    return (
+        "You can create an account with a username, email address and password and sign in straight away, "
+        "because email verification is currently switched off. Use the exact username or email you signed up with.\n\n"
+        "Password reset by email is unavailable at the moment, so if you are locked out, ask the team on Discord to "
+        "help you back into your account.\n\n"
+        f"Sign in: {SITE_LINKS['dashboard']}\nDiscord support: {SITE_LINKS['discord']}"
+    )
+
+
+def _answer_requirements() -> str:
+    return (
+        "Champ Client runs as a Fabric mod on Minecraft Java 1.21.11 with Fabric Loader 0.16 or newer. "
+        "There is no Forge or OptiFine build, and no support for older Minecraft versions beyond the 1.21.x line.\n\n"
+        f"Features and modules: {SITE_LINKS['features']}"
+    )
+
+
+def _answer_compatibility() -> str:
+    return (
+        "It is designed to work alongside Sodium, Lithium, FerriteCore and Iris shaders on Minecraft 1.21.11. "
+        "Other mods are usually fine, but if a specific combination misbehaves the team can check it with you.\n\n"
+        f"Support and setup help: {SITE_LINKS['support']}"
+    )
+
+
+def _answer_texture_packs() -> str:
+    return (
+        "Texture packs are part of the customer area: sign in and open your dashboard to see the packs that are "
+        "available to your account.\n\n"
+        f"Dashboard: {SITE_LINKS['dashboard']}"
+    )
+
+
+def _answer_base_finds() -> str:
+    return (
+        "Base Finds is a customer feature and needs an active licence. Sign in, then open the Base Finds page from "
+        "the navigation to browse or share finds.\n\n"
+        f"Dashboard: {SITE_LINKS['dashboard']}"
+    )
+
+
+def _answer_updates() -> str:
+    return (
+        "Lifetime includes future 1.21.x updates. The current build is 0.9.9.1 for Minecraft 1.21.11 on Fabric. "
+        "New builds show up in your dashboard when they are released.\n\n"
+        f"Dashboard: {SITE_LINKS['dashboard']}"
+    )
+
+
+def _answer_safety() -> str:
+    return (
+        "Champ Client is a normal Fabric mod: a .jar in your mods folder, no injector and no separate program "
+        "running in the background. It is only downloaded from this website and your dashboard.\n\n"
+        "I cannot promise how any specific server or anti-cheat will react, and I will not guess about bans. "
+        "Use it at your own risk and ask the team if you are unsure.\n\n"
+        f"Dashboard: {SITE_LINKS['dashboard']}\nDiscord support: {SITE_LINKS['discord']}"
+    )
+
+
+def _answer_what_is_it() -> str:
+    return (
+        "Champ Client is a native Minecraft Java Fabric mod for 1.21.11: it installs as a .jar, needs no injector, "
+        "and is built to run next to Sodium, Lithium, FerriteCore and Iris.\n\n"
+        f"Features and modules: {SITE_LINKS['features']}\nPlans and pricing: {SITE_LINKS['pricing']}"
+    )
+
+
+def _answer_trial() -> str:
+    return (
+        "There is no free trial or free version that I can confirm. The cheapest way to try it is the Monthly plan "
+        "at EUR 6.99, which you can cancel any time from your dashboard.\n\n"
+        f"Plans and pricing: {SITE_LINKS['pricing']}"
+    )
+
+
+def _answer_order_issue() -> str:
+    return (
+        "Sign in with the same email address you used at checkout: after a successful payment the download and "
+        "licence appear in your dashboard right away. If they are still missing, a staff member needs your order "
+        "email and roughly when you paid, so open a ticket on Discord. Never send card details or your password.\n\n"
+        f"Dashboard: {SITE_LINKS['dashboard']}\nDiscord support: {SITE_LINKS['discord']}"
+    )
+
+
+def _answer_devices() -> str:
+    return (
+        "I don't have a confirmed device or sharing limit for a licence, so I won't guess. Ask the team on Discord "
+        "with your account email and they can tell you exactly what is allowed for your plan.\n\n"
+        f"Discord support: {SITE_LINKS['discord']}"
+    )
+
+
+def _answer_discount() -> str:
+    return (
+        "I don't have a confirmed discount or coupon code, so I won't invent one. The current prices are Monthly "
+        "EUR 6.99 and Lifetime EUR 9.99, both listed on the pricing page. If you were given a code by the team, ask "
+        "them on Discord to check it for you.\n\n"
+        f"Plans and pricing: {SITE_LINKS['pricing']}\nDiscord support: {SITE_LINKS['discord']}"
+    )
+
+
+def _answer_license_issue() -> str:
+    return (
+        "First check that you are signed in with the email you paid with and that your plan shows as active in the "
+        "dashboard. If the licence is still rejected, open a ticket on Discord with your account email and the exact "
+        "message you see. Never post your licence key publicly.\n\n"
+        f"Dashboard: {SITE_LINKS['dashboard']}\nDiscord support: {SITE_LINKS['discord']}"
+    )
+
+
+def _answer_discord_link() -> str:
+    return (
+        "Sign in, open your dashboard and press the button to link Discord. Once linked, join the Discord server to "
+        "receive the Champ+ rank for your plan.\n\n"
+        f"Dashboard: {SITE_LINKS['dashboard']}\nDiscord: {SITE_LINKS['discord']}"
+    )
+
+
+def _answer_contact() -> str:
+    return (
+        "The fastest way to reach a real person is Discord: open a ticket there and describe your issue, and include "
+        "your account email for licence questions.\n\n"
+        f"Discord support: {SITE_LINKS['discord']}\nSupport page: {SITE_LINKS['support']}"
+    )
+
+
+# Ordered: the first matching topic wins, so specific intents come before broad ones.
+SUPPORT_TOPICS = (
+    ("trial", re.compile(r"\b(trial|free (version|trial|account)|demo|gratis|proefperiode|try before)\b", re.I), _answer_trial),
+    ("order_issue", re.compile(r"\b(paid|betaald|besteld|payment failed|betaling mislukt|no download|geen download|didn'?t (get|receive)|not received|niets ontvangen|my order|order (number|email|id|status)|bestelling|invoice|factuur|charged twice|double charged)\b", re.I), _answer_order_issue),
+    ("devices", re.compile(r"\b(devices?|machines?|how many (pc|pcs|computers?|accounts?|devices?)|account shar\w*|share my account|meerdere (pc|computers?))\b", re.I), _answer_devices),
+    ("license_issue", re.compile(r"\b(licen[cs]e( key)? (is )?(not working|doesn'?t work|does not work|won'?t work|invalid|broken|rejected|error)|licentie (werkt niet( meer)?|is ongeldig|ongeldig)|key (is )?(not working|doesn'?t work|invalid))\b", re.I), _answer_license_issue),
+    ("discord_link", re.compile(r"\b(link (my )?discord|discord (rank|role|link|koppel\w*)|champ\+)\b", re.I), _answer_discord_link),
+    ("discount", re.compile(r"\b(discount|korting|coupon|promo ?code|voucher|goedkoper)\b", re.I), _answer_discount),
+    ("payment_methods", re.compile(r"\b(ideal|paypal|credit ?card|debit ?card|betaalmethod\w*|payment method\w*|stripe|crypto|bitcoin|apple pay|google pay)\b", re.I), _answer_payment_methods),
+    ("billing", re.compile(r"\b(cancel|opzeg\w*|refund|money back|terugbetaling|chargeback|downgrade)\b", re.I), _answer_billing_change),
+    ("pricing", re.compile(r"\b(price|prices|pricing|cost|costs|costly|how much|hoeveel|kost\w*|prijs|plans?|abonnement\w*|subscription|monthly|lifetime|buy|kopen|purchase|checkout|betalen|order|bestellen)\b", re.I), _answer_pricing),
+    ("download", re.compile(r"\b(download\w*|licen[cs]e key|licentie|my key|serial|jar|dashboard)\b", re.I), _answer_download),
+    ("install", re.compile(r"\b(install\w*|set ?up|setup|fabric|mods? folder|forge|optifine|loader)\b", re.I), _answer_install),
+    ("requirements", re.compile(r"\b(version|versie|1\.\d{1,2}(\.\d+)?|requirements?|vereisten|java|minecraft|which mc|supported mc)\b", re.I), _answer_requirements),
+    ("compatibility", re.compile(r"\b(sodium|iris|lithium|ferritecore|shaders?|compatib\w*|conflict\w*|other mods?)\b", re.I), _answer_compatibility),
+    ("updates", re.compile(r"\b(updates?|new build|nieuwe versie|update policy|future version)"
+                          r"\b", re.I), _answer_updates),
+    ("texture_packs", re.compile(r"\b(texture ?packs?|resource ?packs?|cape|skins?)\b", re.I), _answer_texture_packs),
+    ("base_finds", re.compile(r"\b(base ?finds?|bases?|find a base|coords?)\b", re.I), _answer_base_finds),
+    ("safety", re.compile(r"\b(ban(ned)?|detect\w*|undetect\w*|anti[- ]?cheat|safe|veilig|virus|malware|rat|injector|injection|dll)\b", re.I), _answer_safety),
+    ("account", re.compile(r"\b(account|sign ?up|sign ?in|log ?in|inloggen|wachtwoord|password|reset|regist\w*|email|e-mail|verify|verification)\b", re.I), _answer_account),
+    ("what_is_it", re.compile(r"\b(champ client|champ|this (mod|client)|deze (mod|client))\b", re.I), _answer_what_is_it),
+    ("contact", re.compile(r"\b(discord|ticket|staff|human|a person|someone|contact (us|support)|reach (you|support)|talk to)\b", re.I), _answer_contact),
+)
+
+GREETING_PATTERN = re.compile(
+    r"^\s*(hi|hey|hello|yo|hoi|hallo|goedendag|goede(morgen|avond|middag)|good (morning|afternoon|evening)|sup|howdy)\b",
+    re.I,
+)
+THANKS_PATTERN = re.compile(r"^\s*(thanks|thank you|thx|dank(je| je)?|bedankt|top|nice)\b", re.I)
+
+
+def builtin_support_answer(text: str) -> Optional[str]:
+    """Answer common support questions without any AI provider or admin knowledge."""
+    question = (text or "").strip()
+    if not question:
+        return None
+
+    if len(question.split()) <= 6 and GREETING_PATTERN.search(question):
+        return ("Hi! I'm the Champ Client support assistant. Ask me about plans and pricing, installing the mod, "
+                "your dashboard or licence, or compatibility - or say what problem you are running into.")
+    if len(question.split()) <= 6 and THANKS_PATTERN.search(question):
+        return "You're welcome! If anything else comes up, just ask."
+
+    for _name, pattern, builder in SUPPORT_TOPICS:
+        if pattern.search(question):
+            return builder()
+    return None
+
+
+NO_PROVIDER_ANSWER = (
+    "I'm not certain enough about that one to answer it safely. A staff member can help you further on Discord, "
+    "usually within hours.\n\n"
+    f"Discord support: {SITE_LINKS['discord']}\n"
+    f"Support page: {SITE_LINKS['support']}\n"
+    f"Features and modules: {SITE_LINKS['features']}\n"
+    f"Plans and pricing: {SITE_LINKS['pricing']}"
+)
 
 
 LINK_PATTERN = re.compile(r"https?://[^\s<>\"']+")
@@ -2060,7 +2315,10 @@ def ai_status():
     groq_key, openai_key = provider_keys()
     return {
         "ok": True,
-        "model": (os.getenv("GROQ_MODEL") or "openai/gpt-oss-20b").strip(),
+        "mode": "llm" if (groq_key or openai_key) else "built-in",
+        "ready": True,
+        "builtin_topics": len(SUPPORT_TOPICS),
+        "model": (os.getenv("GROQ_MODEL") or "openai/gpt-oss-120b").strip(),
         "providers": {"groq": bool(groq_key), "openai": bool(openai_key)},
         "official_site": OFFICIAL_SITE,
         "vercel_env": os.getenv("VERCEL_ENV"),
@@ -2116,6 +2374,22 @@ def ai_chat(p: AIChatReq):
             "needs_escalation": False,
         }
 
+    # Answer the questions support actually receives here: instant, always accurate
+    # and independent of any AI provider, API key or admin-maintained knowledge.
+    builtin = builtin_support_answer(user_msg)
+    if builtin:
+        return {"reply": builtin, "escalation_url": DISCORD_INVITE, "needs_escalation": False}
+
+    # Without a provider there is nothing left to ask, so answer immediately instead of
+    # loading site knowledge the model would never see.
+    if not any(provider_keys()):
+        return {
+            "reply": NO_PROVIDER_ANSWER,
+            "escalation_url": DISCORD_INVITE,
+            "needs_escalation": True,
+            "mode": "built-in",
+        }
+
     knowledge = ai_knowledge_context()
     safe_history = []
     if p.channel == "discord":
@@ -2158,7 +2432,7 @@ def ai_chat(p: AIChatReq):
 
     # Prefer Groq's strongest production model for support reasoning; ignore
     # model names Groq has retired so an old environment value cannot break it.
-    groq_model = (os.getenv("GROQ_MODEL") or "openai/gpt-oss-20b").strip()
+    groq_model = (os.getenv("GROQ_MODEL") or "openai/gpt-oss-120b").strip()
     if groq_model in {
         "llama-3.3-70b-versatile",
         "llama-3.1-70b-versatile",
@@ -2185,15 +2459,13 @@ def ai_chat(p: AIChatReq):
             providers.append(openai_provider)
 
     if not providers:
-        return JSONResponse(
-            status_code=503,
-            content={
-                "reply": "The support assistant is not configured yet. Please open a support ticket in our Discord: https://discord.gg/ETuFknzhy",
-                "escalation_url": DISCORD_INVITE,
-                "needs_escalation": True,
-                "error": "provider_not_configured",
-            },
-        )
+        # No key configured: still answer, with the safest useful reply instead of an error.
+        return {
+            "reply": NO_PROVIDER_ANSWER,
+            "escalation_url": DISCORD_INVITE,
+            "needs_escalation": True,
+            "mode": "built-in",
+        }
 
     for provider, endpoint, api_key, models in providers:
         for model in dict.fromkeys(m for m in models if m):
@@ -2239,12 +2511,11 @@ def ai_chat(p: AIChatReq):
             except Exception as exc:
                 print("AI provider request failed:", provider, model, type(exc).__name__)
 
-    return JSONResponse(
-        status_code=503,
-        content={
-            "reply": "The support assistant is temporarily unavailable. Please open a support ticket in our Discord: https://discord.gg/ETuFknzhy",
-            "escalation_url": DISCORD_INVITE,
-            "needs_escalation": True,
-            "error": "provider_unavailable",
-        },
-    )
+    # Every provider failed (bad key, rate limit, network): fall back to the built-in
+    # answer so the chat keeps working instead of showing an error.
+    return {
+        "reply": NO_PROVIDER_ANSWER,
+        "escalation_url": DISCORD_INVITE,
+        "needs_escalation": True,
+        "mode": "built-in",
+    }
