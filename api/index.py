@@ -735,8 +735,16 @@ def current_admin(admin_session: Optional[str] = Cookie(None, alias="admin_sessi
 # --------------------------------------------------------------------------
 @app.get("/api/health")
 def health():
-    # Only the transport name: makes it obvious whether verification mail can be sent.
-    return {"ok": True, "email": email_transport()}
+    # Deployment diagnostics without values: which transport can send mail and whether
+    # this deployment can reach its database. "database": false means the Vercel
+    # environment is missing SUPABASE_URL / SUPABASE_SERVICE_KEY.
+    return {
+        "ok": True,
+        "email": email_transport(),
+        "database": bool(SUPABASE_URL and SUPABASE_KEY),
+        "ai": "llm" if any(provider_keys()) else "built-in",
+        "vercel_env": os.getenv("VERCEL_ENV"),
+    }
 
 
 @app.post("/api/admin/login")
