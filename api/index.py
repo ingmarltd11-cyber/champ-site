@@ -249,7 +249,7 @@ def send_email(to: str, subject: str, body_html: str) -> None:
         if DEV_MODE:
             print(f"[DEV] e-mail to {to}: {subject}")
             return
-        raise HTTPException(500, "E-mail service is not configured.")
+        raise HTTPException(503, "E-mail service is not configured.")
     r = requests.post(
         "https://api.resend.com/emails",
         headers={"Authorization": f"Bearer {key}"},
@@ -765,6 +765,10 @@ def signup(p: SignupReq):
     taken = "Email or username is already in use."
     if db_get("users", {"email": eq(email)}) or db_get("users", {"username_lower": eq(username.lower())}):
         raise HTTPException(409, taken)
+
+    # Do not create an unverifiable account when e-mail delivery is not set up.
+    if not os.getenv("RESEND_API_KEY") and not DEV_MODE:
+        raise HTTPException(503, "Email verification is temporarily unavailable. Please contact support.")
 
     try:
         user = db_insert("users", {
