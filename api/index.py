@@ -1884,7 +1884,7 @@ def ai_chat(p: AIChatReq):
         endpoint, api_key = "https://api.groq.com/openai/v1/chat/completions", groq_key
         # Prefer Groq's strongest general model for support reasoning; fall back
         # to a smaller model if the preferred one is unavailable on this plan.
-        models = [os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"), "llama-3.1-8b-instant"]
+        models = [os.getenv("GROQ_MODEL", "openai/gpt-oss-120b"), "openai/gpt-oss-20b", "llama-3.1-8b-instant"]
 
     if endpoint and api_key:
         for model in dict.fromkeys(m for m in models if m):
