@@ -130,6 +130,11 @@ def jwt_secret() -> str:
     return secret
 
 
+def sessions_ready() -> bool:
+    """A missing JWT secret must fail before an account is created."""
+    return len(os.getenv("JWT_SECRET", "")) >= 32
+
+
 def eq(value) -> str:
     return f"eq.{value}"
 
@@ -786,6 +791,7 @@ def health():
         "database_key": SUPABASE_KEY_ROLE,
         "database_key_source": SUPABASE_KEY_SOURCE or None,
         "database_writable": bool(SUPABASE_URL and SUPABASE_SERVER_KEY),
+        "sessions": sessions_ready(),
         "ai": "llm" if any(provider_keys()) else "built-in",
         "vercel_env": os.getenv("VERCEL_ENV"),
     }
@@ -871,6 +877,10 @@ def signup(p: SignupReq, response: Response):
     # RLS on every table means a public/anon key cannot create accounts. Say so
     # instead of failing later with an opaque 500 from the database.
     if SUPABASE_URL and SUPABASE_KEY and not SUPABASE_SERVER_KEY:
+        raise HTTPException(503, "Account creation is temporarily unavailable. Please contact support.")
+    # Without a session secret the insert would succeed and the response would
+    # still be a 500, leaving an account the customer believes was not created.
+    if not sessions_ready():
         raise HTTPException(503, "Account creation is temporarily unavailable. Please contact support.")
 
     taken = "Email or username is already in use."
@@ -1012,6 +1022,8 @@ def change_verification_email(p: ChangeEmailReq):
 
 @app.post("/api/auth/login")
 def login(p: LoginReq, response: Response):
+    if not sessions_ready():
+        raise HTTPException(503, "Sign-in is temporarily unavailable. Please contact support.")
     ident = p.identifier.strip().lower()
     user = db_get("users", {("email" if "@" in ident else "username_lower"): eq(ident)})
     if not user:
