@@ -191,10 +191,15 @@ nav {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: 16px; padding: 36px 32px;
   display: flex; flex-direction: column; gap: 20px;
-  position: relative; transition: border-color .2s;
+  position: relative; transition: border-color .2s, transform .25s, box-shadow .25s;
 }
-.plan-card:hover { border-color: var(--red); }
-.plan-card.featured { border-color: var(--red); background: #0e1024; }
+.plan-card:hover { border-color: var(--red); transform: translateY(-3px); box-shadow: 0 16px 40px rgba(0,0,0,.35); }
+.plan-card.featured {
+  border-color: var(--red);
+  background: linear-gradient(160deg, #161840 0%, #0c0d1f 70%);
+  box-shadow: 0 0 48px rgba(124,92,255,.14);
+}
+.plan-card.featured:hover { box-shadow: 0 16px 48px rgba(124,92,255,.22); }
 .plan-badge {
   position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
   background: var(--red); color: #fff;
@@ -208,11 +213,11 @@ nav {
 .plan-note { font-size: 12px; color: var(--muted); margin-top: -14px; }
 .plan-features { list-style: none; display: flex; flex-direction: column; gap: 10px; }
 .plan-features li {
-  display: flex; align-items: center; gap: 10px;
-  font-size: 14px; color: var(--muted);
+  display: flex; align-items: flex-start; gap: 10px;
+  font-size: 14px; line-height: 1.5; color: var(--muted);
 }
 .plan-features li::before {
-  content: ''; width: 6px; height: 6px;
+  content: ''; width: 6px; height: 6px; margin-top: .55em;
   border-radius: 50%; background: var(--red-hi); flex-shrink: 0;
 }
 .plan-cta {
