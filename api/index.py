@@ -1865,7 +1865,7 @@ def hide_hidden_hosts(text: str) -> str:
 
 
 HIDDEN_HOST_PATTERN = re.compile(
-    r"(?<![a-z0-9@-])(?:[a-z0-9-]+\.)*(?:" + "|".join(re.escape(h) for h in HIDDEN_HOSTS) + r")",
+    r"(?<![a-z0-9@-])(?:[a-z0-9-]+\.)*(?:" + "|".join(re.escape(h) for h in HIDDEN_HOSTS) + r")\b",
     re.IGNORECASE,
 )
 OFFICIAL_REPLY = "The only official website is " + OFFICIAL_SITE + ". Use it for downloads, pricing and your dashboard."
