@@ -1741,7 +1741,17 @@ def admin_delete_texture_pack(pack_id: int, admin: dict = Depends(current_admin)
 # AI Assistant with full knowledge base
 # --------------------------------------------------------------------------
 AI_DEFAULT_KNOWLEDGE = """
-Champ Client is a Minecraft Java Fabric mod for Minecraft 1.21.11, installed as a .jar in the mods folder (not an injection tool). Plans: EUR 9.99 lifetime and EUR 6.99 monthly. Customers register with username, password, and email, then verify a 6-digit email code valid for 10 minutes; email delivery requires a configured Resend API key, verified sender/domain and correct Vercel environment settings. Purchases use Stripe Checkout; licenses are created from signed Stripe webhook events and downloads require an active license. Texture packs can be public or customer-only. The admin panel manages announcements, links, videos, features, reviews, uploaded ZIP texture packs, orders, referrals and finds. Do not invent features, testimonials, downloads, compatibility promises, guarantees or legal advice. When a fact is not present in verified product knowledge, explicitly say it is not confirmed and direct the user to site support. Never disclose secrets, ask for passwords, or provide private account/license data.
+CHAMP CLIENT PRODUCT FACTS
+
+Product: Champ Client is a native Minecraft Java Fabric mod (.jar) for Minecraft 1.21.11. It is not an injection tool and needs no DLL injector. Install Fabric Loader 0.16 or newer, then place the .jar in the Minecraft mods folder. It is designed to work alongside Sodium, Lithium, FerriteCore and Iris shaders on 1.21.11.
+
+Plans and delivery: Monthly costs EUR 6.99 and can be cancelled anytime from the dashboard. Lifetime costs EUR 9.99 as a one-time payment and includes future 1.21.x updates. Checkout uses Stripe, which supports credit cards, debit cards, iDEAL and country-specific local payment methods. After successful payment the product is available in the customer's dashboard immediately, and a license confirmation email is sent. Downloads require an active license.
+
+Accounts: Customers register with a username, password and email address, then verify a 6-digit email code that is valid for 10 minutes. If the verification email does not arrive, ask the customer to check spam and request a new code; if it still fails, direct them to Discord support. Never ask for the code itself.
+
+Customer area: Texture Packs and Base Finds are customer features. Base Finds requires an active license. Both are only offered in the site navigation to signed-in customers; never promise them to visitors who are not signed in.
+
+Do not invent features, testimonials, downloads, compatibility promises, refunds, guarantees or legal advice. When a fact is not present in verified product knowledge, explicitly say it is not confirmed and direct the user to site support. Never disclose secrets, ask for passwords, or provide private account or license data.
 """
 
 
