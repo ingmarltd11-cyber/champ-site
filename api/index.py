@@ -1885,6 +1885,8 @@ Refunds and billing: a Monthly plan can be cancelled at any time and stays activ
 
 Compatibility and versions: the current build is 0.9.9.1 for Minecraft Java 1.21.11 with Fabric Loader 0.16 or newer. Forge and OptiFine are not supported. There is no support for Minecraft versions outside the 1.21.x line. Sodium, Lithium, FerriteCore and Iris shaders are the tested companions.
 
+Platforms: Windows, macOS and Linux all work wherever Minecraft Java 1.21.11 with Fabric runs; the mod has no OS-specific build. Minecraft 1.21.11 itself needs Java 21. Never state another Java version or an OS requirement that is not listed here.
+
 Safety: it is a normal Fabric .jar in the mods folder, with no injector and no background program, and it is only distributed through this website and the customer dashboard. Never promise that a specific server or anti-cheat will not react to it, never promise it is undetectable, and never state or guess that it will or will not get someone banned.
 
 Accounts: Customers register with a username, password and email address and can sign in immediately, because email verification is currently disabled. If a customer cannot sign in, ask them to confirm their exact username or email and to use the "Forgot password" page; if that fails, direct them to Discord support. Never ask for a password.
@@ -2065,6 +2067,8 @@ def _answer_safety() -> str:
         "running in the background. It is only downloaded from this website and your dashboard.\n\n"
         "I cannot promise how any specific server or anti-cheat will react, and I will not guess about bans. "
         "Use it at your own risk and ask the team if you are unsure.\n\n"
+        "If an antivirus flags the jar, make sure the file came from your dashboard and ask the team on Discord "
+        "to check it - never run a copy from another source.\n\n"
         f"Dashboard: {SITE_LINKS['dashboard']}\nDiscord support: {SITE_LINKS['discord']}"
     )
 
@@ -2162,7 +2166,7 @@ SUPPORT_TOPICS = (
     ("pricing", re.compile(r"\b(price|prices|pricing|cost|costs|costly|how much|hoeveel|kost\w*|prijs|plans?|abonnement\w*|subscription|monthly|lifetime|buy|kopen|purchase|checkout|betalen|order|bestellen)\b", re.I), _answer_pricing),
     # After pricing, because that answer already covers iDEAL and card payments.
     ("payment_methods", re.compile(r"\b(ideal|paypal|credit ?card|debit ?card|betaalmethod\w*|payment method\w*|stripe|crypto|bitcoin|apple pay|google pay)\b", re.I), _answer_payment_methods),
-    ("download", re.compile(r"\b(download\w*|licen[cs]e key|licentie|my key|serial|jar|dashboard)\b", re.I), _answer_download),
+    ("download", re.compile(r"\b(download\w*|licen[cs]e key|licentie|my key|serial|dashboard)\b", re.I), _answer_download),
     ("install", re.compile(r"\b(install\w*|set ?up|setup|fabric|mods? folder|forge|optifine|loader)\b", re.I), _answer_install),
     ("requirements", re.compile(r"\b(version|versie|1\.\d{1,2}(\.\d+)?|requirements?|vereisten|java|minecraft|which mc|supported mc)\b", re.I), _answer_requirements),
     ("compatibility", re.compile(r"\b(sodium|iris|lithium|ferritecore|shaders?|compatib\w*|conflict\w*|other mods?)\b", re.I), _answer_compatibility),
@@ -2170,7 +2174,7 @@ SUPPORT_TOPICS = (
                           r"\b", re.I), _answer_updates),
     ("texture_packs", re.compile(r"\b(texture ?packs?|resource ?packs?|cape|skins?)\b", re.I), _answer_texture_packs),
     ("base_finds", re.compile(r"\b(base ?finds?|bases?|find a base|coords?)\b", re.I), _answer_base_finds),
-    ("safety", re.compile(r"\b(ban(ned)?|detect\w*|undetect\w*|anti[- ]?cheat|safe|veilig|virus|malware|rat|injector|injection|dll)\b", re.I), _answer_safety),
+    ("safety", re.compile(r"\b(ban(ned)?|detect\w*|undetect\w*|anti[- ]?cheat|safe|veilig|virus|antivirus|malware|false positive|virus scanner|rat|injector|injection|dll)\b", re.I), _answer_safety),
     ("account", re.compile(r"\b(account|sign ?up|sign ?in|log ?in|inloggen|wachtwoord|password|reset|regist\w*|email|e-mail|verify|verification)\b", re.I), _answer_account),
     ("what_is_it", re.compile(r"\b(champ client|champ|this (mod|client)|deze (mod|client))\b", re.I), _answer_what_is_it),
     ("contact", re.compile(r"\b(discord|ticket|staff|human|a person|someone|contact (us|support)|reach (you|support)|talk to)\b", re.I), _answer_contact),
