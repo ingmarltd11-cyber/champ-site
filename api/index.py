@@ -1943,22 +1943,35 @@ LINK_TARGETS = (
 )
 
 
-def with_relevant_link(answer: str, question: str) -> str:
-    answer = (answer or "").strip()
-    if not answer or LINK_PATTERN.search(answer):
-        return answer
+REPLY_LIMIT = 1400
+
+
+def trim_to_sentence(text: str, limit: int) -> str:
+    if len(text) <= limit:
+        return text
+    cut = text[:limit]
+    stop = max(cut.rfind(". "), cut.rfind("! "), cut.rfind("? "), cut.rfind(chr(10)))
+    return (cut[: stop + 1] if stop > limit // 2 else cut).rstrip()
+
+
+def link_target(question: str, answer: str):
     haystack = f"{question} {answer}".lower()
     for pattern, label, href in LINK_TARGETS:
         if re.search(pattern, haystack):
-            suffix = chr(10) + chr(10) + label + ": " + href
-            room = 1180 - len(suffix)
-            body = answer[:room]
-            if len(answer) > room:
-                stop = max(body.rfind(". "), body.rfind("! "), body.rfind("? "), body.rfind(chr(10)))
-                if stop > room // 2:
-                    body = body[: stop + 1]
-            return body.rstrip() + suffix
-    return answer
+            return label, href
+    return None
+
+
+def finalize_reply(answer: str, question: str) -> str:
+    answer = trim_to_sentence((answer or "").strip(), REPLY_LIMIT)
+    if not answer or LINK_PATTERN.search(answer):
+        return answer
+    target = link_target(question, answer)
+    if not target:
+        return answer
+    label, href = target
+    suffix = chr(10) + chr(10) + label + ": " + href
+    return trim_to_sentence(answer, REPLY_LIMIT - len(suffix)) + suffix
 
 
 def provider_keys():
@@ -1984,7 +1997,7 @@ LINKS: these are the only URLs that exist. Always write them as full plain https
 - Discord support: {DISCORD_INVITE}
 Every answer about the product, prices, accounts, installation, downloads or problems must include the matching link on its own line, so the customer can click it. For a pure greeting or small talk, reply in one friendly sentence without a link.
 If a product detail is missing from the verified knowledge, say you are not sure and direct the customer to Discord support: https://discord.gg/ETuFknzhy.
-Keep answers brief and friendly, at most 3 short paragraphs. Never use markdown code blocks.""",
+Keep answers short and friendly, at most 3 short paragraphs. Write plain conversational text: no headings like ###, no horizontal rules like ---, and no code blocks, fences or backticks.""",
         AI_DEFAULT_KNOWLEDGE,
     ]
     try:
@@ -2194,7 +2207,7 @@ def ai_chat(p: AIChatReq):
                     payload.pop("reasoning_effort")
                     response = requests.post(endpoint, headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}, json=payload, timeout=25)
                 if response.status_code == 200:
-                    answer = with_relevant_link(hide_hidden_hosts(response.json()["choices"][0]["message"]["content"].strip()), user_msg)
+                    answer = finalize_reply(hide_hidden_hosts(response.json()["choices"][0]["message"]["content"].strip()), user_msg)
                     if answer:
                         if p.channel in ("discord", "website") or supplied_id:
                             table = "ai_conversations" if p.channel == "discord" else "website_ai_conversations"
@@ -2210,7 +2223,7 @@ def ai_chat(p: AIChatReq):
                                     print("AI conversation save failed:", exc.status)
                             except Exception as exc:
                                 print("AI conversation save failed:", type(exc).__name__)
-                        result = {"reply": answer[:1200], "escalation_url": DISCORD_INVITE, "needs_escalation": False}
+                        result = {"reply": answer[:1500], "escalation_url": DISCORD_INVITE, "needs_escalation": False}
                         if p.channel != "discord" and supplied_id:
                             result["session_id"] = supplied_id
                         return result

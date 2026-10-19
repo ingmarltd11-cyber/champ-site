@@ -1021,6 +1021,9 @@ try {
 function renderAIMessage(target, text) {
   const html = escapeHtml(text)
     .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '$1 ($2)')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/^-{3,}\s*$/gm, '')
+    .replace(/`([^`]+)`/g, '$1')
     .replace(/(https?:\/\/[^\s<>"']+)/g, (raw) => {
       const url = raw.replace(/[.,;:!?)]+$/, '');
       const trailing = raw.slice(url.length);
