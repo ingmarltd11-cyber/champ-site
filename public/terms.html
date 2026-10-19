@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Terms of Service — Champ Client</title>
+<link rel="icon" type="image/png" href="assets/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- NAV -->
+<nav style="position: relative;"> <!-- Relatief op login om ruimte te maken voor de form wrapper -->
+  <a class="nav-logo" href="index.html">
+    <img src="assets/logo.png" alt="Champ crab logo">
+    <span>Champ <em>Client</em></span>
+  </a>
+  <ul class="nav-links">
+    <li><a href="index.html#features">Features</a></li>
+    <li><a href="index.html#pricing">Pricing</a></li>
+    <li><a href="index.html#faq">FAQ</a></li>
+  </ul>
+  <div class="nav-actions">
+    <a href="login.html" class="btn-ghost" style="border-color: var(--red-hi); color: var(--red-hi);">Sign In</a>
+    <a href="signup.html" class="btn-primary">Get Started &rarr;</a>
+  </div>
+</nav>
+
+<!-- LEGAL CONTENT -->
+<div style="max-width: 760px; margin: 0 auto; padding: 60px 24px;">
+  <h1 class="modal-title" style="font-size: 32px;">Terms of Service</h1>
+  <p class="modal-sub">Last updated: September 2026</p>
+  <div class="modal-divider"></div>
+  <div class="legal-body" style="max-height: none; overflow: visible; font-size: 14px;">
+
+      <h3>1. Acceptance</h3>
+      <p>By purchasing or using Champ Client you agree to these Terms. If you do not agree, do not use the software.</p>
+
+      <h3>2. Licence</h3>
+      <p>We grant you a non-exclusive, non-transferable, revocable licence to use Champ Client for personal use only. You may not redistribute, resell, or sublicence the software.</p>
+
+      <h3>3. Acceptable Use</h3>
+      <p>You accept full responsibility for how you use the software. You agree not to use Champ Client to harass other players, target minors, or violate any applicable law. Use is at your own risk.</p>
+
+      <h3>4. Account Bans</h3>
+      <p>Server bans or Minecraft account bans arising from use of the software are solely your responsibility. We provide no refunds for bans.</p>
+
+      <h3>5. Refund Policy</h3>
+      <p>Refunds may be requested within 48 hours of purchase if the software failed to function on a supported configuration after following our setup guide. Refunds are issued at our discretion and are not guaranteed. Monthly subscriptions renew automatically until cancelled; you can cancel at any time from your dashboard and keep access until the end of the paid period.</p>
+
+      <h3>6. Updates &amp; Availability</h3>
+      <p>We endeavour to keep Champ Client functional and up-to-date. We reserve the right to modify, suspend, or discontinue features at any time without prior notice.</p>
+
+      <h3>7. Limitation of Liability</h3>
+      <p>To the maximum extent permitted by law, Champ Client is provided "as is" without warranties of any kind. We are not liable for any indirect, incidental, or consequential damages arising from use of the software.</p>
+
+      <h3>8. Intellectual Property</h3>
+      <p>All code, branding, and assets associated with Champ Client are the intellectual property of the Champ Client team. Reverse-engineering or decompiling the software is prohibited.</p>
+
+      <h3>9. Termination</h3>
+      <p>We may terminate your licence at any time for breach of these Terms without refund.</p>
+
+      <h3>10. Governing Law</h3>
+      <p>These Terms are governed by applicable law. Any disputes shall be resolved through good-faith negotiation or, failing that, binding arbitration.</p>
+    </div>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">
+    <img src="assets/logo.png" alt="Champ">
+    Champ <em style="font-style:italic;color:var(--red-hi)">Client</em>
+  </div>
+  <div class="footer-links">
+    <a href="privacy.html">Privacy Policy</a>
+    <a href="terms.html">Terms of Service</a>
+  </div>
+  <p class="footer-copy">&copy; 2026 Champ Client. Not affiliated with Mojang or Microsoft.</p>
+</footer>
+
+<script>
+// Voegt de focus glow toe aan de input velden zonder je CSS-bestand aan te hoeven passen
+document.querySelectorAll('input').forEach(input => {
+  input.addEventListener('focus', () => {
+    input.style.borderColor = '#7c5cff';
+    input.style.boxShadow = '0 0 10px rgba(124,92,255,.35)';
+  });
+  input.addEventListener('blur', () => {
+    input.style.borderColor = 'rgba(255,255,255,.07)';
+    input.style.boxShadow = 'none';
+  });
+});
+</script>
+
+</body>
+</html>

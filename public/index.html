@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Champ Client — Minecraft 1.21.11 Fabric Mod</title>
+<link rel="icon" type="image/png" href="assets/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ANNOUNCEMENT BANNER -->
+<div id="siteAnnouncementBanner" class="site-announcement-bar" style="display:none;">
+  <span id="siteAnnouncementText"></span>
+  <button onclick="dismissAnnouncement()" class="announcement-close" aria-label="Close announcement">&times;</button>
+</div>
+
+<!-- NAV -->
+<nav>
+  <a class="nav-logo" href="#">
+    <img src="assets/logo.png" alt="Champ crab logo">
+    <span>Champ <em>Client</em></span>
+  </a>
+  <ul class="nav-links">
+    <li><a href="features.html">Features</a></li>
+    <li><a href="#texture-packs">Texture Packs</a></li>
+    <li><a href="finds.html">Base Finds</a></li>
+    <li><a href="#reviews">Reviews</a></li>
+    <li><a href="#pricing">Pricing</a></li>
+    <li><a href="support.html">Support</a></li>
+    <li><a href="#faq">FAQ</a></li>
+  </ul>
+  <div class="nav-actions">
+    <a href="login.html" class="btn-ghost">Sign In</a>
+    <a href="#" onclick="handleGetStarted(event)" class="btn-primary">Get Started &rarr;</a>
+    <button class="hamburger" onclick="toggleMenu()" aria-label="Menu">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</nav>
+
+<div class="mobile-menu" id="mobileMenu">
+  <a href="index.html" onclick="toggleMenu()">Homepage</a>
+  <a href="features.html" onclick="toggleMenu()">Features</a>
+  <a href="#texture-packs" onclick="toggleMenu()">Texture Packs</a>
+  <a href="finds.html" onclick="toggleMenu()">Base Finds</a>
+  <a href="#reviews" onclick="toggleMenu()">Reviews</a>
+  <a href="#pricing" onclick="toggleMenu()">Pricing</a>
+  <a href="support.html" onclick="toggleMenu()">Support</a>
+  <a href="login.html" onclick="toggleMenu()">Sign In</a>
+</div>
+
+<!-- HERO -->
+<section class="hero">
+  <img class="hero-logo" src="assets/logo.png" alt="Champ Client logo">
+  <p class="hero-eyebrow" id="heroEyebrow">Minecraft 1.21.11 Fabric Mod</p>
+  <h1 class="hero-title">Play at the<br><em>highest level.</em></h1>
+  <p class="hero-sub" id="heroSub">
+    Champ Client is a 100% native Fabric Mod for Minecraft 1.21.11.
+    Drop it straight into your mods folder &mdash; no injection, no external loaders.
+  </p>
+  <div class="hero-ctas">
+    <a href="#pricing" class="btn-hero">Get Started &rarr;</a>
+    <a href="features.html" class="btn-ghost" style="padding: 14px 28px; font-size: 15px;">Explore Features &rarr;</a>
+  </div>
+  <div class="hero-trust">
+    <span class="trust-badge"><span class="trust-dot"></span>Native Fabric Mod (.jar)</span>
+    <span class="trust-badge"><span class="trust-dot"></span>Instant Delivery</span>
+    <span class="trust-badge"><span class="trust-dot"></span>No Injection Needed</span>
+    <span class="trust-badge"><span class="trust-dot"></span>Sodium &amp; Iris Ready</span>
+  </div>
+</section>
+
+<!-- FEATURES BAR -->
+<div class="features-bar">
+  <div class="feature-item">
+    <svg class="feature-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#7c5cff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+      <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+      <line x1="12" y1="22.08" x2="12" y2="12"/>
+    </svg>
+    Fabric Mod (mods folder)
+  </div>
+  
+  <div class="feature-item">
+    <svg class="feature-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#7c5cff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M15.914 4a1.5 1.5 0 00-2.474-1.561l-9 9A1.5 1.5 0 005.5 14h4.002a.5.5 0 01.471.666L8.086 20a1.5 1.5 0 002.475 1.56l9-9A1.5 1.5 0 0018.5 10h-3.997a.5.5 0 01-.472-.667z"/>
+    </svg>
+    Instant Account Delivery
+  </div>
+  
+  <div class="feature-item">
+    <svg class="feature-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#7c5cff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+    </svg>
+    €9.99 Lifetime / €6.99 Monthly
+  </div>
+  
+  <div class="feature-item">
+    <svg class="feature-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#7c5cff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect width="20" height="14" x="2" y="5" rx="2"/>
+      <line x1="2" x2="22" y1="10" y2="10"/>
+    </svg>
+    Secure Stripe Checkout
+  </div>
+</div>
+
+<!-- SHOWCASE & VIDEO -->
+<section class="showcase-section" id="showcase">
+  <h2 class="showcase-title" id="showcaseTitle">See it in <em>action.</em></h2>
+  <p class="showcase-sub" id="showcaseSub">Fabric 1.21.11 gameplay and showcase clips straight from the client.</p>
+  
+  <!-- Dynamic global video container managed via Admin -->
+  <div id="heroVideoEmbedWrap" style="display:none; max-width:860px; margin:0 auto 36px; border-radius:14px; overflow:hidden; border:1px solid var(--border); box-shadow:0 12px 36px rgba(0,0,0,.6);">
+    <div style="position:relative; padding-bottom:56.25%; height:0;">
+      <iframe id="heroVideoIframe" src="" style="position:absolute; top:0; left:0; width:100%; height:100%; border:0;" allowfullscreen></iframe>
+    </div>
+  </div>
+
+  <div class="showcase-grid" id="showcaseGrid"></div>
+  <div class="proof-strip">
+    <div class="proof-item"><span class="proof-num">178</span><span class="proof-label">Modules built in</span></div>
+    <div class="proof-item"><span class="proof-num">Fabric 1.21.11</span><span class="proof-label">Native client mod</span></div>
+    <div class="proof-item"><span class="proof-num">Instant</span><span class="proof-label">Automatic delivery</span></div>
+  </div>
+</section>
+
+<!-- TEXTURE PACKS SECTION -->
+<section class="texture-section" id="texture-packs">
+  <div class="texture-wrap">
+    <h2 class="section-title">Custom <em>Texture Packs</em></h2>
+    <p class="section-sub">PvP and optimized resource packs built and curated for Champ Client players. Free packs for all visitors, VIP packs unlocked for active customers.</p>
+    <div id="texturePacksGrid" class="texture-grid">
+      <p class="no-license-text">Loading texture packs...</p>
+    </div>
+  </div>
+</section>
+
+<!-- REVIEWS -->
+<section class="reviews-section" id="reviews">
+  <h2 class="reviews-title">What our <em>community</em> says</h2>
+  <p class="reviews-sub">Straight from verified Champ Client members &amp; Discord players.</p>
+  <div class="reviews-grid" id="reviewsGrid">
+    <figure class="review-card">
+      <div class="review-stars" role="img" aria-label="5 out of 5 stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+      <blockquote class="review-text">&ldquo;Best client mod for 1.21.11. The Fabric integration is butter smooth and crystal PvP is instant.&rdquo;</blockquote>
+      <figcaption class="review-author">VortexPvP &bull; Verified Buyer</figcaption>
+    </figure>
+    <figure class="review-card">
+      <div class="review-stars" role="img" aria-label="5 out of 5 stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+      <blockquote class="review-text">&ldquo;Lifetime for €9.99 is insane value. Base finder and anchor macro worked immediately without any lag.&rdquo;</blockquote>
+      <figcaption class="review-author">Kxng_Shadow &bull; Lifetime Member</figcaption>
+    </figure>
+    <figure class="review-card">
+      <div class="review-stars" role="img" aria-label="5 out of 5 stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+      <blockquote class="review-text">&ldquo;Been using it on DonutSMP for weeks. Auto totems and AH sniper are unbeatable.&rdquo;</blockquote>
+      <figcaption class="review-author">DonutGrinder99 &bull; Verified Buyer</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section class="pricing-section" id="pricing">
+  <h2 class="pricing-title">Simple <em>Pricing</em></h2>
+  <p class="pricing-sub">Pick your plan. Safe and instant checkout via Stripe.</p>
+  <div class="pricing-cards pricing-grid-2">
+    <div class="plan-card">
+      <div class="plan-name">Champ Monthly</div>
+      <div class="plan-price"><span class="plan-amount">&euro;6.99</span><span class="plan-period">/month</span></div>
+      <p class="plan-note">Full access, billed monthly &mdash; cancel anytime</p>
+      <ul class="plan-features">
+        <li>178 Modules &amp; Full Mod Access</li>
+        <li>Minecraft 1.21.11 (Fabric Loader)</li>
+        <li>Instant Account Dashboard &amp; Download</li>
+        <li>Free Texture Packs Included</li>
+        <li>Cancel anytime from dashboard</li>
+      </ul>
+      <button class="plan-cta" onclick="openPurchase('monthly')">Get Monthly (&euro;6.99)</button>
+    </div>
+    <div class="plan-card featured">
+      <div class="plan-badge">Most popular</div>
+      <div class="plan-name">Champ Lifetime</div>
+      <div class="plan-price"><span class="plan-amount">&euro;9.99</span><span class="plan-period">one-time</span></div>
+      <p class="plan-note">One single payment, lifetime access &amp; updates</p>
+      <ul class="plan-features">
+        <li>Everything in Monthly &mdash; Yours Forever</li>
+        <li>All Future 1.21.x Updates Included</li>
+        <li>VIP Exclusive Texture Packs</li>
+        <li>Discord Champ+ Rank Access</li>
+        <li>Instant Delivery After Checkout</li>
+      </ul>
+      <button class="plan-cta" onclick="openPurchase('lifetime')">Get Lifetime (&euro;9.99)</button>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section id="faq" class="faq-section">
+  <h2 class="faq-title">Frequently Asked Questions</h2>
+
+  <div class="faq-container">
+    <div class="faq-item">
+      <h3 class="faq-question">Is Champ Client an injection or a mod?</h3>
+      <p class="faq-answer">Champ Client is a 100% native Fabric Mod (.jar). You do not need any external injection tools or DLL injectors. You simply put the file into your Minecraft <code>mods/</code> directory with Fabric Loader 0.16+ installed.</p>
+    </div>
+
+    <div class="faq-item">
+      <h3 class="faq-question">How quickly will I receive my product after payment?</h3>
+      <p class="faq-answer">Thanks to instant delivery, the product is available in your account immediately after payment. You will also receive your license confirmation by email.</p>
+    </div>
+
+    <div class="faq-item">
+      <h3 class="faq-question">Does it work with Sodium and Iris shaders?</h3>
+      <p class="faq-answer">Yes! Champ Client is optimized to work smoothly alongside Sodium, Lithium, FerriteCore, and Iris shaders on Minecraft 1.21.11.</p>
+    </div>
+
+    <div class="faq-item">
+      <h3 class="faq-question">Which payment methods are supported?</h3>
+      <p class="faq-answer">Payments are processed securely by Stripe. Credit cards, debit cards, iDEAL, and country-specific local payment options are supported.</p>
+    </div>
+  </div>
+</section>
+
+<!-- DISCORD CTA -->
+<section class="discord-section">
+  <div class="discord-card">
+    <div class="discord-left">
+      <div class="discord-icon-wrap">
+        <img src="assets/discord-icon.webp" alt="Discord">
+      </div>
+      <div>
+        <div class="discord-text-label">Join the Champ Community</div>
+        <div class="discord-text-sub">Real support, updates &amp; feedback &mdash; all on Discord.</div>
+      </div>
+    </div>
+    <a href="https://discord.gg/ETuFknzhy" target="_blank" rel="noopener" class="btn-discord" id="discordLinkCta">
+      Join Discord &rarr;
+    </a>
+  </div>
+</section>
+
+<!-- FLOATING AI ASSISTANT WIDGET -->
+<div id="aiChatWidget" class="ai-widget-container">
+  <button id="aiWidgetToggle" class="ai-widget-button" onclick="toggleAIChat()" aria-label="Open AI Assistant">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+    </svg>
+    <span>Ask Champ AI</span>
+  </button>
+
+  <div id="aiChatWindow" class="ai-chat-window" style="display:none;">
+    <div class="ai-chat-header">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span class="ai-badge-dot"></span>
+        <strong>Champ Assistant</strong>
+      </div>
+      <button class="ai-chat-close" onclick="toggleAIChat()" aria-label="Close chat">&times;</button>
+    </div>
+    <div class="ai-chat-messages" id="aiChatMessages">
+      <div class="ai-msg ai-bot">
+        Hello! I'm the official Champ Client AI Assistant. Ask me anything about our Fabric mod, 1.21.11 features, installation, pricing (€9.99 Lifetime / €6.99 Monthly), or texture packs!
+      </div>
+    </div>
+    <form id="aiChatForm" class="ai-chat-form" onsubmit="handleAIChatSubmit(event)">
+      <input type="text" id="aiChatInput" placeholder="Ask a question..." autocomplete="off" required>
+      <button type="submit" aria-label="Send message">&rarr;</button>
+    </form>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">
+    <img src="assets/logo.png" alt="Champ">
+    Champ <em style="font-style:italic;color:var(--red-hi)">Client</em>
+  </div>
+  <div class="footer-links">
+    <a href="features.html">Features</a>
+    <a href="#texture-packs">Texture Packs</a>
+    <a href="finds.html">Base Finds</a>
+    <a href="privacy.html">Privacy Policy</a>
+    <a href="terms.html">Terms of Service</a>
+  </div>
+  <p class="footer-copy">
+    &copy; 2026 Champ Client. Not affiliated with Mojang or Microsoft. Minecraft is a trademark of Mojang AB.
+  </p>
+</footer>
+
+<script src="main.js"></script>
+</body>
+</html>

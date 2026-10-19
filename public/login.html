@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign In — Champ Client</title>
+<link rel="icon" type="image/png" href="assets/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- NAV -->
+<nav style="position: relative;"> <!-- Relatief op login om ruimte te maken voor de form wrapper -->
+  <a class="nav-logo" href="index.html">
+    <img src="assets/logo.png" alt="Champ crab logo">
+    <span>Champ <em>Client</em></span>
+  </a>
+  <ul class="nav-links">
+    <li><a href="index.html#features">Features</a></li>
+    <li><a href="index.html#pricing">Pricing</a></li>
+    <li><a href="index.html#faq">FAQ</a></li>
+  </ul>
+  <div class="nav-actions">
+    <a href="login.html" class="btn-ghost" style="border-color: var(--red-hi); color: var(--red-hi);">Sign In</a>
+    <a href="signup.html" class="btn-primary">Get Started &rarr;</a>
+  <button class="hamburger" onclick="toggleMenu()" aria-label="Menu"><span></span><span></span><span></span></button>
+  </div>
+</nav>
+
+<div class="mobile-menu" id="mobileMenu">
+  <a href="features.html" onclick="toggleMenu()">Features</a>
+  <a href="index.html#pricing" onclick="toggleMenu()">Pricing</a>
+  <a href="index.html#faq" onclick="toggleMenu()">FAQ</a>
+  <a href="login.html" onclick="toggleMenu()">Sign In</a>
+</div>
+
+<!-- LOGIN CENTER CONTAINER -->
+<div style="display: flex; justify-content: center; align-items: center; min-height: calc(100vh - 192px); padding: 40px 24px;">
+  <div style="background: var(--surface); border: 1px solid var(--border); width: 100%; max-width: 420px; padding: 40px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); text-align: center;">
+    
+    <img src="assets/logo.png" alt="Champ" style="width: 48px; height: 48px; margin-bottom: 16px; object-fit: contain;">
+    <h1 style="font-size: 24px; font-weight: 600; color: var(--text); margin-bottom: 8px;">Welcome Back</h1>
+    <p style="font-size: 14px; color: var(--muted); margin-bottom: 32px;">Log in to access your Champ dashboard.</p>
+    <p id="formMessage" style="display:none;font-size:13px;margin-bottom:20px;line-height:1.5"></p>
+    
+    <form id="loginForm" style="text-align: left;">
+      <!-- USERNAME / EMAIL -->
+      <div style="display: flex; flex-direction: column; margin-bottom: 20px;">
+        <label for="loginUser" style="font-size: 11px; font-weight: 600; color: var(--muted); letter-spacing: 0.05em; margin-bottom: 8px;">USERNAME OR EMAIL</label>
+        <input type="text" id="loginUser" required placeholder="Username or email" autocomplete="username"
+               style="width: 100%; background: #111112; border: 1px solid rgba(255,255,255,.07); border-radius: 6px; padding: 12px 16px; color: #F0EDE8; font-family: 'Inter', sans-serif; font-size: 14px; outline: none; transition: border-color .2s;">
+      </div>
+
+      <!-- PASSWORD -->
+      <div style="display: flex; flex-direction: column; margin-bottom: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <label for="loginPassword" style="font-size: 11px; font-weight: 600; color: var(--muted); letter-spacing: 0.05em;">PASSWORD</label>
+          <a href="reset.html" style="font-size: 12px; color: #3b82f6; text-decoration: none;">Forgot?</a>
+        </div>
+        <input type="password" id="loginPassword" required autocomplete="current-password" placeholder="••••••••"
+               style="width: 100%; background: #111112; border: 1px solid rgba(255,255,255,.07); border-radius: 6px; padding: 12px 16px; color: #F0EDE8; font-family: 'Inter', sans-serif; font-size: 14px; outline: none; transition: border-color .2s;">
+      </div>
+
+      <!-- SUBMIT BUTTON -->
+      <button type="submit" class="btn-primary" style="width: 100%; padding: 12px; font-size: 14px; font-weight: 600; margin-bottom: 16px;">Sign In</button>
+      <p style="text-align:center;margin:0 0 20px"><a href="#" id="resendLink" style="display:none;color:#3b82f6;font-size:13px">Resend verification code</a></p>
+    </form>
+
+    <!-- FOOTNOTE / SIGN UP LINK -->
+    <p style="font-size: 14px; color: var(--muted); margin: 0;">
+      Don't have an account? <a href="signup.html" style="color: #3b82f6; text-decoration: underline; font-weight: 500;">Sign up</a>
+    </p>
+
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">
+    <img src="assets/logo.png" alt="Champ">
+    Champ <em style="font-style:italic;color:var(--red-hi)">Client</em>
+  </div>
+  <div class="footer-links">
+    <a href="privacy.html">Privacy Policy</a>
+    <a href="terms.html">Terms of Service</a>
+  </div>
+  <p class="footer-copy">&copy; 2026 Champ Client. Not affiliated with Mojang or Microsoft.</p>
+</footer>
+
+<script>
+// Voegt de focus glow toe aan de input velden zonder je CSS-bestand aan te hoeven passen
+document.querySelectorAll('input').forEach(input => {
+  input.addEventListener('focus', () => {
+    input.style.borderColor = '#7c5cff';
+    input.style.boxShadow = '0 0 10px rgba(124,92,255,.35)';
+  });
+  input.addEventListener('blur', () => {
+    input.style.borderColor = 'rgba(255,255,255,.07)';
+    input.style.boxShadow = 'none';
+  });
+});
+</script>
+
+<script src="main.js"></script>
+</body>
+</html>

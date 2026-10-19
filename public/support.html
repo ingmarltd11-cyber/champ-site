@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Champ Client — Support</title>
+<link rel="icon" type="image/png" href="assets/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav>
+  <a class="nav-logo" href="index.html">
+    <img src="assets/logo.png" alt="Champ crab logo">
+    <span>Champ <em>Client</em></span>
+  </a>
+  <ul class="nav-links">
+    <li><a href="features.html">Features</a></li>
+    <li><a href="finds.html">Base Finds</a></li>
+    <li><a href="index.html#pricing">Pricing</a></li>
+    <li><a href="support.html">Support</a></li>
+  </ul>
+  <div class="nav-actions">
+    <a href="login.html" class="btn-ghost">Sign In</a>
+    <a href="dashboard.html" class="btn-primary">Dashboard &rarr;</a>
+    <button class="hamburger" onclick="toggleMenu()" aria-label="Menu">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</nav>
+
+<div class="mobile-menu" id="mobileMenu">
+  <a href="index.html" onclick="toggleMenu()">Homepage</a>
+  <a href="features.html" onclick="toggleMenu()">Features</a>
+  <a href="finds.html" onclick="toggleMenu()">Base Finds</a>
+  <a href="index.html#pricing" onclick="toggleMenu()">Pricing</a>
+  <a href="support.html" onclick="toggleMenu()">Support</a>
+  <a href="login.html" onclick="toggleMenu()">Sign In</a>
+</div>
+
+<main class="page-wrap">
+  <h1 class="page-title">Need <em>help?</em></h1>
+  <p class="page-sub">The fastest way to reach us is on Discord — real support from the team, usually within hours.</p>
+
+  <section class="discord-section" style="margin:40px auto;max-width:640px">
+    <div class="discord-card" style="flex-direction:column;align-items:stretch;text-align:center;padding:36px 28px">
+      <div class="discord-icon-wrap" style="margin:0 auto 18px;width:56px;height:56px">
+        <img src="assets/discord-icon.webp" alt="Discord" style="width:32px;height:32px">
+      </div>
+      <div class="discord-text-label" style="font-size:18px;margin-bottom:6px">Get support on Discord</div>
+      <div class="discord-text-sub" style="margin-bottom:24px">Join the server, open a ticket and describe your issue.<br>Include your account email for license questions.</div>
+      <a href="https://discord.gg/ETuFknzhy" target="_blank" rel="noopener" class="btn-discord" style="justify-content:center;padding:14px 22px;font-size:15px">Open Discord support &rarr;</a>
+      <p class="no-license-text" style="margin:18px 0 0">Already bought? <a href="dashboard.html" style="color:#7c5cff">Link your Discord</a> in the dashboard to get the Champ+ rank.</p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="footer-logo">
+    <img src="assets/logo.png" alt="Champ">
+    Champ <em style="font-style:italic;color:var(--red-hi)">Client</em>
+  </div>
+  <div class="footer-links">
+    <a href="index.html">Homepage</a>
+    <a href="finds.html">Base Finds</a>
+    <a href="support.html">Support</a>
+    <a href="index.html#pricing">Pricing</a>
+  </div>
+  <p class="footer-copy">&copy; 2026 Champ Client. Not affiliated with Mojang or Microsoft.</p>
+</footer>
+
+<script src="main.js"></script>
+</body>
+</html>

@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Champ Client — Secure Checkout</title>
+<link rel="icon" type="image/png" href="assets/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+  .checkout-container {
+    max-width: 520px;
+    margin: 100px auto 40px;
+    padding: 30px;
+    background: #111111;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.7);
+  }
+  .checkout-header {
+    text-align: center;
+    margin-bottom: 24px;
+  }
+  .checkout-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 2rem;
+    color: #fff;
+    margin-bottom: 4px;
+  }
+  .checkout-sub {
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.6);
+  }
+  .input-group {
+    margin-bottom: 20px;
+  }
+  .input-label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: rgba(255, 255, 255, 0.4);
+    margin-bottom: 8px;
+  }
+  .static-email-box {
+    background: #161616;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 12px;
+    border-radius: 6px;
+    color: #fff;
+    font-size: 0.95rem;
+  }
+  .pay-methods-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .pay-method {
+    display: flex;
+    align-items: center;
+    background: #161616;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 16px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .pay-method.selected {
+    border-color: #7c5cff;
+    background: rgba(148, 0, 0, 0.05);
+  }
+  .pay-method input[type="radio"] {
+    margin-right: 16px;
+    accent-color: #7c5cff;
+  }
+  .method-info {
+    flex-grow: 1;
+  }
+  .method-name {
+    display: block;
+    color: #fff;
+    font-weight: 500;
+    font-size: 0.95rem;
+  }
+  .method-desc {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.4);
+  }
+  .legal-box {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 24px;
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.5);
+    line-height: 1.4;
+  }
+  .legal-box input {
+    margin-top: 2px;
+    accent-color: #7c5cff;
+  }
+  .legal-box a {
+    color: #7c5cff;
+    text-decoration: none;
+  }
+  .btn-submit {
+    background: #7c5cff;
+    color: #fff;
+    border: none;
+    width: 100%;
+    padding: 14px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .btn-submit:hover {
+    background: #b50000;
+  }
+  .btn-submit:disabled {
+    background: #444;
+    cursor: not-allowed;
+  }
+  /* Auth wall screen styling */
+  #auth-gate-message {
+    text-align: center;
+    padding: 20px;
+  }
+  .auth-actions {
+    display: flex;
+    gap: 15px;
+    margin-top: 20px;
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-logo" href="index.html">
+    <img src="assets/logo.png" alt="Champ logo">
+    <span>Champ <em>Client</em></span>
+  </a>
+</nav>
+
+<div class="checkout-container">
+  
+  <!-- 1. LOADING & VALIDATION VIEW -->
+  <div id="checkout-loading-view">
+    <h3 style="text-align: center; color: white;" id="validation-status-text">Verifying security reference link...</h3>
+  </div>
+
+  <!-- 2. AUTHENTICATION GATE VIEW (Hidden by default) -->
+  <div id="checkout-auth-view" style="display: none;">
+    <div class="checkout-header">
+      <h2 class="checkout-title">Authentication <em>Required</em></h2>
+      <p class="checkout-sub">You must have an active account to link your purchase key details.</p>
+    </div>
+    <p id="auth-gate-message" style="color: rgba(255,255,255,0.6);">Checking login session state...</p>
+    <div class="auth-actions">
+      <a href="login.html" class="btn-submit" style="text-align: center; text-decoration: none;">Sign In</a>
+      <a href="signup.html" class="btn-submit" style="text-align: center; text-decoration: none; background:#333;">Sign Up</a>
+    </div>
+  </div>
+
+  <!-- 3. ACTIVE CHECKOUT FORM VIEW (Hidden until verified + authenticated) -->
+  <form id="activeCheckoutForm" style="display: none;">
+    <div class="checkout-header">
+      <h2 class="checkout-title" id="display-plan-title">Secure Checkout</h2>
+      <p class="checkout-sub" id="display-plan-sub">Confirm transaction info below</p>
+    </div>
+
+    <div class="input-group">
+      <label class="input-label">Your Target Email Account</label>
+      <div class="static-email-box" id="display-customer-email">loading...</div>
+    </div>
+
+    <label class="input-label">Payment</label>
+    <div class="pay-methods-list">
+      <div class="pay-method selected">
+        <div class="method-info">
+          <span class="method-name">Secure checkout by Stripe</span>
+          <span class="method-desc">Card and other payment methods available in your country</span>
+        </div>
+      </div>
+    </div>
+
+
+    <div class="legal-box">
+      <input type="checkbox" id="tos-checkbox" required>
+      <label for="tos-checkbox">
+        By purchasing you agree to our <a href="terms.html" target="_blank">Terms of Service</a> and <a href="privacy.html" target="_blank">Privacy Policy</a>.
+      </label>
+    </div>
+
+    <button type="submit" class="btn-submit" id="completePurchaseBtn">Complete Purchase</button>
+  </form>
+
+</div>
+
+<script src="main.js"></script>
+</body>
+</html>

@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Champ Client — Base Finds</title>
+<link rel="icon" type="image/png" href="assets/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav>
+  <a class="nav-logo" href="index.html">
+    <img src="assets/logo.png" alt="Champ crab logo">
+    <span>Champ <em>Client</em></span>
+  </a>
+  <ul class="nav-links">
+    <li><a href="features.html">Features</a></li>
+    <li><a href="finds.html">Base Finds</a></li>
+    <li><a href="index.html#pricing">Pricing</a></li>
+    <li><a href="support.html">Support</a></li>
+  </ul>
+  <div class="nav-actions">
+    <a href="login.html" class="btn-ghost">Sign In</a>
+    <a href="dashboard.html" class="btn-primary">Dashboard &rarr;</a>
+    <button class="hamburger" onclick="toggleMenu()" aria-label="Menu">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</nav>
+
+<div class="mobile-menu" id="mobileMenu">
+  <a href="index.html" onclick="toggleMenu()">Homepage</a>
+  <a href="features.html" onclick="toggleMenu()">Features</a>
+  <a href="finds.html" onclick="toggleMenu()">Base Finds</a>
+  <a href="index.html#pricing" onclick="toggleMenu()">Pricing</a>
+  <a href="support.html" onclick="toggleMenu()">Support</a>
+  <a href="login.html" onclick="toggleMenu()">Sign In</a>
+</div>
+
+<main class="page-wrap">
+  <h1 class="page-title">Base <em>Finds</em></h1>
+  <p class="page-sub">The best bases found by the community. Upload yours with a screenshot and a description.</p>
+
+  <section class="dash-card" style="max-width:640px;margin:36px auto">
+    <div class="card-title">Upload your find</div>
+    <p class="no-license-text" id="findAuthHint">You need an account to upload. <a href="login.html?next=finds.html" style="color:#7c5cff">Sign in</a> or <a href="signup.html" style="color:#7c5cff">create one</a>.</p>
+    <form id="findUploadForm" class="admin-editor" style="display:none">
+      <label>Title<input id="findTitle" maxlength="80" required placeholder="Ancient city loot stash..."></label>
+      <label>Description<textarea id="findDesc" maxlength="1000" placeholder="Where is it, what loot, which server..."></textarea></label>
+      <label>Screenshot (PNG/JPG/WEBP, max 4 MB)<input id="findImage" type="file" accept="image/png,image/jpeg,image/webp"></label>
+      <button class="btn-primary" type="submit">Upload find</button>
+      <p id="findUploadMessage" style="display:none;font-size:14px"></p>
+    </form>
+  </section>
+
+  <div id="findsGrid" class="finds-grid">
+    <p class="no-license-text">Loading finds...</p>
+  </div>
+</main>
+
+<footer>
+  <div class="footer-logo">
+    <img src="assets/logo.png" alt="Champ">
+    Champ <em style="font-style:italic;color:var(--red-hi)">Client</em>
+  </div>
+  <div class="footer-links">
+    <a href="index.html">Homepage</a>
+    <a href="finds.html">Base Finds</a>
+    <a href="support.html">Support</a>
+    <a href="index.html#pricing">Pricing</a>
+  </div>
+  <p class="footer-copy">&copy; 2026 Champ Client. Not affiliated with Mojang or Microsoft.</p>
+</footer>
+
+<script src="main.js"></script>
+</body>
+</html>

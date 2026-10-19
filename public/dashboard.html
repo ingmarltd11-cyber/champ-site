@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Champ Client — User Dashboard</title>
+<link rel="icon" type="image/png" href="assets/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+  .dashboard-container {
+    max-width: 900px;
+    margin: 120px auto 40px;
+    padding: 0 20px;
+  }
+  .welcome-header {
+    margin-bottom: 40px;
+  }
+  .welcome-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 2.5rem;
+    color: #fff;
+    margin-bottom: 8px;
+  }
+  .welcome-title em {
+    font-style: italic;
+    color: #7c5cff;
+  }
+  .user-email-sub {
+    font-size: 1rem;
+    color: rgba(255, 255, 255, 0.5);
+  }
+  .dashboard-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+    margin-bottom: 40px;
+  }
+  @media (max-width: 768px) {
+    .dashboard-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+  .dash-card {
+    background: #111111;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    padding: 30px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  }
+  .card-title {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .status-badge {
+    font-size: 0.75rem;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  .status-active {
+    background: rgba(0, 255, 136, 0.1);
+    color: #00ff88;
+    border: 1px solid rgba(0, 255, 136, 0.2);
+  }
+  .status-none {
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  .license-box {
+    font-family: 'Courier New', Courier, monospace;
+    background: #090909;
+    padding: 12px;
+    border-radius: 6px;
+    color: #fff;
+    font-size: 1rem;
+    letter-spacing: 1px;
+    margin-bottom: 20px;
+    border: 1px solid rgba(255,255,255,0.03);
+    text-align: center;
+  }
+  .btn-download {
+    display: inline-block;
+    background: #7c5cff;
+    color: #fff;
+    text-decoration: none;
+    font-weight: 600;
+    padding: 12px 24px;
+    border-radius: 6px;
+    text-align: center;
+    width: 100%;
+    box-sizing: border-box;
+    transition: background 0.2s;
+  }
+  .btn-download:hover {
+    background: #b50000;
+  }
+  .no-license-text {
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 0.9rem;
+    margin-bottom: 20px;
+    line-height: 1.5;
+  }
+  .btn-purchase-direct {
+    display: inline-block;
+    background: transparent;
+    color: #7c5cff;
+    border: 1px solid #7c5cff;
+    text-decoration: none;
+    font-weight: 600;
+    padding: 12px 24px;
+    border-radius: 6px;
+    text-align: center;
+    width: 100%;
+    box-sizing: border-box;
+    transition: all 0.2s;
+  }
+  .btn-purchase-direct:hover {
+    background: rgba(148, 0, 0, 0.1);
+    color: #fff;
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a class="nav-logo" href="index.html">
+    <img src="assets/logo.png" alt="Champ crab logo">
+    <span>Champ <em>Client</em></span>
+  </a>
+  <div class="nav-actions">
+    <button id="logoutBtn" class="btn-ghost">Sign Out</button>
+  </div>
+</nav>
+
+<!-- DASHBOARD MAIN CONTENT -->
+<div class="dashboard-container">
+  
+  <div class="welcome-header">
+    <h1 class="welcome-title">Welcome Back, <em id="dash-username">User</em></h1>
+    <p class="user-email-sub" id="dash-email">loading account session...</p>
+  </div>
+
+  <div id="dash-notice" style="display:none;background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.25);color:#4ade80;padding:12px 16px;border-radius:8px;font-size:14px;margin-bottom:20px"></div>
+
+  <div class="dashboard-grid">
+    
+    <!-- MONTHLY ACCESS CARD -->
+    <div class="dash-card" id="card-monthly">
+      <div class="card-title">
+        Monthly Subscription
+        <span class="status-badge status-none" id="badge-monthly">Inactive</span>
+      </div>
+      <div id="content-monthly">
+        <!-- Wordt dynamisch ingevuld door main.js -->
+        <p class="no-license-text">You do not have an active monthly subscription plan linked to this profile execution.</p>
+        <a href="index.html#pricing" class="btn-purchase-direct">Unlock Monthly Tier</a>
+      </div>
+    </div>
+
+    <!-- LIFETIME ACCESS CARD -->
+    <div class="dash-card" id="card-lifetime">
+      <div class="card-title">
+        Lifetime Ownership
+        <span class="status-badge status-none" id="badge-lifetime">Inactive</span>
+      </div>
+      <div id="content-lifetime">
+        <!-- Wordt dynamisch ingevuld door main.js -->
+        <p class="no-license-text">No lifetime license linked to this account. One payment of €9.99, yours forever.</p>
+        <a href="index.html#pricing" class="btn-purchase-direct">Get Lifetime</a>
+      </div>
+    </div>
+
+
+  </div>
+
+  <!-- REDEEM LICENSE KEY -->
+  <div class="dash-card" style="margin-bottom:30px">
+    <div class="card-title">Redeem license key</div>
+    <p class="no-license-text">Bought a key? Enter it here to link it to this account and unlock the download.</p>
+    <form id="redeemForm" style="display:flex;gap:10px;flex-wrap:wrap">
+      <input id="redeemKey" class="pay-input" style="margin-bottom:0;flex:1;min-width:200px" placeholder="CHAMP-XXXX-XXXX-XXXX-XXXX" autocomplete="off">
+      <button class="btn-primary" type="submit">Redeem</button>
+    </form>
+    <p id="redeemMessage" style="display:none;margin-top:12px;font-size:14px"></p>
+  </div>
+
+  <div class="dashboard-grid">
+    <!-- REFERRAL -->
+    <div class="dash-card">
+      <div class="card-title">Earn with your link</div>
+      <p class="no-license-text">Share your personal link. You earn <b>10%</b> for every purchase made through it. Payouts are arranged via Discord support.</p>
+      <div class="license-box" id="refLink" style="font-size:.85rem;word-break:break-all">loading…</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn-ghost" id="refCopyBtn" type="button">Copy link</button>
+      </div>
+      <p class="no-license-text" id="refStats" style="margin-top:14px;margin-bottom:0"></p>
+    </div>
+
+    <!-- DISCORD LINK -->
+    <div class="dash-card">
+      <div class="card-title">Link Discord</div>
+      <p class="no-license-text" id="discordStatus">Connect your Discord account to get the <b>Champ+</b> rank automatically when you own a license.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <a class="btn-discord" id="discordLinkBtn" href="/api/discord/link">Link Discord account</a>
+        <button class="btn-ghost" id="discordRoleBtn" type="button" style="display:none">Retry Champ+ rank</button>
+      </div>
+      <p id="discordMessage" style="display:none;margin-top:12px;font-size:14px"></p>
+    </div>
+  </div>
+
+  <!-- SECURITY: PHONE + 2FA -->
+  <div class="dash-card" style="margin-bottom:40px">
+    <div class="card-title">Security</div>
+    <p class="no-license-text" id="twofaStatus">Protect your account with two-factor authentication (authenticator app) and link your phone number.</p>
+    <div id="twofaOffBox">
+      <button class="btn-primary" id="twofaSetupBtn" type="button">Set up 2FA</button>
+    </div>
+    <div id="twofaSetupBox" style="display:none;margin-top:14px">
+      <p class="no-license-text">1. Add this secret to your authenticator app (Google/Microsoft Authenticator, Authy…):</p>
+      <div class="license-box" id="twofaSecret"></div>
+      <p class="no-license-text">2. Enter the 6-digit code + optionally your phone number:</p>
+      <form id="twofaEnableForm" style="display:flex;gap:10px;flex-wrap:wrap">
+        <input id="twofaCode" class="pay-input" style="margin-bottom:0;flex:1;min-width:120px" placeholder="123456" inputmode="numeric" autocomplete="one-time-code">
+        <input id="twofaPhone" class="pay-input" style="margin-bottom:0;flex:1;min-width:140px" placeholder="Phone (optional)" inputmode="tel" autocomplete="tel">
+        <button class="btn-primary" type="submit">Enable</button>
+      </form>
+    </div>
+    <div id="twofaOnBox" style="display:none;margin-top:14px">
+      <form id="twofaDisableForm" style="display:flex;gap:10px;flex-wrap:wrap">
+        <input id="twofaDisablePw" type="password" class="pay-input" style="margin-bottom:0;flex:1;min-width:160px" placeholder="Current password" autocomplete="current-password">
+        <button class="btn-ghost" type="submit">Turn 2FA off</button>
+      </form>
+    </div>
+    <p id="twofaMessage" style="display:none;margin-top:12px;font-size:14px"></p>
+  </div>
+
+</div>
+
+<script src="main.js"></script>
+</body>
+</html>

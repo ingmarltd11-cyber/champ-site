@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Admin — Champ Client</title><link rel="icon" href="assets/logo.png"><link rel="stylesheet" href="style.css"></head>
+<body>
+<nav><a class="nav-logo" href="index.html"><img src="assets/logo.png" alt="Champ"><span>Champ <em>Admin</em></span></a><div class="nav-actions"><button id="adminLogout" class="btn-ghost" style="display:none">Sign Out</button><button class="hamburger" onclick="toggleMenu()" aria-label="Menu"><span></span><span></span><span></span></button></div></nav>
+<div class="mobile-menu" id="mobileMenu"><a href="index.html" onclick="toggleMenu()">Homepage</a><a href="features.html" onclick="toggleMenu()">Features</a><a href="finds.html" onclick="toggleMenu()">Base Finds</a></div>
+<main class="admin-wrap">
+  <section id="adminLoginCard" class="admin-card" style="max-width:430px;margin:40px auto">
+    <h1>Admin Login</h1>
+    <p class="no-license-text" style="margin:8px 0 22px">Sign in to manage the shop and website content.</p>
+    <p id="adminMessage" style="display:none;margin-bottom:15px"></p>
+    <form id="adminLoginForm" class="admin-editor">
+      <label>Username<input id="adminUsername" required autocomplete="username"></label>
+      <label>Password<input id="adminPassword" type="password" required autocomplete="current-password"></label>
+      <button class="btn-primary" type="submit">Sign In</button>
+    </form>
+  </section>
+
+  <section id="adminPanel" class="admin-card" style="display:none">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+      <h1>Admin Control Panel</h1>
+      <span class="status-badge status-active">Admin Session Active</span>
+    </div>
+    <p class="no-license-text" id="adminStatsLine">Loading stats...</p>
+
+    <div class="admin-tabs">
+      <button class="admin-tab active" data-tab="settings" type="button">Announcements &amp; Links</button>
+      <button class="admin-tab" data-tab="orders" type="button">Orders &amp; Keys</button>
+      <button class="admin-tab" data-tab="texture-packs" type="button">Texture Packs</button>
+      <button class="admin-tab" data-tab="features" type="button">Features &amp; Videos</button>
+      <button class="admin-tab" data-tab="reviews" type="button">Reviews</button>
+      <button class="admin-tab" data-tab="finds" type="button">Base Finds</button>
+      <button class="admin-tab" data-tab="referrals" type="button">Referrals</button>
+    </div>
+
+    <!-- TAB: SETTINGS & ANNOUNCEMENTS & LINKS -->
+    <div class="admin-tabpage" id="tab-settings">
+      <div style="margin: 18px 0 24px;">
+        <h2>Global Announcements &amp; Website Links</h2>
+        <p class="no-license-text">Control the top announcement banner, hero video embeds, and community links in real-time.</p>
+      </div>
+      <form id="adminSettingsForm" class="admin-editor">
+        <label>
+          Announcement Banner Text
+          <input name="announcement_text" id="settingAnnouncementText" placeholder="e.g. Champ Client 0.9.9.1 is out for 1.21.11!">
+        </label>
+        <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
+          <input type="checkbox" name="announcement_enabled" id="settingAnnouncementEnabled" style="width:auto; margin:0;">
+          <span>Enable top announcement banner on all pages</span>
+        </label>
+        <label>
+          Discord Invite Link
+          <input name="discord_link" id="settingDiscordLink" placeholder="https://discord.gg/...">
+        </label>
+        <label>
+          Homepage Showcase Video URL (YouTube embed or MP4 direct link)
+          <input name="youtube_video_url" id="settingYoutubeUrl" placeholder="https://www.youtube.com/embed/...">
+        </label>
+        <label>
+          Hero Tagline (e.g. Minecraft 1.21.11 Fabric Mod)
+          <input name="hero_tagline" id="settingHeroTagline" placeholder="Minecraft 1.21.11 Fabric Mod">
+        </label>
+        <button class="btn-primary" type="submit">Save Site Settings</button>
+        <p id="settingsSaveMsg" class="save-message" style="display:none;"></p>
+      </form>
+    </div>
+
+    <!-- TAB: ORDERS & KEYS -->
+    <div class="admin-tabpage" id="tab-orders" style="display:none">
+      <form id="adminSearchForm" style="display:flex;gap:10px;margin:18px 0;flex-wrap:wrap">
+        <input id="adminSearch" class="pay-input" style="margin-bottom:0;flex:1;min-width:200px" placeholder="Search email or key...">
+        <button class="btn-primary" type="submit">Search</button>
+      </form>
+      <div id="adminOrders" class="admin-table-wrap"><p class="no-license-text">Loading orders...</p></div>
+    </div>
+
+    <!-- TAB: TEXTURE PACKS -->
+    <div class="admin-tabpage" id="tab-texture-packs" style="display:none">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin:18px 0; flex-wrap:wrap; gap:12px;">
+        <div>
+          <h2>Manage Texture Packs</h2>
+          <p class="no-license-text">Add custom PvP, default or VIP texture packs for visitors or customers only.</p>
+        </div>
+        <button class="btn-primary" type="button" onclick="showAddTexturePackForm()">+ Add New Texture Pack</button>
+      </div>
+
+      <div id="addTexturePackContainer" style="display:none; margin-bottom:24px; padding:20px; background:var(--surface); border:1px solid var(--border); border-radius:10px;">
+        <h3>Add Texture Pack</h3>
+        <form id="createTexturePackForm" class="admin-editor">
+          <label>Pack Name<input name="name" required placeholder="e.g. Champ 16x Dark PvP"></label>
+          <label>Description<textarea name="description" required placeholder="Description of swords, GUI, particles..."></textarea></label>
+          <label>Download URL<input name="download_url" required placeholder="https://... direct zip download or drive link"></label>
+          <label>Category<input name="category" value="PvP" required placeholder="e.g. PvP, Default, VIP Exclusive"></label>
+          <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
+            <input type="checkbox" name="is_customer_only" style="width:auto; margin:0;">
+            <span>Customers Only (VIP Pack &mdash; requires active Lifetime or Monthly license)</span>
+          </label>
+          <label>Preview Image URL (optional)<input name="image_url" placeholder="https://..."></label>
+          <label>Sort Order<input type="number" name="sort_order" value="1"></label>
+          <div style="display:flex; gap:10px;">
+            <button class="btn-primary" type="submit">Add Texture Pack</button>
+            <button class="btn-ghost" type="button" onclick="document.getElementById('addTexturePackContainer').style.display='none'">Cancel</button>
+          </div>
+          <p id="createPackMsg" class="save-message" style="display:none"></p>
+        </form>
+      </div>
+
+      <div id="adminTexturePacksList" class="admin-table-wrap"><p class="no-license-text">Loading texture packs...</p></div>
+    </div>
+
+    <!-- TAB: FEATURES & VIDEOS -->
+    <div class="admin-tabpage" id="tab-features" style="display:none">
+      <div style="margin:18px 0 20px;">
+        <h2>Features &amp; Video Embeds</h2>
+        <p class="no-license-text">Edit the feature items and YouTube video previews displayed on the public Features page.</p>
+      </div>
+      <div id="adminFeatures" class="admin-editor"></div>
+    </div>
+
+    <!-- TAB: REVIEWS -->
+    <div class="admin-tabpage" id="tab-reviews" style="display:none">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin:18px 0; flex-wrap:wrap; gap:12px;">
+        <div>
+          <h2>Customer Reviews</h2>
+          <p class="no-license-text">Add or moderate reviews displayed on the homepage.</p>
+        </div>
+        <button class="btn-primary" type="button" onclick="showAddReviewForm()">+ Add New Review</button>
+      </div>
+
+      <div id="addReviewContainer" style="display:none; margin-bottom:24px; padding:20px; background:var(--surface); border:1px solid var(--border); border-radius:10px;">
+        <h3>Add Review</h3>
+        <form id="createReviewForm" class="admin-editor">
+          <label>Author Username<input name="author" required placeholder="e.g. VortexPvP"></label>
+          <label>Star Rating (1-5)<input type="number" name="rating" min="1" max="5" value="5" required></label>
+          <label>Review Text<textarea name="text" required placeholder="Write the testimonial..."></textarea></label>
+          <label>Badge / Tag<input name="tag" value="Verified Buyer" required placeholder="e.g. Verified Buyer, Lifetime Member"></label>
+          <div style="display:flex; gap:10px;">
+            <button class="btn-primary" type="submit">Save Review</button>
+            <button class="btn-ghost" type="button" onclick="document.getElementById('addReviewContainer').style.display='none'">Cancel</button>
+          </div>
+          <p id="createReviewMsg" class="save-message" style="display:none"></p>
+        </form>
+      </div>
+
+      <div id="adminReviewsList" class="admin-table-wrap"><p class="no-license-text">Loading reviews...</p></div>
+    </div>
+
+    <!-- TAB: BASE FINDS -->
+    <div class="admin-tabpage" id="tab-finds" style="display:none">
+      <div id="adminFinds" class="admin-table-wrap"><p class="no-license-text">Loading finds...</p></div>
+    </div>
+
+    <!-- TAB: REFERRALS -->
+    <div class="admin-tabpage" id="tab-referrals" style="display:none">
+      <div id="adminReferrals" class="admin-table-wrap"><p class="no-license-text">Loading referrals...</p></div>
+    </div>
+
+  </section>
+</main>
+<script src="main.js"></script>
+</body>
+</html>

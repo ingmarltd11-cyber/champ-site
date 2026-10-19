@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Features — Champ Client</title>
+<link rel="icon" type="image/png" href="assets/logo.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!-- ANNOUNCEMENT BANNER -->
+<div id="siteAnnouncementBanner" class="site-announcement-bar" style="display:none;">
+  <span id="siteAnnouncementText"></span>
+  <button onclick="dismissAnnouncement()" class="announcement-close" aria-label="Close announcement">&times;</button>
+</div>
+
+<nav>
+  <a class="nav-logo" href="index.html"><img src="assets/logo.png" alt="Champ crab logo"><span>Champ <em>Client</em></span></a>
+  <ul class="nav-links">
+    <li><a href="features.html">Features</a></li>
+    <li><a href="index.html#texture-packs">Texture Packs</a></li>
+    <li><a href="finds.html">Base Finds</a></li>
+    <li><a href="index.html#pricing">Pricing</a></li>
+    <li><a href="index.html#faq">FAQ</a></li>
+  </ul>
+  <div class="nav-actions"><a href="login.html" class="btn-ghost">Sign In</a><a href="signup.html" class="btn-primary">Get Started →</a><button class="hamburger" onclick="toggleMenu()" aria-label="Menu"><span></span><span></span><span></span></button></div>
+</nav>
+<div class="mobile-menu" id="mobileMenu"><a href="features.html" onclick="toggleMenu()">Features</a><a href="index.html#texture-packs" onclick="toggleMenu()">Texture Packs</a><a href="index.html#pricing" onclick="toggleMenu()">Pricing</a><a href="index.html#faq" onclick="toggleMenu()">FAQ</a><a href="login.html" onclick="toggleMenu()">Sign In</a></div>
+<main class="features-page">
+  <section class="features-hero">
+    <p class="hero-eyebrow">Minecraft 1.21.11 Fabric Mod</p>
+    <h1>Explore the <em>Features.</em></h1>
+    <p class="hero-sub">Native Fabric mod architecture with 178 modules, custom Dear ImGui render overlays, crystal macros, and DonutSMP base raiding suites. Preview clips can be updated directly from the admin panel.</p>
+  </section>
+  <section id="featureGrid" class="feature-admin-grid"><p class="no-license-text">Loading features…</p></section>
+</main>
+<footer><div class="footer-logo"><img src="assets/logo.png" alt="Champ">Champ <em style="font-style:italic;color:var(--red-hi)">Client</em></div><div class="footer-links"><a href="privacy.html">Privacy Policy</a><a href="terms.html">Terms of Service</a></div><p class="footer-copy">© 2026 Champ Client. Not affiliated with Mojang or Microsoft.</p></footer>
+<script src="main.js"></script>
+</body></html>

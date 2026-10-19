@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy Policy — Champ Client</title>
+<link rel="icon" type="image/png" href="assets/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- NAV -->
+<nav style="position: relative;"> <!-- Relatief op login om ruimte te maken voor de form wrapper -->
+  <a class="nav-logo" href="index.html">
+    <img src="assets/logo.png" alt="Champ crab logo">
+    <span>Champ <em>Client</em></span>
+  </a>
+  <ul class="nav-links">
+    <li><a href="index.html#features">Features</a></li>
+    <li><a href="index.html#pricing">Pricing</a></li>
+    <li><a href="index.html#faq">FAQ</a></li>
+  </ul>
+  <div class="nav-actions">
+    <a href="login.html" class="btn-ghost" style="border-color: var(--red-hi); color: var(--red-hi);">Sign In</a>
+    <a href="signup.html" class="btn-primary">Get Started &rarr;</a>
+  </div>
+</nav>
+
+<!-- LEGAL CONTENT -->
+<div style="max-width: 760px; margin: 0 auto; padding: 60px 24px;">
+  <h1 class="modal-title" style="font-size: 32px;">Privacy Policy</h1>
+  <p class="modal-sub">Last updated: September 2026</p>
+  <div class="modal-divider"></div>
+  <div class="legal-body" style="max-height: none; overflow: visible; font-size: 14px;">
+
+      <h3>1. Information We Collect</h3>
+      <p>We collect only the information you voluntarily provide when purchasing or contacting support: your username, email address, a hashed (never plain-text) password, and your payment confirmation reference. We do <strong>not</strong> collect in-game data, screenshots, or personal identifiers beyond what is strictly required to deliver your licence.</p>
+
+      <h3>2. How We Use Your Information</h3>
+      <p>Your email is used solely to deliver your licence key, send update notifications, and respond to support requests. We will never use it for unsolicited marketing without your explicit consent.</p>
+
+      <h3>3. Data We Do Not Sell</h3>
+      <p>We do <strong>not</strong> sell, rent, trade, or otherwise transfer your personal information to third parties for commercial purposes. Ever. Your data is not a product.</p>
+
+      <h3>4. Payment Processing</h3>
+      <p>All payment transactions are processed by third-party providers (Stripe). We never store your card number or banking details on our servers. Payment processors are bound by their own privacy policies and PCI-DSS compliance requirements.</p>
+
+      <h3>5. Data Retention</h3>
+      <p>We retain your email address for the duration of your active licence plus a maximum of 12 months thereafter. You may request deletion at any time by contacting us on Discord or via email.</p>
+
+      <h3>6. Cookies</h3>
+      <p>This website uses no tracking cookies. We may use a single session cookie to remember your login state. No analytics cookies are placed without consent.</p>
+
+      <h3>7. Third-Party Services</h3>
+      <p>Our Discord server is operated by Discord Inc. and subject to their privacy policy. We do not control Discord's data practices. We also use Vercel (hosting), Supabase (database and file storage), Stripe (payments) and Resend (email delivery) to run the service; they process data on our behalf.</p>
+
+      <h3>8. Security</h3>
+      <p>We implement industry-standard measures (TLS encryption, access controls, hashed credentials) to protect your data. No method of transmission is 100% secure; we cannot guarantee absolute security but will notify affected users in the event of a confirmed breach.</p>
+
+      <h3>9. Children's Privacy</h3>
+      <p>Our service is intended for users aged 13 and over. We do not knowingly collect data from children under 13. If you believe a minor has submitted personal information, please contact us immediately.</p>
+
+      <h3>10. Changes to This Policy</h3>
+      <p>We may update this policy periodically. Significant changes will be announced in our Discord server. Continued use of the service after changes constitutes acceptance.</p>
+
+      <h3>11. Contact</h3>
+      <p>Questions? Join our Discord server or open a support ticket. We aim to respond within 24 hours.</p>
+    </div>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">
+    <img src="assets/logo.png" alt="Champ">
+    Champ <em style="font-style:italic;color:var(--red-hi)">Client</em>
+  </div>
+  <div class="footer-links">
+    <a href="privacy.html">Privacy Policy</a>
+    <a href="terms.html">Terms of Service</a>
+  </div>
+  <p class="footer-copy">&copy; 2026 Champ Client. Not affiliated with Mojang or Microsoft.</p>
+</footer>
+
+<script>
+// Voegt de focus glow toe aan de input velden zonder je CSS-bestand aan te hoeven passen
+document.querySelectorAll('input').forEach(input => {
+  input.addEventListener('focus', () => {
+    input.style.borderColor = '#7c5cff';
+    input.style.boxShadow = '0 0 10px rgba(124,92,255,.35)';
+  });
+  input.addEventListener('blur', () => {
+    input.style.borderColor = 'rgba(255,255,255,.07)';
+    input.style.boxShadow = 'none';
+  });
+});
+</script>
+
+</body>
+</html>

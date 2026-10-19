@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Verify Email — Champ Client</title>
+<link rel="icon" type="image/png" href="assets/logo.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav style="position:relative;">
+  <a class="nav-logo" href="index.html"><img src="assets/logo.png" alt="Champ crab logo"><span>Champ <em>Client</em></span></a>
+  <ul class="nav-links"><li><a href="features.html">Features</a></li><li><a href="index.html#pricing">Pricing</a></li><li><a href="index.html#faq">FAQ</a></li></ul>
+  <div class="nav-actions"><a href="login.html" class="btn-ghost">Sign In</a><button class="hamburger" onclick="toggleMenu()" aria-label="Menu"><span></span><span></span><span></span></button></div>
+</nav>
+<div class="mobile-menu" id="mobileMenu"><a href="features.html" onclick="toggleMenu()">Features</a><a href="index.html#pricing" onclick="toggleMenu()">Pricing</a><a href="index.html#faq" onclick="toggleMenu()">FAQ</a><a href="login.html" onclick="toggleMenu()">Sign In</a></div>
+
+<div style="display:flex;justify-content:center;align-items:center;min-height:calc(100vh - 192px);padding:40px 24px;">
+  <div style="background:var(--surface);border:1px solid var(--border);width:100%;max-width:420px;padding:40px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.5);text-align:center;">
+    <img src="assets/logo.png" alt="Champ" style="width:48px;height:48px;margin-bottom:16px;object-fit:contain;">
+    <h1 style="font-size:24px;font-weight:600;color:var(--text);margin-bottom:8px;">Verify your email</h1>
+    <p style="font-size:14px;color:var(--muted);margin-bottom:6px;">We sent a 6-digit code to</p>
+    <p id="verifyEmail" style="font-size:14px;color:#fff;margin-bottom:28px;word-break:break-word;"></p>
+    <p id="verifyMessage" style="display:none;font-size:13px;margin-bottom:20px;line-height:1.5"></p>
+
+    <form id="verifyForm" style="text-align:left;">
+      <label for="verifyCode" style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.05em;margin-bottom:8px;display:block;">VERIFICATION CODE</label>
+      <input id="verifyCode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="000000" required
+        style="width:100%;box-sizing:border-box;background:#111112;border:1px solid rgba(255,255,255,.07);border-radius:6px;padding:14px 16px;color:#F0EDE8;font-size:22px;text-align:center;letter-spacing:8px;outline:none;">
+      <button type="submit" id="verifyButton" class="btn-primary" style="width:100%;padding:12px;font-size:14px;font-weight:600;margin-top:16px;">Verify</button>
+    </form>
+
+    <div style="display:flex;justify-content:center;gap:18px;margin-top:20px;flex-wrap:wrap;">
+      <button id="changeEmail" type="button" style="background:none;border:0;color:#3b82f6;text-decoration:underline;cursor:pointer;">Change email</button>
+      <button id="resendCode" type="button" style="background:none;border:0;color:var(--muted);cursor:pointer;">Resend code</button>
+    </div>
+
+    <form id="changeEmailForm" style="display:none;text-align:left;margin-top:24px;border-top:1px solid var(--border);padding-top:24px;">
+      <label for="newEmail" style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.05em;margin-bottom:8px;display:block;">NEW EMAIL</label>
+      <input id="newEmail" type="email" required placeholder="new@example.com" style="width:100%;box-sizing:border-box;background:#111112;border:1px solid rgba(255,255,255,.07);border-radius:6px;padding:12px 16px;color:#F0EDE8;font-size:14px;outline:none;">
+      <label for="changeEmailPassword" style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.05em;margin:16px 0 8px;display:block;">PASSWORD</label>
+      <input id="changeEmailPassword" type="password" required placeholder="Your password" style="width:100%;box-sizing:border-box;background:#111112;border:1px solid rgba(255,255,255,.07);border-radius:6px;padding:12px 16px;color:#F0EDE8;font-size:14px;outline:none;">
+      <button type="submit" class="btn-primary" style="width:100%;padding:12px;font-size:14px;font-weight:600;margin-top:16px;">Send code to new email</button>
+    </form>
+  </div>
+</div>
+
+<footer>
+  <div class="footer-logo"><img src="assets/logo.png" alt="Champ">Champ <em style="font-style:italic;color:var(--red-hi)">Client</em></div>
+  <div class="footer-links"><a href="privacy.html">Privacy Policy</a><a href="terms.html">Terms of Service</a></div>
+  <p class="footer-copy">&copy; 2026 Champ Client. Not affiliated with Mojang or Microsoft.</p>
+</footer>
+<script src="main.js"></script>
+</body>
+</html>
