@@ -211,7 +211,7 @@ insert into public.site_settings (key, value)
 values
   ('announcement_text', '🔥 Champ Client 0.9.9.1 is out for Minecraft 1.21.11 Fabric Loader! Get Lifetime for €9.99 or Monthly for €6.99.'),
   ('announcement_enabled', 'true'),
-  ('discord_link', 'https://discord.gg/ETuFknzhy'),
+  ('discord_link', 'https://discord.gg/6vyQnVjeX'),
   ('youtube_video_url', ''),
   ('hero_tagline', 'The Ultimate Minecraft 1.21.11 Fabric Mod')
 on conflict (key) do nothing;

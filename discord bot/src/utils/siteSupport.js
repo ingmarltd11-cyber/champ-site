@@ -1,5 +1,5 @@
 const fetch = global.fetch;
-const DISCORD_INVITE = 'https://discord.gg/ETuFknzhy';
+const DISCORD_INVITE = 'https://discord.gg/6vyQnVjeX';
 
 function apiUrl() {
   const base = process.env.SUPPORT_API_URL || process.env.SITE_URL;

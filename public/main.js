@@ -544,7 +544,7 @@ function appendDiscordEscalation(container) {
   const wrap = document.createElement('div');
   wrap.className = 'ai-msg ai-bot';
   const link = document.createElement('a');
-  link.href = 'https://discord.gg/ETuFknzhy';
+  link.href = 'https://discord.gg/6vyQnVjeX';
   link.target = '_blank';
   link.rel = 'noopener noreferrer';
   link.className = 'ai-escalation-link';
@@ -681,7 +681,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 // ============================================================
 function initDashboardExtras(data) {
   const eur = (c) => `€${(c / 100).toFixed(2)}`;
-  const discordLink = 'https://discord.gg/ETuFknzhy';
+  const discordLink = 'https://discord.gg/6vyQnVjeX';
 
   // Discord link result (?discord=...)
   const dq = new URLSearchParams(window.location.search).get('discord');
@@ -1065,7 +1065,7 @@ async function handleAIChatSubmit(e) {
       supportChatHistory.push({ role: 'user', content: text }, { role: 'assistant', content: res.data.reply });
       if (res.data.needs_escalation) {
         const link = document.createElement('a');
-        link.href = res.data.escalation_url || 'https://discord.gg/ETuFknzhy';
+        link.href = res.data.escalation_url || 'https://discord.gg/6vyQnVjeX';
         link.target = '_blank';
         link.rel = 'noopener noreferrer';
         link.className = 'ai-escalation-link';

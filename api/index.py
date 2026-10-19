@@ -1469,7 +1469,7 @@ def create_find(p: FindCreateReq, user: dict = Depends(current_user)):
 # Discord link: connect account -> Champ+ rank for buyers
 # --------------------------------------------------------------------------
 DISCORD_API = "https://discord.com/api/v10"
-DISCORD_INVITE = "https://discord.gg/ETuFknzhy"
+DISCORD_INVITE = "https://discord.gg/6vyQnVjeX"
 
 
 def discord_oauth_configured() -> bool:
@@ -1645,7 +1645,7 @@ def get_site_settings():
     settings = {
         "announcement_text": "🔥 Champ Client 0.9.9.1 is out for Minecraft 1.21.11 Fabric Loader! Get Lifetime for €9.99 or Monthly for €6.99.",
         "announcement_enabled": "true",
-        "discord_link": "https://discord.gg/ETuFknzhy",
+        "discord_link": "https://discord.gg/6vyQnVjeX",
         "youtube_video_url": "",
         "hero_tagline": "The Ultimate Minecraft 1.21.11 Fabric Mod"
     }
@@ -2452,7 +2452,7 @@ LINKS: these are the only URLs that exist. Always write them as full plain https
 - Support page: {OFFICIAL_SITE}/support.html
 - Discord support: {DISCORD_INVITE}
 Every answer about the product, prices, accounts, installation, downloads or problems must include the matching link on its own line, so the customer can click it. For a pure greeting or small talk, reply in one friendly sentence without a link.
-If a product detail is missing from the verified knowledge, say you are not sure and direct the customer to Discord support: https://discord.gg/ETuFknzhy. If the report is vague, ask one short clarifying question about what they see or which step fails instead of guessing.
+If a product detail is missing from the verified knowledge, say you are not sure and direct the customer to Discord support: https://discord.gg/6vyQnVjeX. If the report is vague, ask one short clarifying question about what they see or which step fails instead of guessing.
 Keep answers short and friendly, at most 3 short paragraphs. Write plain conversational text with short paragraphs and simple dash lists. Never use headings, horizontal rules, code blocks, fences or backticks, and never output the character sequences ### or --- anywhere in a reply.""",
         AI_DEFAULT_KNOWLEDGE,
     ]
@@ -2536,7 +2536,7 @@ def ai_chat(p: AIChatReq):
     user_msg = hide_hidden_hosts(user_msg)
     lowered = user_msg.lower()
     if any(k in lowered for k in ["admin password", "supabase_key", "stripe_secret", "jwt_secret", "leak token", "api key", "service role"]):
-        return {"reply": "I cannot help expose secrets or private account information. If you need account help, please contact our support team on Discord: https://discord.gg/ETuFknzhy", "escalation_url": "https://discord.gg/ETuFknzhy", "needs_escalation": True}
+        return {"reply": "I cannot help expose secrets or private account information. If you need account help, please contact our support team on Discord: https://discord.gg/6vyQnVjeX", "escalation_url": "https://discord.gg/6vyQnVjeX", "needs_escalation": True}
 
     # The assistant is customer support, never a code or internals assistant.
     code_request_markers = (
