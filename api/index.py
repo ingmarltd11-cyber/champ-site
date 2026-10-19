@@ -39,7 +39,45 @@ from starlette.concurrency import run_in_threadpool
 # --------------------------------------------------------------------------
 SITE_URL = os.getenv("SITE_URL", "").rstrip("/")
 SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip("/")
-SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
+
+
+def supabase_key_role(key: str) -> str:
+    """Classify a Supabase key without ever exposing it."""
+    value = (key or "").strip()
+    if not value:
+        return "missing"
+    if value.startswith("sb_secret_"):
+        return "secret"
+    if value.startswith("sb_publishable_"):
+        return "publishable"
+    parts = value.split(".")
+    if len(parts) == 3:
+        try:
+            payload = parts[1] + "=" * (-len(parts[1]) % 4)
+            claims = json.loads(base64.urlsafe_b64decode(payload.encode()).decode())
+            return str(claims.get("role") or "jwt")
+        except Exception:
+            return "jwt"
+    return "unknown"
+
+
+# Accept the names used by the Supabase/Vercel integrations as well as our own.
+# Only a server-side (service_role / secret) key may be used here: the tables have
+# RLS enabled and no policies, so a public/anon key silently reads nothing and
+# cannot insert accounts. If several are set, prefer a server key over a public one.
+_KEY_NAMES = ("SUPABASE_SERVICE_KEY", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SECRET_KEY")
+_KEY_CANDIDATES = [(name, (os.getenv(name) or "").strip()) for name in _KEY_NAMES]
+_KEY_CANDIDATES = [(name, value) for name, value in _KEY_CANDIDATES if value]
+SUPABASE_KEY_SOURCE = next((name for name, value in _KEY_CANDIDATES if supabase_key_role(value) in ("service_role", "secret")), "")
+if not SUPABASE_KEY_SOURCE and _KEY_CANDIDATES:
+    SUPABASE_KEY_SOURCE = _KEY_CANDIDATES[0][0]
+SUPABASE_KEY = dict(_KEY_CANDIDATES).get(SUPABASE_KEY_SOURCE, "")
+
+SUPABASE_KEY_ROLE = supabase_key_role(SUPABASE_KEY)
+SUPABASE_SERVER_KEY = SUPABASE_KEY_ROLE in ("service_role", "secret")
+if SUPABASE_URL and SUPABASE_KEY and not SUPABASE_SERVER_KEY:
+    print(f"WARNING: Supabase uses a '{SUPABASE_KEY_ROLE}' key instead of a service/secret key; "
+          "account creation and private reads will fail.")
 DOWNLOAD_BUCKET = os.getenv("DOWNLOAD_BUCKET", "downloads")
 TEXTURE_PACK_BUCKET = os.getenv("TEXTURE_PACK_BUCKET", "texture-packs")
 MAX_TEXTURE_PACK_BYTES = 32 * 1024 * 1024
@@ -743,6 +781,11 @@ def health():
         "ok": True,
         "email": email_transport(),
         "database": bool(SUPABASE_URL and SUPABASE_KEY),
+        # Which kind of key this deployment uses (never the key itself).
+        # A publishable/anon key means signup and private data cannot work.
+        "database_key": SUPABASE_KEY_ROLE,
+        "database_key_source": SUPABASE_KEY_SOURCE or None,
+        "database_writable": bool(SUPABASE_URL and SUPABASE_SERVER_KEY),
         "ai": "llm" if any(provider_keys()) else "built-in",
         "vercel_env": os.getenv("VERCEL_ENV"),
     }
@@ -825,6 +868,11 @@ def signup(p: SignupReq, response: Response):
         raise HTTPException(400, "Username must be 3-16 characters: letters, numbers or underscore.")
     validate_password(p.password)
 
+    # RLS on every table means a public/anon key cannot create accounts. Say so
+    # instead of failing later with an opaque 500 from the database.
+    if SUPABASE_URL and SUPABASE_KEY and not SUPABASE_SERVER_KEY:
+        raise HTTPException(503, "Account creation is temporarily unavailable. Please contact support.")
+
     taken = "Email or username is already in use."
     if db_get("users", {"email": eq(email)}) or db_get("users", {"username_lower": eq(username.lower())}):
         raise HTTPException(409, taken)
@@ -844,7 +892,8 @@ def signup(p: SignupReq, response: Response):
     except DBError as e:
         if e.status == 409:
             raise HTTPException(409, taken)
-        raise
+        print("Signup database error:", e.status)
+        raise HTTPException(503, "Account creation is temporarily unavailable. Please try again later or contact support.")
 
     if not VERIFY_EMAIL:
         # No verification step: sign the new account in right away and, when a plan was

@@ -8,12 +8,23 @@ In the Champ Site project on Vercel, set the following under **Settings → Envi
 
 - `SITE_URL` — the canonical HTTPS website URL, without a trailing slash.
 - `SUPABASE_URL` — URL of the Supabase project named Champclient.
-- `SUPABASE_SERVICE_KEY` — the Supabase server-side secret/service-role key; never expose it in frontend code.
+- `SUPABASE_SERVICE_KEY` — the Supabase server-side secret/service-role key; never expose it in frontend code. `SUPABASE_SERVICE_ROLE_KEY` and `SUPABASE_SECRET_KEY` are accepted as fallbacks.
 - `JWT_SECRET` — a random secret with at least 32 characters.
 - `RESEND_API_KEY` — Resend API key authorized to send from the verified sender domain.
 - `FROM_EMAIL` — e.g. `Champ Client <verify@your-verified-domain>`.
 - `ADMIN_USERNAME` and `ADMIN_PASSWORD` — private admin credentials; use a unique, strong password.
 - Stripe keys and price IDs from `.env.example` when enabling real checkout/webhooks.
+
+### The Supabase key must be a server key
+
+Use one of these, in this order of preference:
+
+- a **secret key** (`sb_secret_...`) from **Supabase → Project Settings → API Keys → Secret keys**, or
+- the **legacy `service_role` key** (Project Settings → API Keys → Legacy API keys).
+
+Do **not** use the publishable key (`sb_publishable_...`) or the legacy `anon` key. Every table has RLS enabled without policies, so a public key reads nothing and cannot insert accounts. The site then shows signup as a 500, the features and reviews lists are empty, and login always says "Invalid username/email or password" — even for accounts that exist. `/api/health` reports the detected key kind as `database_key` (`service_role` or `secret` is correct) and `database_writable`.
+
+After changing the variable, redeploy (or trigger a new deployment) so the serverless functions pick up the new value.
 
 ## Signup without email verification (current default)
 
