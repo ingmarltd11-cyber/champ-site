@@ -56,6 +56,36 @@
   </section>
 </main>
 
+<!-- FLOATING AI ASSISTANT WIDGET -->
+<div id="aiChatWidget" class="ai-widget-container">
+  <button id="aiWidgetToggle" class="ai-widget-button" onclick="toggleAIChat()" aria-label="Open AI Assistant">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+    </svg>
+    <span>Ask Champ AI</span>
+  </button>
+
+  <div id="aiChatWindow" class="ai-chat-window" style="display:none;">
+    <div class="ai-chat-header">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span class="ai-badge-dot"></span>
+        <strong>Champ Assistant</strong>
+      </div>
+      <button class="ai-chat-close" onclick="toggleAIChat()" aria-label="Close chat">&times;</button>
+    </div>
+    <div class="ai-chat-messages" id="aiChatMessages">
+      <div class="ai-msg ai-bot">
+        Hello! I'm Champ Client support. Tell me what you're trying to do and what happened, and I'll point you to the right page or to our Discord team.
+      </div>
+    </div>
+    <form id="aiChatForm" class="ai-chat-form" onsubmit="handleAIChatSubmit(event)">
+      <input type="text" id="aiChatInput" placeholder="Ask a question..." autocomplete="off" required>
+      <button type="submit" aria-label="Send message">&rarr;</button>
+    </form>
+  </div>
+</div>
+
+
 <footer>
   <div class="footer-logo">
     <img src="assets/logo.png" alt="Champ">

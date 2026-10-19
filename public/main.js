@@ -1010,6 +1010,20 @@ try {
   supportChatSessionId = sessionStorage.getItem('champ_support_session');
 } catch (_) { /* session storage is optional */ }
 
+
+// Turn assistant replies into readable text with clickable links.
+function renderAIMessage(target, text) {
+  const html = escapeHtml(text)
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '$1 ($2)')
+    .replace(/(https?:\/\/[^\s<>"']+)/g, (raw) => {
+      const url = raw.replace(/[.,;:!?)]+$/, '');
+      const trailing = raw.slice(url.length);
+      return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>${trailing}`;
+    })
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .split(String.fromCharCode(10)).join('<br>');
+  target.innerHTML = html;
+}
 async function handleAIChatSubmit(e) {
   e.preventDefault();
   const input = document.getElementById('aiChatInput');
@@ -1034,7 +1048,7 @@ async function handleAIChatSubmit(e) {
   try {
     const res = await api('/api/ai/chat', { method: 'POST', body: JSON.stringify({ message: text, history: supportChatHistory.slice(-8), channel: 'website', session_id: supportChatSessionId }) });
     if (res.ok && res.data && res.data.reply) {
-      botBubble.textContent = res.data.reply;
+      renderAIMessage(botBubble, res.data.reply);
       if (res.data.session_id) {
         supportChatSessionId = res.data.session_id;
         try { sessionStorage.setItem('champ_support_session', supportChatSessionId); } catch (_) { /* session storage is optional */ }

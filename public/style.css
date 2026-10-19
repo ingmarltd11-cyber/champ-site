@@ -852,6 +852,9 @@ footer {
 }
 .ai-escalation-link { color:#c4b5fd; font-weight:650; text-decoration:underline; }
 .ai-escalation-link:hover { color:#fff; }
+.ai-msg a { color:#c4b5fd; font-weight:600; text-decoration:underline; word-break:break-word; }
+.ai-msg a:hover { color:#fff; }
+.ai-msg strong { color:#fff; }
 
 @media (max-width: 580px) {
   .proof-strip { grid-template-columns: 1fr; gap: 20px; }
