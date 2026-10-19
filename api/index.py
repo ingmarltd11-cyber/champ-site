@@ -1951,7 +1951,13 @@ def with_relevant_link(answer: str, question: str) -> str:
     for pattern, label, href in LINK_TARGETS:
         if re.search(pattern, haystack):
             suffix = chr(10) + chr(10) + label + ": " + href
-            return answer[: 1180 - len(suffix)].rstrip() + suffix
+            room = 1180 - len(suffix)
+            body = answer[:room]
+            if len(answer) > room:
+                stop = max(body.rfind(". "), body.rfind("! "), body.rfind("? "), body.rfind(chr(10)))
+                if stop > room // 2:
+                    body = body[: stop + 1]
+            return body.rstrip() + suffix
     return answer
 
 
