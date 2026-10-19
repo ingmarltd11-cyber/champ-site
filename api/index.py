@@ -2014,6 +2014,17 @@ def ai_chat(p: AIChatReq):
         if openai_key:
             providers.append(openai_provider)
 
+    if not providers:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "reply": "The support assistant is not configured yet. Please open a support ticket in our Discord: https://discord.gg/ETuFknzhy",
+                "escalation_url": DISCORD_INVITE,
+                "needs_escalation": True,
+                "error": "provider_not_configured",
+            },
+        )
+
     for provider, endpoint, api_key, models in providers:
         for model in dict.fromkeys(m for m in models if m):
             try:
@@ -2051,4 +2062,12 @@ def ai_chat(p: AIChatReq):
             except Exception as exc:
                 print("AI provider request failed:", provider, model, type(exc).__name__)
 
-    return {"reply": "I am sorry—I could not resolve that from the verified support information just now. Please open a support ticket in our Discord and include what you tried, your Minecraft version, and any error message. The team can take it from there.", "escalation_url": DISCORD_INVITE, "needs_escalation": True}
+    return JSONResponse(
+        status_code=503,
+        content={
+            "reply": "The support assistant is temporarily unavailable. Please open a support ticket in our Discord: https://discord.gg/ETuFknzhy",
+            "escalation_url": DISCORD_INVITE,
+            "needs_escalation": True,
+            "error": "provider_unavailable",
+        },
+    )
