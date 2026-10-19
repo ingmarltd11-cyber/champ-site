@@ -26,6 +26,8 @@ Do **not** use the publishable key (`sb_publishable_...`) or the legacy `anon` k
 
 After changing the variable, redeploy (or trigger a new deployment) so the serverless functions pick up the new value.
 
+`JWT_SECRET` is equally required: signup and login refuse to run without a secret of at least 32 characters, so no account is created that cannot be signed into. `/api/health` reports `sessions: false` in that case; signup and login return a 503 with a clear message.
+
 ## Signup without email verification (current default)
 
 Email verification is **off** by default: `EMAIL_VERIFICATION` is unset, so new accounts are active immediately and are signed in on signup. No sender domain, Resend key or SMTP credentials are needed, and the signup form goes straight to the dashboard (or to checkout when a plan was chosen). Set `EMAIL_VERIFICATION=true` only after a sender is configured; without a working sender every signup then fails with a 503 instead of creating an account that can never be activated.
