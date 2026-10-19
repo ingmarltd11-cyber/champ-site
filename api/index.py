@@ -1911,7 +1911,7 @@ def admin_upload_texture_pack(p: TexturePackUploadReq, admin: dict = Depends(cur
         raise HTTPException(400, "Could not decode the texture pack file.")
     if not raw or len(raw) > MAX_TEXTURE_PACK_BYTES:
         raise HTTPException(400, "Texture pack must be between 1 byte and 32 MB.")
-    if not raw.startswith(b"PK\\x03\\x04"):
+    if raw[:4] != bytes((0x50, 0x4B, 0x03, 0x04)):
         raise HTTPException(400, "Texture pack upload must be a valid ZIP archive.")
     safe_name = re.sub(r"[^A-Za-z0-9_.-]", "_", p.filename[:120]).strip("._") or "texture-pack.zip"
     if not safe_name.lower().endswith(".zip"):
