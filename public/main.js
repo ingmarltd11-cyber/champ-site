@@ -911,27 +911,168 @@ async function loadCustomerContent(data) {
   }
 }
 
+const FEATURE_CATALOG = window.CHAMP_FEATURES || { categories: [], modules: [] };
+
+function featureCategories() {
+  return FEATURE_CATALOG.categories || [];
+}
+
+function categoryById(id) {
+  return featureCategories().find(category => category.id === id) || null;
+}
+
+function featureVideoHtml(url, title) {
+  const src = String(url || '').trim();
+  if (!src) return '';
+  if (/\.(mp4|webm|ogg)(\?|#|$)/i.test(src)) {
+    return `<video controls preload="none" playsinline src="${escapeAttr(src)}" title="${escapeAttr(title)} video"></video>`;
+  }
+  return `<iframe src="${escapeAttr(src)}" title="${escapeAttr(title)} video" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; picture-in-picture" allowfullscreen></iframe>`;
+}
+
+// The catalogue is the source of truth; a saved feature row only adds media and text.
 async function loadFeaturesPage() {
   const grid = document.getElementById('featureGrid');
   if (!grid) return;
+
+  let overrides = [];
   try {
     const res = await api('/api/features');
-    if (!res.ok) throw new Error('features');
-    const features = res.data.features || [];
-    if (!features.length) {
-      grid.innerHTML = '<p class="no-license-text">No features published yet.</p>';
+    if (res.ok) overrides = res.data.features || [];
+  } catch (_) { /* the catalogue still renders without the database */ }
+
+  const bySlug = new Map(overrides.filter(row => row && row.slug).map(row => [row.slug, row]));
+  const catalogSlugs = new Set(FEATURE_CATALOG.modules.map(module => module.slug));
+
+  const modules = FEATURE_CATALOG.modules.map(module => {
+    const saved = bySlug.get(module.slug) || {};
+    return {
+      ...module,
+      title: module.title,
+      description: saved.description?.trim() || module.description,
+      image_url: saved.image_url || '',
+      video_url: saved.video_url || ''
+    };
+  });
+
+  // Extra features created in the admin panel that are not part of the catalogue.
+  for (const row of overrides) {
+    if (!row.slug || catalogSlugs.has(row.slug)) continue;
+    const category = categoryById(row.category) ? row.category : '';
+    modules.push({
+      slug: row.slug,
+      category,
+      title: row.title || row.slug,
+      description: row.description || '',
+      image_url: row.image_url || '',
+      video_url: row.video_url || ''
+    });
+  }
+
+  const filters = document.getElementById('featureFilters');
+  const note = document.getElementById('featureFilterNote');
+  let active = 'all';
+
+  function countFor(id) {
+    return id === 'all' ? modules.length : modules.filter(module => module.category === id).length;
+  }
+
+  function renderFilters() {
+    if (!filters) return;
+    const chips = [{ id: 'all', label: 'All', icon: '✦' }, ...featureCategories()];
+    filters.innerHTML = chips.map(chip => `
+      <button class="feature-filter${chip.id === active ? ' active' : ''}" type="button" role="tab"
+        aria-selected="${chip.id === active}" data-category="${escapeAttr(chip.id)}">
+        <span class="feature-filter-icon" aria-hidden="true">${escapeHtml(chip.icon || '•')}</span>
+        <span>${escapeHtml(chip.label)}</span>
+        <span class="feature-filter-count">${countFor(chip.id)}</span>
+      </button>
+    `).join('');
+
+    filters.querySelectorAll('[data-category]').forEach(button => {
+      button.addEventListener('click', () => {
+        active = button.dataset.category;
+        renderFilters();
+        renderCards();
+      });
+    });
+  }
+
+  function renderCards() {
+    const visible = active === 'all' ? modules : modules.filter(module => module.category === active);
+    if (note) {
+      const category = categoryById(active);
+      note.textContent = category?.note
+        ? category.note
+        : `${visible.length} module${visible.length === 1 ? '' : 's'}${category ? ` in ${category.label}` : ' across 8 categories'} · click a card for screenshots and clips`;
+      note.classList.toggle('is-warning', Boolean(category?.note));
+    }
+
+    if (!visible.length) {
+      grid.innerHTML = '<p class="no-license-text">No modules in this category yet.</p>';
       return;
     }
-    grid.innerHTML = features.map(feature => `
-      <article class="feature-content-card">
-        <h2>${escapeHtml(feature.title)}</h2>
-        <p>${escapeHtml(feature.description)}</p>
-        ${feature.video_url ? `<div class="feature-video"><iframe src="${escapeAttr(feature.video_url)}" title="${escapeAttr(feature.title)} video" loading="lazy" allowfullscreen></iframe></div>` : '<div class="feature-video" style="display:flex;align-items:center;justify-content:center;color:var(--muted)">Video coming soon</div>'}
-      </article>
-    `).join('');
-  } catch (_) {
-    grid.innerHTML = '<p class="no-license-text">Could not load features right now.</p>';
+
+    const groups = active === 'all'
+      ? featureCategories().map(category => ({ category, items: visible.filter(module => module.category === category.id) })).filter(group => group.items.length)
+      : [{ category: categoryById(active), items: visible }];
+
+    const loose = active === 'all' ? visible.filter(module => !categoryById(module.category)) : [];
+
+    grid.innerHTML = groups.map(({ category, items }) => `
+      <section class="feature-group">
+        <h2 class="feature-group-title"><span aria-hidden="true">${escapeHtml(category?.icon || '✦')}</span> ${escapeHtml(category?.label || 'Features')}</h2>
+        <div class="feature-group-grid">${items.map(featureCardHtml).join('')}</div>
+      </section>
+    `).join('') + (loose.length ? `
+      <section class="feature-group">
+        <h2 class="feature-group-title"><span aria-hidden="true">✦</span> More</h2>
+        <div class="feature-group-grid">${loose.map(featureCardHtml).join('')}</div>
+      </section>
+    ` : '');
+
+    grid.querySelectorAll('[data-feature-toggle]').forEach(button => {
+      button.addEventListener('click', () => {
+        const card = button.closest('.feature-module-card');
+        const media = card?.querySelector('.feature-module-media');
+        if (!media) return;
+        const open = media.hasAttribute('hidden');
+        if (open) {
+          const video = media.dataset.video;
+          if (video && !media.querySelector('.feature-video')) {
+            media.insertAdjacentHTML('afterbegin', `<div class="feature-video">${featureVideoHtml(video, card.dataset.title || 'Feature')}</div>`);
+          }
+          media.removeAttribute('hidden');
+        } else {
+          media.setAttribute('hidden', '');
+        }
+        button.setAttribute('aria-expanded', String(open));
+        button.textContent = open ? 'Hide media' : 'Show media';
+      });
+    });
   }
+
+  function featureCardHtml(module) {
+    const category = categoryById(module.category);
+    const hasMedia = Boolean(module.image_url || module.video_url);
+    return `
+      <article class="feature-module-card" data-title="${escapeAttr(module.title)}">
+        <div class="feature-module-top">
+          <span class="feature-module-icon" aria-hidden="true">${escapeHtml(category?.icon || '✦')}</span>
+          <h3>${escapeHtml(module.title)}</h3>
+        </div>
+        <p>${escapeHtml(module.description)}</p>
+        ${module.image_url ? `<img class="feature-module-thumb" src="${escapeAttr(module.image_url)}" alt="${escapeAttr(module.title)} screenshot" loading="lazy">` : ''}
+        ${hasMedia ? `<button class="feature-module-toggle" type="button" data-feature-toggle aria-expanded="false">Show media</button>
+        <div class="feature-module-media" data-video="${escapeAttr(module.video_url || '')}" hidden>
+          ${module.image_url ? `<img class="feature-module-image" src="${escapeAttr(module.image_url)}" alt="${escapeAttr(module.title)} screenshot" loading="lazy">` : ''}
+        </div>` : ''}
+      </article>
+    `;
+  }
+
+  renderFilters();
+  renderCards();
 }
 
 // ============================================================
@@ -1711,73 +1852,233 @@ if (createChangelogForm) {
 }
 
 // ============================================================
-// Admin: features & videos
+// Admin: features (module catalogue + screenshots and clips)
 // ============================================================
+const ADMIN_FEATURE_CATEGORIES = (window.CHAMP_FEATURES && window.CHAMP_FEATURES.categories) || [];
+let adminFeatureCategory = ADMIN_FEATURE_CATEGORIES[0] ? ADMIN_FEATURE_CATEGORIES[0].id : 'all';
+
 function showAddFeatureForm() {
   const container = document.getElementById('addFeatureContainer');
   if (container) container.style.display = 'block';
 }
 
+// Reads a picked file and uploads it to the public site-media bucket.
+async function uploadSiteImage(kind, file) {
+  const dataUrl = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('read'));
+    reader.readAsDataURL(file);
+  });
+  const res = await api('/api/admin/media/image', {
+    method: 'POST',
+    body: JSON.stringify({ kind, filename: file.name, image_base64: dataUrl }),
+  });
+  if (!res.ok) throw new Error(errorText(res.data, 'Could not upload the image.'));
+  return res.data.url;
+}
+
+function adminFeatureBadge(module) {
+  const badges = [];
+  if (module.image_url) badges.push('image');
+  if (module.video_url) badges.push('video');
+  if (module.isCustom) badges.push('custom');
+  return badges.map(badge => `<span class="admin-module-badge">${badge}</span>`).join('');
+}
+
+function adminFeatureForm(module) {
+  const category = ADMIN_FEATURE_CATEGORIES.find(entry => entry.id === module.category);
+  return `
+    <details class="admin-feature admin-module">
+      <summary>
+        <span class="admin-module-icon" aria-hidden="true">${escapeHtml(category ? category.icon : '✦')}</span>
+        <span class="admin-module-name">${escapeHtml(module.title)}</span>
+        ${adminFeatureBadge(module)}
+      </summary>
+      <form class="admin-editor admin-feature-form" data-slug="${escapeAttr(module.slug)}"
+        data-title="${escapeAttr(module.title)}" data-category="${escapeAttr(module.category)}"
+        data-custom="${module.isCustom ? '1' : '0'}">
+        ${module.isCustom ? `<label>Title<input name="title" value="${escapeAttr(module.title)}" required maxlength="150"></label>` : ''}
+        <label>Description<textarea name="description" rows="3">${escapeHtml(module.description)}</textarea></label>
+        <div class="admin-media-block">
+          <div class="admin-media-preview" data-preview>
+            ${module.image_url
+              ? `<img src="${escapeAttr(module.image_url)}" alt="${escapeAttr(module.title)} preview">`
+              : '<span class="no-license-text">No screenshot yet</span>'}
+          </div>
+          <div class="admin-media-fields">
+            <label>Upload screenshot (PNG, JPG, WEBP or GIF, max 3 MB)
+              <input type="file" name="image_file" accept="image/png,image/jpeg,image/webp,image/gif">
+            </label>
+            <label>or paste an image URL<input name="image_url" value="${escapeAttr(module.image_url || '')}" placeholder="https://..."></label>
+          </div>
+        </div>
+        <label>Video (YouTube embed URL or a direct .mp4 link)<input name="video_url" value="${escapeAttr(module.video_url || '')}" placeholder="https://www.youtube.com/embed/VIDEO_ID"></label>
+        <label>Sort order<input type="number" name="sort_order" value="${Number(module.sort_order) || 0}"></label>
+        <div class="admin-feature-actions">
+          <button class="btn-primary" type="submit">Save</button>
+          <button class="btn-ghost" type="button" data-clear-image>Remove image</button>
+          <button class="btn-ghost" type="button" data-reset-feature>${module.isCustom ? 'Delete feature' : 'Reset to default'}</button>
+        </div>
+        <p class="save-message" style="display:none"></p>
+      </form>
+    </details>
+  `;
+}
+
 async function loadAdminFeatures() {
   const wrap = document.getElementById('adminFeatures');
   if (!wrap) return;
-  let result;
+
+  let rows = [];
   try {
-    result = await api('/api/admin/features');
+    const result = await api('/api/admin/features');
+    if (!result.ok) {
+      wrap.innerHTML = `<p class="no-license-text">${escapeHtml(errorText(result.data, 'Could not load features.'))}</p>`;
+      return;
+    }
+    rows = result.data.features || [];
   } catch (_) {
     wrap.innerHTML = '<p class="no-license-text">Could not load features.</p>';
     return;
   }
-  if (!result.ok) {
-    wrap.innerHTML = `<p class="no-license-text">${escapeHtml(errorText(result.data, 'Could not load features.'))}</p>`;
-    return;
-  }
-  const features = result.data.features || [];
-  if (!features.length) {
-    wrap.innerHTML = '<p class="no-license-text">No features yet. Add the first one above.</p>';
-    return;
-  }
-  wrap.innerHTML = features.map(feature => `
-    <div class="admin-feature">
-      <h2>${escapeHtml(feature.title)}</h2>
-      <form class="admin-editor feature-edit-form" data-slug="${escapeAttr(feature.slug)}">
-        <label>Title<input name="title" value="${escapeAttr(feature.title)}" required></label>
-        <label>Description<textarea name="description" required rows="4">${escapeHtml(feature.description)}</textarea></label>
-        <label>Video embed URL<input name="video_url" value="${escapeAttr(feature.video_url || '')}" placeholder="https://www.youtube.com/embed/..."></label>
-        <p class="no-license-text" style="margin-top:-8px">Use an embed link (youtube.com/embed/VIDEO_ID) or a direct .mp4 URL. Leave empty to show no video.</p>
-        <label>Sort order<input type="number" name="sort_order" value="${Number(feature.sort_order) || 0}"></label>
-        <div style="display:flex; gap:10px; flex-wrap:wrap">
-          <button class="btn-primary" type="submit">Save changes</button>
-          <button class="btn-ghost" type="button" data-delete-feature="${escapeAttr(feature.slug)}">Delete feature</button>
-        </div>
-        <p class="save-message" style="display:none"></p>
-      </form>
-    </div>
-  `).join('');
 
-  wrap.querySelectorAll('.feature-edit-form').forEach(form => {
-    form.addEventListener('submit', async event => {
-      event.preventDefault();
-      const button = form.querySelector('button[type="submit"]');
-      const msg = form.querySelector('.save-message');
-      button.disabled = true;
-      const data = Object.fromEntries(new FormData(form).entries());
-      data.sort_order = Number(data.sort_order) || 0;
-      const res = await api(`/api/admin/features/${encodeURIComponent(form.dataset.slug)}`, { method:'PUT', body:JSON.stringify(data) });
-      msg.style.display = 'block';
-      msg.style.color = res.ok ? '#4ade80' : '#ff6b6b';
-      msg.textContent = res.ok ? 'Saved.' : errorText(res.data, 'Could not save.');
-      button.disabled = false;
-    });
+  const bySlug = new Map(rows.filter(row => row && row.slug).map(row => [row.slug, row]));
+  const catalogSlugs = new Set(FEATURE_CATALOG.modules.map(module => module.slug));
+
+  const modules = FEATURE_CATALOG.modules.map(module => {
+    const saved = bySlug.get(module.slug) || {};
+    return {
+      ...module,
+      description: (saved.description || '').trim() || module.description,
+      image_url: saved.image_url || '',
+      video_url: saved.video_url || '',
+      sort_order: Number(saved.sort_order) || 0,
+      isCustom: false
+    };
   });
 
-  wrap.querySelectorAll('[data-delete-feature]').forEach(button => {
-    button.addEventListener('click', async () => {
-      if (!confirm('Delete this feature? It disappears from the public page.')) return;
-      const res = await api(`/api/admin/features/${encodeURIComponent(button.dataset.deleteFeature)}`, { method: 'DELETE' });
-      if (res.ok) loadAdminFeatures();
-      else alert(errorText(res.data, 'Could not delete the feature.'));
+  // Features an admin added on top of the catalogue.
+  for (const row of rows) {
+    if (!row.slug || catalogSlugs.has(row.slug)) continue;
+    modules.push({
+      slug: row.slug,
+      category: row.category || '',
+      title: row.title || row.slug,
+      description: row.description || '',
+      image_url: row.image_url || '',
+      video_url: row.video_url || '',
+      sort_order: Number(row.sort_order) || 0,
+      isCustom: true
     });
+  }
+
+  function renderAdminFeatures() {
+    const chips = [{ id: 'all', label: 'All', icon: '✦' }, ...ADMIN_FEATURE_CATEGORIES];
+    const visible = adminFeatureCategory === 'all'
+      ? modules
+      : modules.filter(module => module.category === adminFeatureCategory);
+    const count = id => id === 'all' ? modules.length : modules.filter(module => module.category === id).length;
+
+    wrap.innerHTML = `
+      <div class="feature-filters admin-feature-filters">
+        ${chips.map(chip => `
+          <button class="feature-filter${chip.id === adminFeatureCategory ? ' active' : ''}" type="button"
+            data-admin-category="${escapeAttr(chip.id)}">
+            <span class="feature-filter-icon" aria-hidden="true">${escapeHtml(chip.icon || '✦')}</span>
+            <span>${escapeHtml(chip.label)}</span>
+            <span class="feature-filter-count">${count(chip.id)}</span>
+          </button>
+        `).join('')}
+      </div>
+      ${visible.length ? visible.map(adminFeatureForm).join('') : '<p class="no-license-text">No modules in this category.</p>'}
+    `;
+
+    wrap.querySelectorAll('[data-admin-category]').forEach(button => {
+      button.addEventListener('click', () => {
+        adminFeatureCategory = button.dataset.adminCategory;
+        renderAdminFeatures();
+      });
+    });
+
+    wrap.querySelectorAll('.admin-feature-form').forEach(bindAdminFeatureForm);
+  }
+
+  renderAdminFeatures();
+}
+
+function bindAdminFeatureForm(form) {
+  const msg = form.querySelector('.save-message');
+  const preview = form.querySelector('[data-preview]');
+  const imageInput = form.querySelector('input[name="image_url"]');
+
+  function setMessage(text, ok) {
+    msg.style.display = 'block';
+    msg.style.color = ok ? '#4ade80' : '#ff6b6b';
+    msg.textContent = text;
+  }
+
+  function setPreview(url) {
+    preview.innerHTML = url
+      ? `<img src="${escapeAttr(url)}" alt="Feature preview">`
+      : '<span class="no-license-text">No screenshot yet</span>';
+  }
+
+  form.querySelector('input[name="image_file"]')?.addEventListener('change', async event => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (file.size > 3 * 1024 * 1024) return setMessage('The image must be 3 MB or smaller.', false);
+    setMessage('Uploading image…', true);
+    try {
+      const url = await uploadSiteImage('feature', file);
+      imageInput.value = url;
+      setPreview(url);
+      setMessage('Image uploaded. Press Save to keep it on this module.', true);
+    } catch (err) {
+      setMessage(String(err.message || 'Could not upload the image.'), false);
+    }
+  });
+
+  form.querySelector('[data-clear-image]')?.addEventListener('click', () => {
+    imageInput.value = '';
+    setPreview('');
+    setMessage('Image removed. Press Save to apply it.', true);
+  });
+
+  form.querySelector('[data-reset-feature]')?.addEventListener('click', async () => {
+    const custom = form.dataset.custom === '1';
+    const question = custom
+      ? 'Delete this feature? It disappears from the public page.'
+      : 'Reset this module to its default text and remove its screenshot and video?';
+    if (!confirm(question)) return;
+    const res = await api(`/api/admin/features/${encodeURIComponent(form.dataset.slug)}`, { method: 'DELETE' });
+    if (res.ok) loadAdminFeatures();
+    else alert(errorText(res.data, 'Could not reset the feature.'));
+  });
+
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    const button = form.querySelector('button[type="submit"]');
+    button.disabled = true;
+    setMessage('Saving…', true);
+
+    const titleInput = form.querySelector('input[name="title"]');
+    const payload = {
+      title: titleInput ? titleInput.value.trim() : form.dataset.title,
+      description: form.querySelector('textarea[name="description"]').value,
+      image_url: imageInput.value.trim(),
+      video_url: form.querySelector('input[name="video_url"]').value.trim(),
+      category: form.dataset.category,
+      sort_order: Number(form.querySelector('input[name="sort_order"]').value) || 0,
+    };
+
+    const res = await api(`/api/admin/features/${encodeURIComponent(form.dataset.slug)}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+    setMessage(res.ok ? 'Saved.' : errorText(res.data, 'Could not save.'), res.ok);
+    if (res.ok) loadAdminFeatures();
+    button.disabled = false;
   });
 }
 
@@ -1789,6 +2090,17 @@ if (createFeatureForm) {
     button.disabled = true;
     const payload = Object.fromEntries(new FormData(createFeatureForm).entries());
     payload.sort_order = Number(payload.sort_order) || 0;
+    const imageFile = createFeatureForm.elements['image_file']?.files?.[0];
+    delete payload.image_file;
+    if (imageFile) {
+      try {
+        payload.image_url = await uploadSiteImage('feature', imageFile);
+      } catch (err) {
+        showMessage('createFeatureMsg', String(err.message || 'Could not upload the image.'), true);
+        button.disabled = false;
+        return;
+      }
+    }
     const res = await api('/api/admin/features', { method: 'POST', body: JSON.stringify(payload) });
     showMessage('createFeatureMsg', res.ok ? 'Feature added.' : errorText(res.data, 'Could not add the feature.'), !res.ok);
     if (res.ok) {
@@ -1863,6 +2175,16 @@ document.getElementById('createTexturePackForm')?.addEventListener('submit', asy
     sort_order: parseInt(this.elements['sort_order'].value || '1', 10),
   };
 
+  const previewFile = this.elements['preview_image']?.files?.[0];
+  if (previewFile) {
+    if (previewFile.size > 3 * 1024 * 1024) return fail('The preview image must be 3 MB or smaller.');
+    try {
+      data.image_url = await uploadSiteImage('texture-pack', previewFile);
+    } catch (err) {
+      return fail(String(err.message || 'Could not upload the preview image.'));
+    }
+  }
+
   let res;
   if (file) {
     if (!/\.zip$/i.test(file.name)) return fail('Choose a .zip texture pack.');
@@ -1902,6 +2224,21 @@ document.getElementById('createTexturePackForm')?.addEventListener('submit', asy
     setTimeout(() => { document.getElementById('addTexturePackContainer').style.display = 'none'; }, 800);
   }
   btn.disabled = false;
+});
+
+// Live preview for a picked texture pack image.
+document.getElementById('packPreviewImage')?.addEventListener('change', event => {
+  const file = event.target.files?.[0];
+  const preview = document.getElementById('packPreviewPreview');
+  if (!preview) return;
+  if (!file) {
+    preview.innerHTML = '<span class="no-license-text">No preview yet</span>';
+    return;
+  }
+  const img = document.createElement('img');
+  img.alt = 'Texture pack preview';
+  img.src = URL.createObjectURL(file);
+  preview.replaceChildren(img);
 });
 
 // Admin: Reviews

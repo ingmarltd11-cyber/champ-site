@@ -115,7 +115,9 @@
             <input type="checkbox" name="is_customer_only" style="width:auto; margin:0;">
             <span>Customers Only (VIP Pack &mdash; requires active Lifetime or Monthly license)</span>
           </label>
-          <label>Preview Image URL (optional)<input name="image_url" placeholder="https://..."></label>
+          <label>Preview image (optional, max 3 MB)<input name="preview_image" id="packPreviewImage" type="file" accept="image/png,image/jpeg,image/webp,image/gif"></label>
+          <label>or Preview Image URL<input name="image_url" placeholder="https://..."></label>
+          <div id="packPreviewPreview" class="admin-media-preview"><span class="no-license-text">No preview yet</span></div>
           <label>Sort Order<input type="number" name="sort_order" value="1"></label>
           <div style="display:flex; gap:10px;">
             <button class="btn-primary" type="submit">Add Texture Pack</button>
@@ -171,8 +173,8 @@
     <div class="admin-tabpage" id="tab-features" style="display:none">
       <div style="display:flex; justify-content:space-between; align-items:center; margin:18px 0 20px; flex-wrap:wrap; gap:12px;">
         <div>
-          <h2>Features &amp; Video Embeds</h2>
-          <p class="no-license-text">Edit the text and video for every feature card on the public Features page.</p>
+          <h2>Modules, screenshots &amp; clips</h2>
+          <p class="no-license-text">Every module of the Features page is listed here. Pick a category, open a module and add a screenshot, a video or a longer description. Modules without their own media show the default text.</p>
         </div>
         <button class="btn-primary" type="button" onclick="showAddFeatureForm()">+ Add feature</button>
       </div>
@@ -182,6 +184,20 @@
         <form id="createFeatureForm" class="admin-editor">
           <label>Title<input name="title" required placeholder="e.g. Crystal PvP macros" maxlength="150"></label>
           <label>Description<textarea name="description" rows="4" placeholder="What this feature does..."></textarea></label>
+          <label>Category
+            <select name="category">
+              <option value="combat">⚔️ Combat</option>
+              <option value="crystal">💎 Crystal</option>
+              <option value="mace">🔨 Mace</option>
+              <option value="spear">🗡️ Spear</option>
+              <option value="movement">🏃 Movement</option>
+              <option value="misc">🧰 Misc</option>
+              <option value="visual">👀 Visuals</option>
+              <option value="donut">🍩 Donut SMP</option>
+              <option value="">Other / no category</option>
+            </select>
+          </label>
+          <label>Screenshot (optional, max 3 MB)<input name="image_file" type="file" accept="image/png,image/jpeg,image/webp,image/gif"></label>
           <label>Video embed URL<input name="video_url" placeholder="https://www.youtube.com/embed/... or https://.../clip.mp4"></label>
           <label>Sort order<input type="number" name="sort_order" value="0"></label>
           <div style="display:flex; gap:10px; flex-wrap:wrap">
@@ -256,6 +272,7 @@
 
   </section>
 </main>
+<script src="feature-catalog.js"></script>
 <script src="main.js"></script>
 </body>
 </html>

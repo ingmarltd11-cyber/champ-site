@@ -81,6 +81,10 @@ if SUPABASE_URL and SUPABASE_KEY and not SUPABASE_SERVER_KEY:
 DOWNLOAD_BUCKET = os.getenv("DOWNLOAD_BUCKET", "downloads")
 TEXTURE_PACK_BUCKET = os.getenv("TEXTURE_PACK_BUCKET", "texture-packs")
 MAX_TEXTURE_PACK_BYTES = 32 * 1024 * 1024
+# Public images for the features page and texture pack previews.
+SITE_MEDIA_BUCKET = os.getenv("SITE_MEDIA_BUCKET", "site-media")
+# Vercel rejects request bodies above ~4.5 MB, and base64 adds a third, so 3 MB is the real cap.
+MAX_SITE_IMAGE_BYTES = 3 * 1024 * 1024
 JAR_MAX_BYTES = 100 * 1024 * 1024
 FROM_EMAIL = os.getenv("FROM_EMAIL", "Champ Client <onboarding@resend.dev>")
 DEV_MODE = os.getenv("DEV_MODE", "").lower() in ("1", "true", "yes")
@@ -688,6 +692,8 @@ class FeatureUpdateReq(BaseModel):
     title: str
     description: str
     video_url: str = ""
+    image_url: str = ""
+    category: str = ""
     sort_order: Optional[int] = None
 
 
@@ -695,7 +701,15 @@ class FeatureCreateReq(BaseModel):
     title: str
     description: str = ""
     video_url: str = ""
+    image_url: str = ""
+    category: str = ""
     sort_order: Optional[int] = None
+
+
+class SiteImageReq(BaseModel):
+    kind: str = "feature"
+    filename: str = ""
+    image_base64: str
 
 
 class JarUploadUrlReq(BaseModel):
@@ -910,6 +924,49 @@ def admin_me(admin: dict = Depends(current_admin)):
     return admin
 
 
+def upload_site_image(kind: str, filename: str, raw: bytes) -> str:
+    """Stores an image in the public site-media bucket and returns its URL."""
+    head = raw[:12]
+    if head[:8] == b"\x89PNG\r\n\x1a\n":
+        ext, ctype = "png", "image/png"
+    elif head[:3] == b"\xff\xd8\xff":
+        ext, ctype = "jpg", "image/jpeg"
+    elif head[:4] == b"RIFF" and raw[8:12] == b"WEBP":
+        ext, ctype = "webp", "image/webp"
+    elif head[:6] in (b"GIF87a", b"GIF89a"):
+        ext, ctype = "gif", "image/gif"
+    else:
+        raise HTTPException(400, "Image must be PNG, JPG, WEBP or GIF.")
+
+    folder = re.sub(r"[^a-z0-9-]", "", (kind or "feature").lower())[:30] or "feature"
+    safe = re.sub(r"[^A-Za-z0-9_.-]", "_", (filename or "image")[:40]).strip("._") or "image"
+    path = f"{folder}/{uuid.uuid4().hex[:12]}-{safe}.{ext}"
+    r = requests.post(
+        f"{SUPABASE_URL}/storage/v1/object/{SITE_MEDIA_BUCKET}/{path}",
+        data=raw,
+        headers={**_sb_headers(), "Content-Type": ctype, "x-upsert": "false"},
+        timeout=20,
+    )
+    if r.status_code >= 400:
+        print("Site image upload error:", r.status_code, r.text[:200])
+        raise HTTPException(502, "Image upload failed. Please try again.")
+    return f"{SUPABASE_URL}/storage/v1/object/public/{SITE_MEDIA_BUCKET}/{path}"
+
+
+@app.post("/api/admin/media/image", status_code=201)
+def admin_upload_image(p: SiteImageReq, admin: dict = Depends(current_admin)):
+    """Uploads a feature screenshot or a texture pack preview image."""
+    if p.kind not in ("feature", "texture-pack"):
+        raise HTTPException(400, "Unknown image type.")
+    try:
+        raw = base64.b64decode(p.image_base64.split(",", 1)[-1], validate=True)
+    except Exception:
+        raise HTTPException(400, "Could not read the image.")
+    if not raw or len(raw) > MAX_SITE_IMAGE_BYTES:
+        raise HTTPException(400, "Image must be between 1 byte and 3 MB.")
+    return {"url": upload_site_image(p.kind, p.filename, raw)}
+
+
 @app.get("/api/features")
 def public_features():
     try:
@@ -949,6 +1006,8 @@ def create_feature(p: FeatureCreateReq, admin: dict = Depends(current_admin)):
         "title": title,
         "description": p.description.strip()[:4000],
         "video_url": p.video_url.strip()[:1000],
+        "image_url": p.image_url.strip()[:1000],
+        "category": p.category.strip()[:40].lower(),
         "sort_order": int(sort_order),
         "updated_at": iso(now()),
     })
@@ -965,18 +1024,26 @@ def delete_feature(slug: str, admin: dict = Depends(current_admin)):
 
 @app.put("/api/admin/features/{slug}")
 def update_feature(slug: str, p: FeatureUpdateReq, admin: dict = Depends(current_admin)):
+    slug = re.sub(r"[^a-z0-9-]", "-", slug.lower()).strip("-")[:80]
+    if not slug:
+        raise HTTPException(400, "Invalid feature slug.")
     updates = {
         "title": p.title.strip()[:150],
         "description": p.description.strip()[:4000],
         "video_url": p.video_url.strip()[:1000],
+        "image_url": p.image_url.strip()[:1000],
+        "category": p.category.strip()[:40].lower(),
         "updated_at": iso(now()),
     }
     if p.sort_order is not None:
         updates["sort_order"] = int(p.sort_order)
     rows = db_update("features", {"slug": eq(slug)}, updates)
-    if not rows:
-        raise HTTPException(404, "Feature not found.")
-    return rows[0]
+    if rows:
+        return rows[0]
+
+    # The module list lives on the site, so the first time an admin gives a module a
+    # screenshot or a video there is no row yet: create it instead of failing.
+    return db_insert("features", {"slug": slug, **updates})
 
 
 # --------------------------------------------------------------------------
@@ -1981,7 +2048,7 @@ def get_site_settings():
         "pricing_title": "Simple *Pricing*",
         "pricing_sub": "Pick your plan. Safe and instant checkout via Stripe.",
         "features_title": "Explore the *Features.*",
-        "features_sub": "Native Fabric mod architecture with 178 modules, custom Dear ImGui render overlays, crystal macros, and DonutSMP base raiding suites. Preview clips can be updated directly from the admin panel.",
+        "features_sub": "Every module in Champ Client, grouped by category: combat, crystal, mace, spear, movement, misc, visuals and Donut SMP. Filter a category or browse them all, and open a card for screenshots and clips.",
         "support_title": "Need *help?*",
         "support_sub": "The fastest way to reach us is on Discord — real support from the team, usually within hours.",
         "dashboard_icons": json.dumps(DEFAULT_DASH_ICONS, separators=(",", ":")),

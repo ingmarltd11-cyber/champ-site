@@ -102,9 +102,13 @@ create table if not exists public.features (
   title text not null,
   description text not null default '',
   video_url text not null default '',
+  image_url text not null default '',
+  category text not null default '',
   sort_order integer not null default 0,
   updated_at timestamptz not null default now()
 );
+alter table public.features add column if not exists image_url text not null default '';
+alter table public.features add column if not exists category text not null default '';
 create table if not exists public.ai_knowledge (
   id bigint generated always as identity primary key,
   title text not null,
@@ -220,6 +224,11 @@ insert into storage.buckets (id, name, public)
 values ('texture-packs', 'texture-packs', false)
 on conflict (id) do nothing;
 update storage.buckets set public = false where id = 'texture-packs';
+
+-- Public screenshots for the features page and texture pack previews.
+insert into storage.buckets (id, name, public)
+values ('site-media', 'site-media', true)
+on conflict (id) do update set public = true;
 
 -- Default features
 insert into public.features (slug, title, description, video_url, sort_order)

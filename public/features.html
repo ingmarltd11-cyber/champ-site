@@ -28,10 +28,13 @@
   <section class="features-hero">
     <p class="hero-eyebrow">Minecraft 1.21.11 Fabric Mod</p>
     <h1 data-site-text="features_title">Explore the <em>Features.</em></h1>
-    <p class="hero-sub" data-site-text="features_sub">Native Fabric mod architecture with 178 modules, custom Dear ImGui render overlays, crystal macros, and DonutSMP base raiding suites. Preview clips can be updated directly from the admin panel.</p>
+    <p class="hero-sub" data-site-text="features_sub">Every module in Champ Client, grouped by category: combat, crystal, mace, spear, movement, misc, visuals and Donut SMP. Filter a category or browse them all, and open a card for screenshots and clips.</p>
   </section>
-  <section id="featureGrid" class="feature-admin-grid"><p class="no-license-text">Loading features…</p></section>
+  <div class="feature-filters" id="featureFilters" role="tablist" aria-label="Feature categories"></div>
+  <p class="feature-filter-note" id="featureFilterNote"></p>
+  <section id="featureGrid" class="feature-module-grid"><p class="no-license-text">Loading features…</p></section>
 </main>
 <footer><div class="footer-logo"><img src="assets/logo.png" alt="Champ">Champ <em style="font-style:italic;color:var(--red-hi)">Client</em></div><div class="footer-links"><a href="changelog.html">Changelog</a><a href="privacy.html">Privacy Policy</a><a href="terms.html">Terms of Service</a></div><p class="footer-copy">© 2026 Champ Client. Not affiliated with Mojang or Microsoft.</p></footer>
+<script src="feature-catalog.js"></script>
 <script src="main.js"></script>
 </body></html>
