@@ -1004,7 +1004,7 @@ async function loadFeaturesPage() {
       const category = categoryById(active);
       note.textContent = category?.note
         ? category.note
-        : `${visible.length} module${visible.length === 1 ? '' : 's'}${category ? ` in ${category.label}` : ' across 8 categories'} · click a card for screenshots and clips`;
+        : `${visible.length} module${visible.length === 1 ? '' : 's'}${category ? ` in ${category.label}` : ` across ${featureCategories().length} categories`} · click a card for screenshots and clips`;
       note.classList.toggle('is-warning', Boolean(category?.note));
     }
 

@@ -230,15 +230,14 @@ insert into storage.buckets (id, name, public)
 values ('site-media', 'site-media', true)
 on conflict (id) do update set public = true;
 
--- Default features
-insert into public.features (slug, title, description, video_url, sort_order)
-values
-  ('fabric-mod', 'Fabric Mod (Minecraft 1.21.11)', 'Native Fabric mod running directly inside Minecraft 1.21.11 with Fabric Loader. No injection needed, no external loader, and fully stable.', '', 1),
-  ('combat', 'Combat & PvP Suite', 'Advanced modules including Anchor Aura, Crystal Aura, Auto Totem, Triggerbot, Shield Breaker, Aim Assist, and smooth hit registration.', '', 2),
-  ('movement', 'Movement & QoL', 'Fly, Speed, Elytra Fly, Jesus, Spider, Entity Speed, Fast Bridge, and No Jump Delay engineered for high performance.', '', 3),
-  ('render', 'Visuals & Render Engine', 'ImGui-powered customizable HUD, Glint Head, Borderless Fullscreen, Player ESP, Storage ESP, Tracers, and Custom Crosshair.', '', 4),
-  ('donut', 'DonutSMP & Raid Tools', 'Donut NoFall, Netherite Finder, Player Detection, Player Bypass, Anti Vanish, Base Finder, and AH Sniper built-in.', '', 5)
-on conflict (slug) do nothing;
+-- Features are not seeded here on purpose: public/feature-catalog.js is the source of truth
+-- for every module on the Features page, and this table only stores what an admin adds on top
+-- of it (per-module screenshot, video, description, sort order, or a custom entry).
+-- Remove the generic category rows that older versions of this file seeded; they are not
+-- modules, so they used to show up as duplicate "More" cards next to the real ones.
+delete from public.features
+where slug in ('fabric-mod', 'combat', 'movement', 'render', 'donut')
+  and category = '';
 
 -- Default settings
 insert into public.site_settings (key, value)

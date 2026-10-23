@@ -2048,7 +2048,7 @@ def get_site_settings():
         "pricing_title": "Simple *Pricing*",
         "pricing_sub": "Pick your plan. Safe and instant checkout via Stripe.",
         "features_title": "Explore the *Features.*",
-        "features_sub": "Every module in Champ Client, grouped by category: combat, crystal, mace, spear, movement, misc, visuals and Donut SMP. Filter a category or browse them all, and open a card for screenshots and clips.",
+        "features_sub": "Every module in Champ Client, grouped by category: combat, mace, spear, movement, misc, visuals and Donut SMP. Filter a category or browse them all, and open a card for screenshots and clips.",
         "support_title": "Need *help?*",
         "support_sub": "The fastest way to reach us is on Discord — real support from the team, usually within hours.",
         "dashboard_icons": json.dumps(DEFAULT_DASH_ICONS, separators=(",", ":")),
@@ -2361,7 +2361,7 @@ CHAMP CLIENT PRODUCT FACTS
 
 Product: Champ Client is a native Minecraft Java Fabric mod (.jar) for Minecraft 1.21.11. It is not an injection tool and needs no DLL injector. Install Fabric Loader 0.16 or newer, then place the .jar in the Minecraft mods folder. It is designed to work alongside Sodium, Lithium, FerriteCore and Iris shaders on 1.21.11.
 
-Scope: the website advertises 178 modules, custom Dear ImGui render overlays, crystal macros and DonutSMP base raiding suites. The full module list lives on the features page. Never invent module names or describe a specific module that is not listed on the site.
+Scope: the website advertises 136 modules, custom Dear ImGui render overlays, crystal macros and DonutSMP base raiding suites. The full module list lives on the features page. Never invent module names or describe a specific module that is not listed on the site.
 
 Plans and delivery: Monthly costs EUR 6.99 and can be cancelled anytime from the dashboard. Lifetime costs EUR 9.99 as a one-time payment and includes future 1.21.x updates. Checkout uses Stripe, which supports credit cards, debit cards, iDEAL and country-specific local payment methods. After successful payment the product is available in the customer's dashboard immediately, and a license confirmation email is sent. Downloads require an active license. PayPal, crypto and other payment providers are not available in this shop; never suggest them.
 
@@ -2385,7 +2385,7 @@ Do not invent features, testimonials, downloads, compatibility promises, refunds
 # The assistant treats every other domain as non-existent, exactly like the Discord bot.
 OFFICIAL_SITE = (os.getenv("SITE_URL") or "https://champ-site-psi.vercel.app").rstrip("/")
 HIDDEN_HOSTS = [h.strip().replace("www.", "").lower() for h in (os.getenv("AI_HIDDEN_HOSTS") or "champclient.com").split(",") if h.strip()]
-FEATURES_REPLY = "\U0001F4C4 **Features and modules**\n178 modules, custom Dear ImGui overlays, crystal macros and DonutSMP base raiding suites. The full list is here: {url}\nAsk here if you want to know more about one of them."
+FEATURES_REPLY = "\U0001F4C4 **Features and modules**\n136 modules, custom Dear ImGui overlays, crystal macros and DonutSMP base raiding suites. The full list is here: {url}\nAsk here if you want to know more about one of them."
 REFUSAL = "I can't help with that: I don't share code and I won't explain how to get it. A staff member can help you further."
 FEATURES_PATTERN = re.compile(
     r"\b(modules?|features?|functies?|functionaliteit\w*|capabilit\w*|what\s+can\s+(it|this|the\s+(mod|client|cheat|menu))\s+do|what\s+does\s+(it|the\s+(mod|client))\s+(do|include|have)|what(?:'s|\s+is)\s+included|wat\s+kan\s+(het|deze|de\s+(mod|client))|wat\s+zit\s+er\s+in|welke\s+(modules?|features?|functies?))\b",
@@ -2560,7 +2560,7 @@ def _answer_safety() -> str:
 def _answer_what_is_it() -> str:
     return (
         "Champ Client is a native Minecraft Java Fabric mod for 1.21.11: it installs as a .jar, needs no injector, "
-        "and is built to run next to Sodium, Lithium, FerriteCore and Iris. The site lists 178 modules, custom "
+        "and is built to run next to Sodium, Lithium, FerriteCore and Iris. The site lists 136 modules, custom "
         "Dear ImGui overlays, crystal macros and DonutSMP base raiding suites.\n\n"
         f"Features and modules: {SITE_LINKS['features']}\nPlans and pricing: {SITE_LINKS['pricing']}"
     )
