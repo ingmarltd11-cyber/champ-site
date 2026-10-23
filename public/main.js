@@ -686,6 +686,65 @@ function initDashboardExtras(data) {
   const eur = (c) => `€${(c / 100).toFixed(2)}`;
   const discordLink = 'https://discord.gg/6vyQnVjeX';
 
+  // Device / HWID card: one PC per key, a free reset per week and a paid reset after that.
+  (async function initDeviceCard() {
+    const box = document.getElementById('deviceContent');
+    const msg = document.getElementById('deviceMessage');
+    if (!box) return;
+    const money = (c) => `€${((Number(c) || 500) / 100).toFixed(2)}`;
+    const say = (text, good) => {
+      if (!msg) return;
+      msg.style.display = 'block';
+      msg.style.color = good ? '#4ade80' : '#ff6b6b';
+      msg.textContent = text;
+    };
+
+    async function render() {
+      const res = await api('/api/account/device');
+      if (!res.ok) {
+        box.innerHTML = '<p class="no-license-text">Could not load your device right now.</p>';
+        return;
+      }
+      const d = res.data || {};
+      if (!d.license) {
+        box.innerHTML = '<p class="no-license-text">An active license is required to link a device.</p>';
+        return;
+      }
+      const next = d.next_free_reset_at ? new Date(d.next_free_reset_at).toLocaleDateString() : '';
+      box.innerHTML = `
+        <p class="no-license-text">One PC per key: the loader binds your hardware the first time it starts, so a shared key does not work on a second PC.</p>
+        <div class="license-box">${d.device ? escapeHtml(d.device) : 'No device linked yet'}</div>
+        <p class="no-license-text">${d.bound_at ? 'Linked on ' + escapeHtml(new Date(d.bound_at).toLocaleString()) : 'Start the loader once to link this PC.'}</p>
+        ${d.device ? (d.free_reset
+          ? '<button class="btn-ghost" type="button" id="deviceResetFree">Reset device (free)</button>'
+          : `<button class="btn-ghost" type="button" id="deviceResetPaid">Reset device (${money(d.reset_price_cents)})</button>
+             <p class="no-license-text" style="margin-top:10px">Free reset used${next ? `; available again on ${escapeHtml(next)}` : ''}. A paid reset clears it immediately.</p>`) : ''}
+      `;
+
+      document.getElementById('deviceResetFree')?.addEventListener('click', async (e) => {
+        e.target.disabled = true;
+        const r = await api('/api/account/device/reset', { method: 'POST', body: '{}' });
+        say(r.ok ? r.data.message : errorText(r.data, 'Could not reset your device.'), r.ok);
+        await render();
+      });
+
+      document.getElementById('deviceResetPaid')?.addEventListener('click', async (e) => {
+        e.target.disabled = true;
+        const r = await api('/api/account/device/reset/checkout', { method: 'POST', body: '{}' });
+        if (r.ok && r.data.url) window.location.href = r.data.url;
+        else {
+          say(errorText(r.data, 'Could not start the payment.'), false);
+          e.target.disabled = false;
+        }
+      });
+    }
+
+    if (new URLSearchParams(window.location.search).get('device_reset') === 'paid') {
+      say('Payment received — your device is being reset…', true);
+    }
+    await render();
+  })();
+
   // Discord link result (?discord=...)
   const dq = new URLSearchParams(window.location.search).get('discord');
   const discordMsg = document.getElementById('discordMessage');

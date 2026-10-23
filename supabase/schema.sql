@@ -49,6 +49,26 @@ create index if not exists licenses_sub_idx on public.licenses (stripe_subscript
 create index if not exists licenses_pi_idx  on public.licenses (stripe_payment_intent);
 alter table public.licenses add column if not exists redeemed_at timestamptz;
 
+-- Hardware binding: one PC per key. The loader sends a hashed hardware ID and the key is bound to
+-- the first one that uses it. A reset clears the binding, so the same key can move to a new PC.
+alter table public.licenses add column if not exists hwid text not null default '';
+alter table public.licenses add column if not exists hwid_bound_at timestamptz;
+alter table public.licenses add column if not exists hwid_reset_at timestamptz;
+create index if not exists licenses_hwid_idx on public.licenses (hwid);
+
+-- Every reset is kept, so support can see how often a key moved and which resets were paid.
+create table if not exists public.hwid_resets (
+  id             bigint generated always as identity primary key,
+  license_id     bigint not null,
+  license_key    text not null,
+  old_hwid       text not null default '',
+  reason         text not null default 'free' check (reason in ('free', 'paid', 'admin')),
+  payment_intent text,
+  created_at     timestamptz not null default now()
+);
+create index if not exists hwid_resets_license_idx on public.hwid_resets (license_id, created_at desc);
+alter table public.hwid_resets enable row level security;
+
 alter table public.pending_payments add column if not exists referral_code text;
 
 -- Referrals: users earn 10% credit for sales through their personal link.

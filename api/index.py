@@ -105,6 +105,10 @@ PLAN_PRICES = {
     "monthly": "STRIPE_PRICE_MONTHLY_ID",
     "lifetime": "STRIPE_PRICE_LIFETIME_ID",
 }
+# One device per key. The first reset is free, then one more every 7 days; after that a reset is a
+# one-off payment. 500 = EUR 5.00, Stripe works in cents.
+HWID_FREE_RESET_DAYS = 7
+HWID_RESET_PRICE_CENTS = 500
 USERNAME_RE = re.compile(r"^[A-Za-z0-9_]{3,16}$")
 
 app = FastAPI(title="Champ Client API", docs_url=None, redoc_url=None, openapi_url=None)
@@ -481,6 +485,78 @@ def license_active(lic: Optional[dict]) -> bool:
     return expires is None or expires > now()
 
 
+# --------------------------------------------------------------------------
+# Hardware binding (one device per key)
+# --------------------------------------------------------------------------
+def normalize_hwid(value: str) -> str:
+    """The loader sends a SHA-256 of its hardware fingerprint, so only hex is allowed."""
+    hwid = re.sub(r"[^a-fA-F0-9]", "", (value or "")).lower()
+    if len(hwid) < 32 or len(hwid) > 128:
+        raise HTTPException(400, "That hardware ID is not valid.")
+    return hwid
+
+
+def mask_hwid(hwid: Optional[str]) -> str:
+    if not hwid:
+        return ""
+    return f"{hwid[:8]}\u2026{hwid[-4:]}" if len(hwid) > 16 else hwid
+
+
+def license_token(lic: dict) -> str:
+    """Stateless session token: the loader proves it holds this key and this hardware."""
+    secret = os.getenv("LICENSE_HMAC_SECRET") or os.getenv("JWT_SECRET") or "champ-license-dev"
+    message = f"{lic['license_key']}|{lic.get('hwid') or ''}|{lic['id']}".encode()
+    return hmac.new(secret.encode(), message, hashlib.sha256).hexdigest()
+
+
+def license_jar_url(lic: dict) -> str:
+    """Short-lived storage link to the client JAR; only handed out after the hardware check."""
+    plan = lic.get("plan_type") if lic.get("plan_type") in PLANS else "lifetime"
+    path, filename = DOWNLOAD_FILES[plan]
+    try:
+        uploaded = db_get("download_files", {"plan": eq(plan)})
+    except Exception as exc:
+        print("Download mapping unavailable:", type(exc).__name__)
+        uploaded = None
+    if uploaded and uploaded.get("storage_path"):
+        path = uploaded["storage_path"]
+        filename = uploaded.get("filename") or filename
+    return signed_download_url(path, filename)
+
+
+def free_reset_available(lic: dict) -> bool:
+    """True while the key has not used its weekly reset yet."""
+    last = parse_dt(lic.get("hwid_reset_at"))
+    return last is None or now() - last >= timedelta(days=HWID_FREE_RESET_DAYS)
+
+
+def next_free_reset_at(lic: dict) -> Optional[str]:
+    last = parse_dt(lic.get("hwid_reset_at"))
+    if last is None:
+        return None
+    return iso(last + timedelta(days=HWID_FREE_RESET_DAYS))
+
+
+def reset_license_hwid(lic: dict, reason: str, payment_intent: Optional[str] = None) -> dict:
+    old = lic.get("hwid") or ""
+    rows = db_update("licenses", {"id": eq(lic["id"])}, {
+        "hwid": "",
+        "hwid_reset_at": iso(now()),
+        "updated_at": iso(now()),
+    })
+    try:
+        db_insert("hwid_resets", {
+            "license_id": lic["id"],
+            "license_key": lic["license_key"],
+            "old_hwid": old,
+            "reason": reason,
+            "payment_intent": payment_intent,
+        })
+    except Exception as exc:
+        print("HWID reset log failed:", type(exc).__name__)
+    return rows[0] if rows else lic
+
+
 def grant_license(email: str, plan: str, expires_at: Optional[datetime], customer=None,
                   subscription=None, payment_intent=None) -> dict:
     fields = {
@@ -541,6 +617,18 @@ def on_checkout_completed(session: dict) -> None:
     if session.get("payment_status") not in ("paid", "no_payment_required"):
         return  # delayed payment methods fire checkout.session.async_payment_succeeded later
     meta = session.get("metadata") or {}
+    if meta.get("kind") == "hwid_reset":
+        # Paid hardware reset: the payment clears the device binding, nothing else changes.
+        try:
+            lic_id = int(meta.get("license_id") or 0)
+        except (TypeError, ValueError):
+            lic_id = 0
+        rows = db_list("licenses", {"id": eq(lic_id)}, limit=1) if lic_id else []
+        if rows:
+            reset_license_hwid(rows[0], "paid", session.get("payment_intent"))
+        else:
+            print("Paid HWID reset without a license:", session.get("id"), lic_id)
+        return
     email = (meta.get("email") or session.get("customer_email") or "").lower()
     plan = meta.get("plan_type")
     if not email or plan not in PLANS:
@@ -657,6 +745,18 @@ class ValidateReq(BaseModel):
 
 class RedeemReq(BaseModel):
     key: str
+
+
+class BindReq(BaseModel):
+    key: str
+    hwid: str
+    loader: Optional[str] = None
+
+
+class HeartbeatReq(BaseModel):
+    key: str
+    hwid: str
+    token: str
 
 
 class TwoFAEnableReq(BaseModel):
@@ -1622,6 +1722,142 @@ def validate_license(p: ValidateReq):
     return {"valid": license_active(lic), "plan": lic["plan_type"], "expires_at": lic["expires_at"]}
 
 
+@app.post("/api/license/bind")
+def bind_license(p: BindReq):
+    """The loader's first call: links the key to this PC (once) and hands over the client JAR."""
+    key = p.key.strip().upper()
+    lic = db_get("licenses", {"license_key": eq(key)})
+    if not lic:
+        raise HTTPException(404, "License key not found.")
+    if not license_active(lic):
+        raise HTTPException(403, "This license is no longer active.")
+
+    hwid = normalize_hwid(p.hwid)
+    bound_now = False
+    if not lic.get("hwid"):
+        rows = db_update("licenses", {"id": eq(lic["id"])}, {
+            "hwid": hwid,
+            "hwid_bound_at": iso(now()),
+            "updated_at": iso(now()),
+        })
+        if rows:
+            lic = rows[0]
+        bound_now = True
+    elif not hmac.compare_digest(lic["hwid"], hwid):
+        return JSONResponse(status_code=409, content={
+            "ok": False,
+            "error": "hwid_mismatch",
+            "message": "This key is already in use on another PC. Reset the device on your dashboard to move it.",
+            "reset_url": f"{SITE_URL}/dashboard.html#device",
+        })
+
+    try:
+        jar_url = license_jar_url(lic)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        print("Jar link failed:", type(exc).__name__)
+        raise HTTPException(502, "The client download is temporarily unavailable.")
+
+    return {
+        "ok": True,
+        "plan": lic["plan_type"],
+        "expires_at": lic.get("expires_at"),
+        "token": license_token(lic),
+        "jar_url": jar_url,
+        "device": mask_hwid(hwid),
+        "bound": bound_now,
+        "message": "Device linked to this key." if bound_now else "Device already linked.",
+    }
+
+
+@app.post("/api/license/heartbeat")
+def license_heartbeat(p: HeartbeatReq):
+    """Called while the game runs: a key that moved or expired stops working within a minute."""
+    lic = db_get("licenses", {"license_key": eq(p.key.strip().upper())})
+    if not lic or not license_active(lic):
+        return {"ok": False, "error": "license_invalid"}
+
+    hwid = normalize_hwid(p.hwid)
+    if not lic.get("hwid") or not hmac.compare_digest(lic["hwid"], hwid):
+        return {"ok": False, "error": "hwid_mismatch"}
+    if not hmac.compare_digest(p.token, license_token(lic)):
+        return {"ok": False, "error": "token_invalid"}
+
+    return {"ok": True, "plan": lic["plan_type"], "expires_at": lic.get("expires_at")}
+
+
+# --------------------------------------------------------------------------
+# Device management on the dashboard (HWID reset)
+# --------------------------------------------------------------------------
+def account_license(user: dict) -> Optional[dict]:
+    """The active license of a signed-in customer, lifetime first."""
+    for plan in ("lifetime", "monthly"):
+        lic = db_get("licenses", {"email": eq(user["email"]), "plan_type": eq(plan)})
+        if license_active(lic):
+            return lic
+    return None
+
+
+@app.get("/api/account/device")
+def account_device(user: dict = Depends(current_user)):
+    lic = account_license(user)
+    if not lic:
+        return {"license": None}
+    return {
+        "license": lic["plan_type"],
+        "key": lic["license_key"],
+        "device": mask_hwid(lic.get("hwid")),
+        "bound_at": lic.get("hwid_bound_at"),
+        "free_reset": free_reset_available(lic),
+        "next_free_reset_at": next_free_reset_at(lic),
+        "reset_price_cents": HWID_RESET_PRICE_CENTS,
+    }
+
+
+@app.post("/api/account/device/reset")
+def account_device_reset(user: dict = Depends(current_user)):
+    lic = account_license(user)
+    if not lic:
+        raise HTTPException(404, "You don't have an active license.")
+    if not lic.get("hwid"):
+        raise HTTPException(400, "No device is linked to this key yet.")
+    if not free_reset_available(lic):
+        raise HTTPException(402, "You already used your free reset this week. A paid reset costs EUR 5.")
+    lic = reset_license_hwid(lic, "free")
+    return {
+        "message": "Device removed. The next PC that starts the loader takes this key.",
+        "free_reset": free_reset_available(lic),
+        "next_free_reset_at": next_free_reset_at(lic),
+    }
+
+
+@app.post("/api/account/device/reset/checkout")
+def account_device_reset_checkout(user: dict = Depends(current_user)):
+    """EUR 5 one-off payment for a reset once the free one is used."""
+    lic = account_license(user)
+    if not lic:
+        raise HTTPException(404, "You don't have an active license.")
+    if not lic.get("hwid"):
+        raise HTTPException(400, "No device is linked to this key yet.")
+
+    data = {
+        "mode": "payment",
+        "customer_email": user["email"],
+        "line_items[0][price_data][currency]": "eur",
+        "line_items[0][price_data][unit_amount]": str(HWID_RESET_PRICE_CENTS),
+        "line_items[0][price_data][product_data][name]": "Champ Client - Hardware ID reset",
+        "line_items[0][quantity]": "1",
+        "success_url": f"{SITE_URL}/dashboard.html?device_reset=paid#device",
+        "cancel_url": f"{SITE_URL}/dashboard.html#device",
+        "metadata[kind]": "hwid_reset",
+        "metadata[license_id]": str(lic["id"]),
+        "metadata[email]": user["email"],
+    }
+    session = stripe_request("POST", "checkout/sessions", data)
+    return {"url": session["url"]}
+
+
 # --------------------------------------------------------------------------
 # License redeem: enter a key -> it is linked to your account -> download opens
 # --------------------------------------------------------------------------
@@ -1985,6 +2221,18 @@ def admin_update_license(lic_id: int, p: AdminLicenseUpdateReq, admin: dict = De
     if not rows:
         raise HTTPException(404, "License not found.")
     return rows[0]
+
+
+@app.post("/api/admin/licenses/{lic_id}/reset-hwid")
+def admin_reset_hwid(lic_id: int, admin: dict = Depends(current_admin)):
+    """Support can free a key from a device without waiting for the weekly reset."""
+    lic = db_get("licenses", {"id": eq(lic_id)})
+    if not lic:
+        raise HTTPException(404, "License not found.")
+    if not lic.get("hwid"):
+        return {"message": "This key has no device linked.", "hwid": ""}
+    reset_license_hwid(lic, "admin")
+    return {"message": "Hardware binding cleared.", "hwid": ""}
 
 
 @app.get("/api/admin/referrals")
