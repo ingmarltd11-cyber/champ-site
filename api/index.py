@@ -514,10 +514,15 @@ def license_token(lic: dict) -> str:
     return hmac.new(secret.encode(), message, hashlib.sha256).hexdigest()
 
 
-def license_jar_url(lic: dict) -> str:
-    """Short-lived storage link to the client JAR; only handed out after the hardware check."""
+def license_jar_info(lic: dict) -> tuple:
+    """Short-lived storage link to the client JAR plus its build id, after the hardware check.
+
+    The build id lets the loader skip the download when the copy in mods/ is already the current
+    upload, instead of pulling ten megabytes on every launch.
+    """
     plan = lic.get("plan_type") if lic.get("plan_type") in PLANS else "lifetime"
     path, filename = DOWNLOAD_FILES[plan]
+    build = ""
     try:
         uploaded = db_get("download_files", {"plan": eq(plan)})
     except Exception as exc:
@@ -526,7 +531,8 @@ def license_jar_url(lic: dict) -> str:
     if uploaded and uploaded.get("storage_path"):
         path = uploaded["storage_path"]
         filename = uploaded.get("filename") or filename
-    return signed_download_url(path, filename)
+        build = str(uploaded.get("updated_at") or uploaded.get("created_at") or "")
+    return signed_download_url(path, filename), build
 
 
 def free_reset_available(lic: dict) -> bool:
@@ -1757,11 +1763,11 @@ def bind_license(p: BindReq):
         })
 
     try:
-        jar_url = license_jar_url(lic)
+        jar_url, jar_build = license_jar_info(lic)
     except Exception as exc:
         # A missing upload must not block the binding; the loader then keeps the local copy.
         print("Jar link failed:", type(exc).__name__)
-        jar_url = ""
+        jar_url, jar_build = "", ""
 
     return {
         "ok": True,
@@ -1769,6 +1775,7 @@ def bind_license(p: BindReq):
         "expires_at": lic.get("expires_at"),
         "token": license_token(lic),
         "jar_url": jar_url,
+        "build": jar_build,
         "device": mask_hwid(hwid),
         "bound": bound_now,
         "message": "Device linked to this key." if bound_now else "Device already linked.",
