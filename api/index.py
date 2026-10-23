@@ -496,6 +496,11 @@ def normalize_hwid(value: str) -> str:
     return hwid
 
 
+def public_site() -> str:
+    """Absolute site URL for links the loader and Stripe have to follow."""
+    return (os.getenv("SITE_URL") or "https://champ-site-psi.vercel.app").rstrip("/")
+
+
 def mask_hwid(hwid: Optional[str]) -> str:
     if not hwid:
         return ""
@@ -1748,7 +1753,7 @@ def bind_license(p: BindReq):
             "ok": False,
             "error": "hwid_mismatch",
             "message": "This key is already in use on another PC. Reset the device on your dashboard to move it.",
-            "reset_url": f"{SITE_URL}/dashboard.html#device",
+            "reset_url": f"{public_site()}/dashboard.html#device",
         })
 
     try:
@@ -1847,8 +1852,8 @@ def account_device_reset_checkout(user: dict = Depends(current_user)):
         "line_items[0][price_data][unit_amount]": str(HWID_RESET_PRICE_CENTS),
         "line_items[0][price_data][product_data][name]": "Champ Client - Hardware ID reset",
         "line_items[0][quantity]": "1",
-        "success_url": f"{SITE_URL}/dashboard.html?device_reset=paid#device",
-        "cancel_url": f"{SITE_URL}/dashboard.html#device",
+        "success_url": f"{public_site()}/dashboard.html?device_reset=paid#device",
+        "cancel_url": f"{public_site()}/dashboard.html#device",
         "metadata[kind]": "hwid_reset",
         "metadata[license_id]": str(lic["id"]),
         "metadata[email]": user["email"],
