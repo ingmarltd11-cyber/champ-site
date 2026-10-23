@@ -1753,11 +1753,10 @@ def bind_license(p: BindReq):
 
     try:
         jar_url = license_jar_url(lic)
-    except HTTPException:
-        raise
     except Exception as exc:
+        # A missing upload must not block the binding; the loader then keeps the local copy.
         print("Jar link failed:", type(exc).__name__)
-        raise HTTPException(502, "The client download is temporarily unavailable.")
+        jar_url = ""
 
     return {
         "ok": True,
