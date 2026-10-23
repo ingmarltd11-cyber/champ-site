@@ -588,7 +588,8 @@ function renderLicense(kind, lic) {
   const state = { text: 'Active', className: 'status-badge status-active' };
   let html = `<div class="license-box">${escapeHtml(lic.key)}</div>`;
   if (kind === 'monthly' && lic.expires_at) html += `<p class="no-license-text" style="margin-bottom:12px">Renews / ends around ${fmtDate(lic.expires_at)}</p>`;
-  html += `<a href="/api/download/${kind}" class="btn-download">Download ${label} (.JAR)</a>`;
+  html += `<a href="/api/download/${kind}" class="btn-download">Download ${label} client (.JAR)</a>`;
+  html += `<p class="no-license-text" style="margin-top:8px">Champ Loader installs this into your mods folder for you. Use this button only if that automatic download failed.</p>`;
   paint(state, html);
 
   if (kind === 'monthly' && lic.can_manage) {
