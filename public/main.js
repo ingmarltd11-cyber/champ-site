@@ -151,6 +151,14 @@ async function handleGetStarted(event) {
   }
   if (!session) return;
 
+  // A signed-in visitor should not be sent back to the login form from the
+  // public navigation; the dashboard is the useful destination on this device.
+  document.querySelectorAll('a[href^="login.html"]').forEach(function (a) {
+    if (a.closest('.dashboard-sidebar')) return;
+    a.textContent = 'Dashboard';
+    a.href = 'dashboard.html';
+  });
+
   document.querySelectorAll('.nav-links').forEach(function (list) {
     if (list.querySelector('[data-customer-nav]')) return;
     const pricingLink = Array.from(list.querySelectorAll('a')).find(function (a) {
@@ -355,6 +363,23 @@ if (verifyForm) {
 const loginForm = document.getElementById('loginForm');
 if (loginForm) {
   const params = new URLSearchParams(window.location.search);
+
+  // The form is only for signed-out visitors. Remember-me already keeps the
+  // session cookie on this browser; this also skips the form when it is valid.
+  if (params.get('switch') !== '1') {
+    (async function () {
+      try {
+        const res = await api('/api/auth/me');
+        if (!res.ok || !res.data || !res.data.email) return;
+        const requested = params.get('next');
+        const target = requested && !/^(login|signup)\.html/.test(requested)
+          ? safeNext(requested)
+          : (res.data.is_admin ? 'admin.html' : 'dashboard.html');
+        window.location.replace(target);
+      } catch (_) { /* show the form */ }
+    })();
+  }
+
   if (params.get('verified') === '1') showMessage('formMessage', 'Email verified! You can sign in now.', false);
   if (params.get('verified') === '0') showMessage('formMessage', 'That verification link is invalid or expired. Sign in to request a new one.', true);
 
