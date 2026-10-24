@@ -4,3 +4,4 @@ email-validator>=2.1
 PyJWT>=2.8
 bcrypt>=4.1
 requests>=2.31
+cryptography>=42

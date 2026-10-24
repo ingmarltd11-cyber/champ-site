@@ -56,6 +56,16 @@ alter table public.licenses add column if not exists hwid_bound_at timestamptz;
 alter table public.licenses add column if not exists hwid_reset_at timestamptz;
 create index if not exists licenses_hwid_idx on public.licenses (hwid);
 
+-- Device identity: the client generates an Ed25519 key pair on the PC and only the public key
+-- leaves it. The server pins that key to the license, so a copied JAR or config on another PC
+-- cannot sign the licence challenge. A reset clears the pinned key together with the HWID.
+alter table public.licenses add column if not exists device_pubkey text not null default '';
+alter table public.licenses add column if not exists device_key_bound_at timestamptz;
+
+-- Last online check, for support and for spotting a key that is used from two places at once.
+alter table public.licenses add column if not exists last_ip text not null default '';
+alter table public.licenses add column if not exists last_seen_at timestamptz;
+
 -- Every reset is kept, so support can see how often a key moved and which resets were paid.
 create table if not exists public.hwid_resets (
   id             bigint generated always as identity primary key,

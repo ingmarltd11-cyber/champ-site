@@ -591,7 +591,7 @@ function renderLicense(kind, lic) {
   const state = { text: 'Active', className: 'status-badge status-active' };
   let html = `<div class="license-box">${escapeHtml(lic.key)}</div>`;
   if (kind === 'monthly' && lic.expires_at) html += `<p class="no-license-text" style="margin-bottom:12px">Renews / ends around ${fmtDate(lic.expires_at)}</p>`;
-  html += `<a href="downloads/champ-loader.jar?v=0.3.0" class="btn-download" download>Download Champ Loader</a>`;
+  html += `<a href="downloads/champ-loader.jar?v=0.4.0" class="btn-download" download>Download Champ Loader</a>`;
   html += `<a href="/api/download/${kind}" class="btn-ghost" style="display:flex;justify-content:center;margin-top:8px">Direct ${label.toLowerCase()} client JAR (fallback)</a>`;
   html += `<p class="no-license-text" style="margin-top:8px">The loader installs the client and checks the license online. Use the direct JAR only if the automatic download failed.</p>`;
   paint(state, html);

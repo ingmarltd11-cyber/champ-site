@@ -27,6 +27,9 @@ from typing import Optional
 from urllib.parse import quote
 
 import bcrypt
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+from cryptography.hazmat.primitives.serialization import load_der_public_key
 import jwt
 import requests
 from fastapi import Cookie, Depends, FastAPI, HTTPException, Request, Response
@@ -104,7 +107,9 @@ DOWNLOAD_FILES = {
 # The client that ships with this deployment. It is the same build for both plans; whether access
 # is monthly or lifetime is decided by the license and its expiry, never by the JAR contents.
 PUBLIC_CLIENT_FILE = "ChampClient.jar"
-PUBLIC_CLIENT_BUILD = "0.2.0-cloud-license"
+PUBLIC_CLIENT_BUILD = "0.3.0-device-key"
+# A challenge is signed by the PC's Ed25519 key and must come back quickly.
+DEVICE_CHALLENGE_SECONDS = 120
 PLAN_PRICES = {
     "monthly": "STRIPE_PRICE_MONTHLY_ID",
     "lifetime": "STRIPE_PRICE_LIFETIME_ID",
@@ -544,6 +549,86 @@ def mask_hwid(hwid: Optional[str]) -> str:
     return f"{hwid[:8]}\u2026{hwid[-4:]}" if len(hwid) > 16 else hwid
 
 
+# --------------------------------------------------------------------------
+# Device identity: the PC holds an Ed25519 private key, the server only the public key.
+# --------------------------------------------------------------------------
+def license_secret() -> bytes:
+    """Key for short-lived challenges and per-license watermarks.
+
+    LICENSE_SECRET is preferred; without it the existing JWT secret is derived into a
+    separate key, so no new Vercel variable is required for the rollout.
+    """
+    explicit = (os.getenv("LICENSE_SECRET") or "").strip()
+    if explicit:
+        return explicit.encode()
+    return hmac.new(jwt_secret().encode(), b"champ-device-challenge-v1", hashlib.sha256).digest()
+
+
+def normalize_public_key(value: str) -> str:
+    """Validate an Ed25519 public key (base64 DER) and return it in canonical form."""
+    raw = re.sub(r"\s+", "", value or "")
+    try:
+        der = base64.b64decode(raw, validate=True)
+        key = load_der_public_key(der)
+    except Exception:
+        raise HTTPException(400, "That device key is not valid.")
+    if not isinstance(key, Ed25519PublicKey) or not 32 <= len(der) <= 512:
+        raise HTTPException(400, "That device key is not valid.")
+    return base64.b64encode(der).decode()
+
+
+def watermark_for(lic: dict) -> str:
+    """Stable, non-secret tag for this license; identifies a leaked game folder."""
+    key = str(lic.get("license_key") or "").encode()
+    return hmac.new(license_secret(), key, hashlib.sha256).hexdigest()[:16]
+
+
+def make_challenge(hwid: str, public_key: str) -> str:
+    nonce = secrets.token_urlsafe(24)
+    expires = int(time.time()) + DEVICE_CHALLENGE_SECONDS
+    mac = hmac.new(
+        license_secret(), f"{hwid}|{public_key}|{nonce}|{expires}".encode(), hashlib.sha256
+    ).hexdigest()
+    return f"{nonce}.{expires}.{mac}"
+
+
+def verify_challenge(challenge: str, hwid: str, public_key: str) -> None:
+    parts = (challenge or "").split(".")
+    if len(parts) != 3:
+        raise HTTPException(403, "The device challenge is invalid.")
+    nonce, expires_raw, mac = parts
+    try:
+        expires = int(expires_raw)
+    except ValueError:
+        raise HTTPException(403, "The device challenge is invalid.")
+    if expires < int(time.time()) - 5:
+        raise HTTPException(403, "The device challenge has expired.")
+    expected = hmac.new(
+        license_secret(), f"{hwid}|{public_key}|{nonce}|{expires}".encode(), hashlib.sha256
+    ).hexdigest()
+    if not hmac.compare_digest(expected, mac):
+        raise HTTPException(403, "The device challenge is invalid.")
+
+
+def verify_device_signature(public_key: str, challenge: str, signature: str) -> None:
+    try:
+        key = load_der_public_key(base64.b64decode(public_key, validate=True))
+        if not isinstance(key, Ed25519PublicKey):
+            raise ValueError("not an Ed25519 key")
+        key.verify(base64.b64decode(signature, validate=True), challenge.encode())
+    except (InvalidSignature, ValueError, TypeError):
+        raise HTTPException(403, "This PC could not prove its device key.")
+    except Exception:
+        raise HTTPException(403, "This PC could not prove its device key.")
+
+
+def client_ip(request: Request) -> str:
+    forwarded = (request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
+    if forwarded:
+        return forwarded
+    return request.client.host if request.client else ""
+
+
 def license_jar_info(lic: dict) -> tuple:
     """Client JAR link plus its build id, after the hardware check.
 
@@ -581,6 +666,10 @@ def reset_license_hwid(lic: dict, reason: str, payment_intent: Optional[str] = N
     old = lic.get("hwid") or ""
     rows = db_update("licenses", {"id": eq(lic["id"])}, {
         "hwid": "",
+        "device_pubkey": "",
+        "device_key_bound_at": None,
+        "last_ip": "",
+        "last_seen_at": None,
         "hwid_reset_at": iso(now()),
         "updated_at": iso(now()),
     })
@@ -792,11 +881,24 @@ class BindReq(BaseModel):
     key: str
     hwid: str
     loader: Optional[str] = None
+    public_key: Optional[str] = None
 
 
 class DeviceReq(BaseModel):
     hwid: str
     loader: Optional[str] = None
+    public_key: Optional[str] = None
+
+
+class DeviceRegisterReq(BaseModel):
+    hwid: str
+    public_key: str
+    loader: Optional[str] = None
+
+
+class ChallengeReq(BaseModel):
+    hwid: str
+    public_key: str
 
 
 class HeartbeatReq(BaseModel):
@@ -807,6 +909,11 @@ class HeartbeatReq(BaseModel):
 
 class SessionReq(BaseModel):
     hwid: str
+    public_key: Optional[str] = None
+    challenge: Optional[str] = None
+    signature: Optional[str] = None
+    client_build: Optional[str] = None
+    watermark: Optional[str] = None
 
 
 class TwoFAEnableReq(BaseModel):
@@ -1842,23 +1949,48 @@ def bind_license(p: BindReq):
         raise HTTPException(403, "This license is no longer active.")
 
     hwid = normalize_hwid(p.hwid)
+    public_key = normalize_public_key(p.public_key) if p.public_key else ""
+    stored_key = (lic.get("device_pubkey") or "").strip()
+
+    # A key can be pinned on the first activation. From then on only that exact device key may
+    # activate, so a copied license file or a known HWID is not enough to move to another PC.
+    if public_key and stored_key and not hmac.compare_digest(stored_key, public_key):
+        return JSONResponse(status_code=409, content={
+            "ok": False,
+            "error": "device_key_mismatch",
+            "message": "This key is linked to a different PC's security key. Reset the device on your dashboard to move it.",
+            "reset_url": f"{public_site()}/dashboard.html#device",
+        })
+
     bound_now = False
     if not lic.get("hwid"):
         rows = db_update("licenses", {"id": eq(lic["id"])}, {
             "hwid": hwid,
             "hwid_bound_at": iso(now()),
+            "device_pubkey": public_key or stored_key,
+            "device_key_bound_at": iso(now()) if (public_key or stored_key) else None,
             "updated_at": iso(now()),
         })
         if rows:
             lic = rows[0]
         bound_now = True
     elif not hmac.compare_digest(lic["hwid"], hwid):
+        # Do not pin a key before the hardware matches: otherwise a wrong PC could claim the
+        # license's device key and lock out the real one.
         return JSONResponse(status_code=409, content={
             "ok": False,
             "error": "hwid_mismatch",
             "message": "This key is already in use on another PC. Reset the device on your dashboard to move it.",
             "reset_url": f"{public_site()}/dashboard.html#device",
         })
+    elif public_key and not stored_key:
+        rows = db_update("licenses", {"id": eq(lic["id"])}, {
+            "device_pubkey": public_key,
+            "device_key_bound_at": iso(now()),
+            "updated_at": iso(now()),
+        })
+        if rows:
+            lic = rows[0]
 
     try:
         jar_url, jar_build = license_jar_info(lic)
@@ -1875,6 +2007,7 @@ def bind_license(p: BindReq):
         "build": jar_build,
         "device": mask_hwid(hwid),
         "bound": bound_now,
+        "watermark": watermark_for(lic),
         "message": "Device linked to this key." if bound_now else "Device already linked.",
     }
 
@@ -1915,18 +2048,117 @@ def device_license(p: DeviceReq):
         "build": jar_build,
         "device": mask_hwid(hwid),
         "bound": True,
+        "watermark": watermark_for(lic),
         "message": "Device recognised.",
     }
 
 
+@app.post("/api/license/device/register")
+def register_device(p: DeviceRegisterReq):
+    """Pins the PC's Ed25519 public key to the license bound to this hardware.
+
+    The private key never leaves the PC. A copied JAR or config on another machine cannot
+    produce the signature that /api/license/session requires, even when it knows the HWID.
+    The first call wins; a different key needs an explicit hardware reset on the dashboard.
+    """
+    hwid = normalize_hwid(p.hwid)
+    public_key = normalize_public_key(p.public_key)
+    try:
+        rows = db_list("licenses", {"hwid": eq(hwid)})
+    except Exception as exc:
+        print("Device register lookup failed:", type(exc).__name__)
+        raise HTTPException(503, "The license server is temporarily unavailable.")
+
+    active = [row for row in rows if license_active(row)]
+    if not active:
+        return JSONResponse(status_code=404, content={
+            "ok": False,
+            "error": "no_device_license",
+            "message": "No active license is linked to this PC yet.",
+        })
+    lic = sorted(active, key=lambda row: 0 if row.get("plan_type") == "lifetime" else 1)[0]
+
+    stored = (lic.get("device_pubkey") or "").strip()
+    if stored and not hmac.compare_digest(stored, public_key):
+        return JSONResponse(status_code=409, content={
+            "ok": False,
+            "error": "device_key_mismatch",
+            "message": "This license is linked to another PC's security key. Reset the device on your dashboard.",
+            "reset_url": f"{public_site()}/dashboard.html#device",
+        })
+
+    if not stored:
+        rows = db_update("licenses", {"id": eq(lic["id"])}, {
+            "device_pubkey": public_key,
+            "device_key_bound_at": iso(now()),
+            "updated_at": iso(now()),
+        })
+        if rows:
+            lic = rows[0]
+
+    return {
+        "ok": True,
+        "plan": lic["plan_type"],
+        "expires_at": lic.get("expires_at"),
+        "device": mask_hwid(hwid),
+        "bound": not stored,
+        "watermark": watermark_for(lic),
+        "message": "Device key linked." if not stored else "Device key already linked.",
+    }
+
+
+@app.post("/api/license/challenge")
+def device_challenge(p: ChallengeReq):
+    """Short-lived nonce the PC must sign with its pinned Ed25519 private key."""
+    hwid = normalize_hwid(p.hwid)
+    public_key = normalize_public_key(p.public_key)
+    try:
+        rows = db_list("licenses", {"hwid": eq(hwid)})
+    except Exception as exc:
+        print("Challenge lookup failed:", type(exc).__name__)
+        raise HTTPException(503, "The license server is temporarily unavailable.")
+
+    active = [row for row in rows if license_active(row)]
+    if not active:
+        return JSONResponse(status_code=404, content={
+            "ok": False,
+            "error": "no_device_license",
+            "message": "No active license is linked to this PC yet.",
+        })
+    lic = sorted(active, key=lambda row: 0 if row.get("plan_type") == "lifetime" else 1)[0]
+    stored = (lic.get("device_pubkey") or "").strip()
+    if not stored:
+        return JSONResponse(status_code=409, content={
+            "ok": False,
+            "error": "device_key_required",
+            "message": "Register this PC's security key first.",
+        })
+    if not hmac.compare_digest(stored, public_key):
+        return JSONResponse(status_code=409, content={
+            "ok": False,
+            "error": "device_key_mismatch",
+            "message": "This license is linked to another PC's security key. Reset the device on your dashboard.",
+            "reset_url": f"{public_site()}/dashboard.html#device",
+        })
+
+    return {
+        "ok": True,
+        "challenge": make_challenge(hwid, public_key),
+        "expires_in": DEVICE_CHALLENGE_SECONDS,
+        "watermark": watermark_for(lic),
+    }
+
+
 @app.post("/api/license/session")
-def license_session(p: SessionReq):
+def license_session(p: SessionReq, request: Request):
     """Cloud-only license check used by the current client.
 
-    The client sends the hardware id it computed on this PC and gets the active plan back. It gets
-    no key, no token and no license file, so there is nothing on the PC that can be copied to
-    another machine. The database stays the only source of truth; an expired or reset license stops
-    working at the next check.
+    Once the PC has a pinned device key, every check must carry a fresh server challenge and an
+    Ed25519 signature made with the private key on that PC. A copied JAR or game folder has no
+    usable private key, so a known HWID alone is no longer enough. Older clients that send only
+    the HWID keep working until they have registered a key; after that they are told to update.
+    The database stays the only source of truth; an expired or reset license stops working at
+    the next check.
     """
     hwid = normalize_hwid(p.hwid)
     try:
@@ -1940,7 +2172,51 @@ def license_session(p: SessionReq):
         return {"ok": False, "error": "no_device_license"}
     # Lifetime wins when both plans are linked to the same PC.
     lic = sorted(active, key=lambda row: 0 if row.get("plan_type") == "lifetime" else 1)[0]
-    return {"ok": True, "plan": lic["plan_type"], "expires_at": lic.get("expires_at")}
+    stored = (lic.get("device_pubkey") or "").strip()
+
+    if stored:
+        if not (p.public_key and p.challenge and p.signature):
+            # 200 so the previous client shows the update hint instead of "server unavailable".
+            return {
+                "ok": False,
+                "error": "device_key_required",
+                "detail": "Update Champ through the loader; this build cannot prove its device key.",
+            }
+        public_key = normalize_public_key(p.public_key)
+        if not hmac.compare_digest(stored, public_key):
+            return JSONResponse(status_code=409, content={
+                "ok": False,
+                "error": "device_key_mismatch",
+                "message": "This license is linked to another PC's security key. Reset the device on your dashboard.",
+                "reset_url": f"{public_site()}/dashboard.html#device",
+            })
+        verify_challenge(p.challenge, hwid, public_key)
+        verify_device_signature(stored, p.challenge, p.signature)
+
+    expected_watermark = watermark_for(lic)
+    if p.watermark and not hmac.compare_digest(expected_watermark, p.watermark.strip()):
+        return JSONResponse(status_code=403, content={
+            "ok": False,
+            "error": "invalid_watermark",
+            "message": "This game folder belongs to a different license. Install Champ again from your dashboard.",
+        })
+
+    # Keep a light audit trail for support; failure here must never unlock or lock a customer.
+    try:
+        db_update("licenses", {"id": eq(lic["id"])}, {
+            "last_ip": client_ip(request),
+            "last_seen_at": iso(now()),
+        })
+    except Exception:
+        pass
+
+    return {
+        "ok": True,
+        "plan": lic["plan_type"],
+        "expires_at": lic.get("expires_at"),
+        "watermark": expected_watermark,
+        "signed": bool(stored),
+    }
 
 
 @app.post("/api/license/heartbeat")
