@@ -104,7 +104,7 @@ DOWNLOAD_FILES = {
 # The client that ships with this deployment. It is the same build for both plans; whether access
 # is monthly or lifetime is decided by the license and its expiry, never by the JAR contents.
 PUBLIC_CLIENT_FILE = "ChampClient.jar"
-PUBLIC_CLIENT_BUILD = "0.1.0-license-screen"
+PUBLIC_CLIENT_BUILD = "0.2.0-cloud-license"
 PLAN_PRICES = {
     "monthly": "STRIPE_PRICE_MONTHLY_ID",
     "lifetime": "STRIPE_PRICE_LIFETIME_ID",
@@ -544,13 +544,6 @@ def mask_hwid(hwid: Optional[str]) -> str:
     return f"{hwid[:8]}\u2026{hwid[-4:]}" if len(hwid) > 16 else hwid
 
 
-def license_token(lic: dict) -> str:
-    """Stateless session token: the loader proves it holds this key and this hardware."""
-    secret = os.getenv("LICENSE_HMAC_SECRET") or os.getenv("JWT_SECRET") or "champ-license-dev"
-    message = f"{lic['license_key']}|{lic.get('hwid') or ''}|{lic['id']}".encode()
-    return hmac.new(secret.encode(), message, hashlib.sha256).hexdigest()
-
-
 def license_jar_info(lic: dict) -> tuple:
     """Client JAR link plus its build id, after the hardware check.
 
@@ -810,6 +803,10 @@ class HeartbeatReq(BaseModel):
     key: str
     hwid: str
     token: str
+
+
+class SessionReq(BaseModel):
+    hwid: str
 
 
 class TwoFAEnableReq(BaseModel):
@@ -1874,7 +1871,6 @@ def bind_license(p: BindReq):
         "ok": True,
         "plan": lic["plan_type"],
         "expires_at": lic.get("expires_at"),
-        "token": license_token(lic),
         "jar_url": jar_url,
         "build": jar_build,
         "device": mask_hwid(hwid),
@@ -1887,9 +1883,10 @@ def bind_license(p: BindReq):
 def device_license(p: DeviceReq):
     """Recognises a licensed PC by its hardware alone, so no key has to be typed on a known device.
 
-    Only the device that is already bound to an active license can use this; the key it returns is
-    needed for the heartbeat. A machine that is not bound yet gets no match and asks for a key in
-    the game instead. The hardware ID is a SHA-256 fingerprint, not a secret shared between users.
+    Only the device that is already bound to an active license can use this. The answer contains
+    plan and download details but never the key or a token, so nothing here can be copied to a
+    second PC. A machine that is not bound yet gets no match and asks for a key in the game instead.
+    The hardware ID is a SHA-256 fingerprint, not a secret shared between users.
     """
     hwid = normalize_hwid(p.hwid)
     try:
@@ -1912,10 +1909,8 @@ def device_license(p: DeviceReq):
 
     return {
         "ok": True,
-        "key": lic["license_key"],
         "plan": lic["plan_type"],
         "expires_at": lic.get("expires_at"),
-        "token": license_token(lic),
         "jar_url": jar_url,
         "build": jar_build,
         "device": mask_hwid(hwid),
@@ -1924,20 +1919,42 @@ def device_license(p: DeviceReq):
     }
 
 
+@app.post("/api/license/session")
+def license_session(p: SessionReq):
+    """Cloud-only license check used by the current client.
+
+    The client sends the hardware id it computed on this PC and gets the active plan back. It gets
+    no key, no token and no license file, so there is nothing on the PC that can be copied to
+    another machine. The database stays the only source of truth; an expired or reset license stops
+    working at the next check.
+    """
+    hwid = normalize_hwid(p.hwid)
+    try:
+        rows = db_list("licenses", {"hwid": eq(hwid)})
+    except Exception as exc:
+        print("Session lookup failed:", type(exc).__name__)
+        raise HTTPException(503, "The license server is temporarily unavailable.")
+
+    active = [row for row in rows if license_active(row)]
+    if not active:
+        return {"ok": False, "error": "no_device_license"}
+    # Lifetime wins when both plans are linked to the same PC.
+    lic = sorted(active, key=lambda row: 0 if row.get("plan_type") == "lifetime" else 1)[0]
+    return {"ok": True, "plan": lic["plan_type"], "expires_at": lic.get("expires_at")}
+
+
 @app.post("/api/license/heartbeat")
 def license_heartbeat(p: HeartbeatReq):
-    """Called while the game runs: a key that moved or expired stops working within a minute."""
-    lic = db_get("licenses", {"license_key": eq(p.key.strip().upper())})
-    if not lic or not license_active(lic):
-        return {"ok": False, "error": "license_invalid"}
+    """Retired: older clients stored a key locally and were checked against a static token.
 
-    hwid = normalize_hwid(p.hwid)
-    if not lic.get("hwid") or not hmac.compare_digest(lic["hwid"], hwid):
-        return {"ok": False, "error": "hwid_mismatch"}
-    if not hmac.compare_digest(p.token, license_token(lic)):
-        return {"ok": False, "error": "token_invalid"}
-
-    return {"ok": True, "plan": lic["plan_type"], "expires_at": lic.get("expires_at")}
+    Those builds can no longer be verified against the cloud, so they are sent back through the
+    loader. The loader installs the current client, which uses /api/license/session instead.
+    """
+    return {
+        "ok": False,
+        "error": "update_required",
+        "message": "Update Champ through the loader; this version is no longer supported.",
+    }
 
 
 # --------------------------------------------------------------------------
