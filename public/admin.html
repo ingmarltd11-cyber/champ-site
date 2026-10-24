@@ -1,24 +1,13 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Admin — Champ Client</title><link rel="icon" href="assets/logo.png"><link rel="stylesheet" href="style.css"></head>
 <body>
-<nav><a class="nav-logo" href="index.html"><img src="assets/logo.png" alt="Champ"><span>Champ <em>Admin</em></span></a><div class="nav-actions"><button id="adminLogout" class="btn-ghost" style="display:none">Sign Out</button><button class="hamburger" onclick="toggleMenu()" aria-label="Menu"><span></span><span></span><span></span></button></div></nav>
+<nav><a class="nav-logo" href="index.html"><img src="assets/logo.png" alt="Champ"><span>Champ <em>Admin</em></span></a><div class="nav-actions"><a class="btn-ghost" href="dashboard.html">My dashboard</a><button id="adminLogout" class="btn-ghost" style="display:none">Sign Out</button><button class="hamburger" onclick="toggleMenu()" aria-label="Menu"><span></span><span></span><span></span></button></div></nav>
 <div class="mobile-menu" id="mobileMenu"><a href="index.html" onclick="toggleMenu()">Homepage</a><a href="features.html" onclick="toggleMenu()">Features</a></div>
 <main class="admin-wrap">
-  <section id="adminLoginCard" class="admin-card" style="max-width:430px;margin:40px auto">
-    <h1>Admin Login</h1>
-    <p class="no-license-text" style="margin:8px 0 22px">Sign in to manage the shop and website content.</p>
-    <p id="adminMessage" style="display:none;margin-bottom:15px"></p>
-    <form id="adminLoginForm" class="admin-editor">
-      <label>Username<input id="adminUsername" required autocomplete="username"></label>
-      <label>Password<input id="adminPassword" type="password" required autocomplete="current-password"></label>
-      <button class="btn-primary" type="submit">Sign In</button>
-    </form>
-  </section>
-
   <section id="adminPanel" class="admin-card" style="display:none">
     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
       <h1>Admin Control Panel</h1>
-      <span class="status-badge status-active">Admin Session Active</span>
+      <span class="status-badge status-active" id="adminSessionBadge">Admin Session Active</span>
     </div>
     <p class="no-license-text" id="adminStatsLine">Loading stats...</p>
 
@@ -33,6 +22,7 @@
       <button class="admin-tab" data-tab="ai-knowledge" type="button">AI Knowledge</button>
       <button class="admin-tab" data-tab="finds" type="button">Base Finds</button>
       <button class="admin-tab" data-tab="referrals" type="button">Referrals</button>
+      <button class="admin-tab" data-tab="my-account" type="button">My account</button>
     </div>
 
     <!-- TAB: SETTINGS & ANNOUNCEMENTS & LINKS -->
@@ -270,6 +260,22 @@
       <div id="adminReferrals" class="admin-table-wrap"><p class="no-license-text">Loading referrals...</p></div>
     </div>
 
+    <!-- TAB: MY ACCOUNT (admin's own customer stuff) -->
+    <div class="admin-tabpage" id="tab-my-account" style="display:none">
+      <div style="margin:18px 0 20px;">
+        <h2>My account</h2>
+        <p class="no-license-text">Signed in as <b id="adminMyName">…</b> <span id="adminMyEmail"></span>. These are your own licenses, separate from the shop-wide orders.</p>
+      </div>
+      <div id="adminMyKeys" class="admin-table-wrap"><p class="no-license-text">Loading your licenses...</p></div>
+      <p style="margin-top:20px"><a class="btn-primary" href="dashboard.html">Open my customer dashboard</a></p>
+    </div>
+
+  </section>
+
+  <section id="adminDenied" class="admin-card" style="display:none;max-width:520px;margin:40px auto">
+    <h1>Admins only</h1>
+    <p class="no-license-text" id="adminDeniedText" style="margin:10px 0 22px"></p>
+    <p style="display:flex;gap:10px;flex-wrap:wrap;margin:0"><a class="btn-primary" href="dashboard.html">Open my dashboard</a><a class="btn-ghost" href="index.html">Back to the shop</a></p>
   </section>
 </main>
 <script src="feature-catalog.js"></script>

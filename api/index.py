@@ -281,26 +281,40 @@ def read_token(token: str, purpose: str) -> dict:
     return payload
 
 
-def set_session(response: Response, user: dict) -> None:
-    token = make_token(user["email"], "session", 60 * 24 * 7, {"fp": fingerprint(user["password_hash"])})
+SESSION_DAYS = 30      # "Remember me" on the login page
+SESSION_DAYS_SHORT = 1  # normal login: cookie disappears when the browser closes
+
+
+def set_session(response: Response, user: dict, remember: bool = False) -> None:
+    """Remember me keeps the session for 30 days; otherwise it is a browser-session cookie."""
+    days = SESSION_DAYS if remember else SESSION_DAYS_SHORT
+    token = make_token(user["email"], "session", 60 * 24 * days, {"fp": fingerprint(user["password_hash"])})
     response.set_cookie(
-        "session_token", token, max_age=7 * 24 * 3600, path="/",
+        "session_token", token, max_age=days * 24 * 3600 if remember else None, path="/",
         httponly=True, secure=COOKIE_SECURE, samesite="lax",
     )
 
 
-def current_user(session_token: Optional[str] = Cookie(None)) -> dict:
+def session_user(session_token: Optional[str]) -> Optional[dict]:
+    """The customer behind a session cookie, or None. Shared with the admin check."""
     if not session_token:
-        raise HTTPException(401, "Not logged in.")
+        return None
     try:
         payload = jwt.decode(session_token, jwt_secret(), algorithms=["HS256"])
     except jwt.PyJWTError:
-        raise HTTPException(401, "Session expired. Please log in again.")
+        return None
     if payload.get("purpose") != "session":
-        raise HTTPException(401, "Invalid session.")
+        return None
     user = db_get("users", {"email": eq(payload["sub"])})
     if not user or (VERIFY_EMAIL and not user["email_verified"]) or payload.get("fp") != fingerprint(user["password_hash"]):
-        raise HTTPException(401, "Session expired. Please log in again.")
+        return None
+    return user
+
+
+def current_user(session_token: Optional[str] = Cookie(None)) -> dict:
+    user = session_user(session_token)
+    if not user:
+        raise HTTPException(401, "Not logged in.")
     return user
 
 
@@ -478,8 +492,22 @@ def invoice_subscription_id(invoice: dict) -> Optional[str]:
 # --------------------------------------------------------------------------
 # Licenses
 # --------------------------------------------------------------------------
+UNASSIGNED_PREFIXES = ("unassigned+", "unclaimed+")
+UNASSIGNED_DOMAIN = "keys.champclient.local"
+
+
 def new_license_key() -> str:
     return "CHAMP-" + "-".join(secrets.token_hex(2).upper() for _ in range(4))
+
+
+def is_unassigned_license(license_row: Optional[dict]) -> bool:
+    """True for keys generated without a customer email (Discord /key generate).
+
+    The bot uses unassigned+<key>@keys.champclient.local; the older local bot used
+    unclaimed+<key>@champ.local. Both mean "the first account to redeem it becomes owner".
+    """
+    email = str((license_row or {}).get("email") or "").lower()
+    return email.startswith(UNASSIGNED_PREFIXES) or email.endswith("@" + UNASSIGNED_DOMAIN)
 
 
 def license_active(lic: Optional[dict]) -> bool:
@@ -736,6 +764,7 @@ class LoginReq(BaseModel):
     identifier: str
     password: str
     totp_code: Optional[str] = None
+    remember: bool = False
 
 
 class EmailReq(BaseModel):
@@ -965,30 +994,45 @@ class ReviewSubmissionReq(BaseModel):
 # --------------------------------------------------------------------------
 # Admin authentication
 # --------------------------------------------------------------------------
-def admin_token(subject: str, db_admin: bool = False) -> str:
-    payload = {"sub": subject, "purpose": "admin", "exp": int(time.time()) + 60 * 60 * 12}
+def admin_token(subject: str, db_admin: bool = False, minutes: int = 60 * 12) -> str:
+    payload = {"sub": subject, "purpose": "admin", "exp": int(time.time()) + minutes * 60}
     if db_admin:
         payload["db_admin"] = True
     return jwt.encode(payload, jwt_secret(), algorithm="HS256")
 
 
-def current_admin(admin_session: Optional[str] = Cookie(None, alias="admin_session")) -> dict:
-    if not admin_session:
-        raise HTTPException(401, "Admin login required.")
-    try:
-        payload = jwt.decode(admin_session, jwt_secret(), algorithms=["HS256"])
-    except Exception:
-        raise HTTPException(401, "Admin login required.")
-    if payload.get("purpose") != "admin":
-        raise HTTPException(401, "Admin login required.")
-    subject = str(payload.get("sub") or "")
-    if ADMIN_USERNAME and subject == ADMIN_USERNAME:
-        return {"username": subject}
-    if payload.get("db_admin") is True and subject:
-        user = db_get("users", {"username_lower": eq(subject.lower())})
-        if user and user.get("is_admin"):
-            ensure_admin_license(user)
-            return {"username": user["username"]}
+def set_admin_session(response: Response, subject: str, db_admin: bool = False, remember: bool = False) -> None:
+    """Admins sign in through the normal login page; this keeps the admin cookie in sync."""
+    days = SESSION_DAYS if remember else SESSION_DAYS_SHORT
+    response.set_cookie(
+        "admin_session", admin_token(subject, db_admin=db_admin, minutes=days * 24 * 60),
+        max_age=days * 24 * 3600 if remember else None, path="/",
+        httponly=True, secure=COOKIE_SECURE, samesite="lax",
+    )
+
+
+def current_admin(admin_session: Optional[str] = Cookie(None, alias="admin_session"),
+                  session_token: Optional[str] = Cookie(None)) -> dict:
+    if admin_session:
+        try:
+            payload = jwt.decode(admin_session, jwt_secret(), algorithms=["HS256"])
+        except Exception:
+            payload = {}
+        if payload.get("purpose") == "admin":
+            subject = str(payload.get("sub") or "")
+            if ADMIN_USERNAME and subject == ADMIN_USERNAME:
+                return {"username": subject, "email": None}
+            if payload.get("db_admin") is True and subject:
+                user = db_get("users", {"username_lower": eq(subject.lower())})
+                if user and user.get("is_admin"):
+                    ensure_admin_license(user)
+                    return {"username": user["username"], "email": user["email"]}
+
+    # Admin accounts that signed in through the normal login page.
+    user = session_user(session_token)
+    if user and user.get("is_admin"):
+        ensure_admin_license(user)
+        return {"username": user["username"], "email": user["email"]}
     raise HTTPException(401, "Admin login required.")
 
 
@@ -1040,6 +1084,7 @@ def admin_login(p: AdminLoginReq, response: Response):
 @app.post("/api/admin/logout")
 def admin_logout(response: Response):
     response.delete_cookie("admin_session", path="/")
+    response.delete_cookie("session_token", path="/")
     return {"message": "Logged out."}
 
 
@@ -1335,9 +1380,17 @@ def change_verification_email(p: ChangeEmailReq):
 
 @app.post("/api/auth/login")
 def login(p: LoginReq, response: Response):
+    raw = p.identifier.strip()
+
+    # Environment administrator (ADMIN_USERNAME/ADMIN_PASSWORD): break-glass account
+    # without a customer profile. Admins with a normal account use the regular path below.
+    if ADMIN_USERNAME and ADMIN_PASSWORD and raw == ADMIN_USERNAME and hmac.compare_digest(p.password, ADMIN_PASSWORD):
+        set_admin_session(response, ADMIN_USERNAME, remember=p.remember)
+        return {"message": "Logged in.", "username": ADMIN_USERNAME, "is_admin": True}
+
     if not sessions_ready():
         raise HTTPException(503, "Sign-in is temporarily unavailable. Please contact support.")
-    ident = p.identifier.strip().lower()
+    ident = raw.lower()
     user = db_get("users", {("email" if "@" in ident else "username_lower"): eq(ident)})
     if not user:
         dummy_check(p.password)
@@ -1368,8 +1421,12 @@ def login(p: LoginReq, response: Response):
                 "needs_2fa": True})
         if not user.get("totp_secret") or not totp_verify(user["totp_secret"], p.totp_code):
             raise HTTPException(401, "Incorrect 2FA code.")
-    set_session(response, user)
-    return {"message": "Logged in.", "username": user["username"]}
+    set_session(response, user, remember=p.remember)
+    is_admin = bool(user.get("is_admin"))
+    if is_admin:
+        set_admin_session(response, (user.get("username_lower") or user["username"]).lower(),
+                          db_admin=True, remember=p.remember)
+    return {"message": "Logged in.", "username": user["username"], "is_admin": is_admin}
 
 
 @app.post("/api/auth/logout")
@@ -1523,6 +1580,7 @@ def dashboard(user: dict = Depends(current_user)):
             "can_manage": row["plan_type"] == "monthly" and bool(row.get("stripe_customer_id")),
         }
     return {"email": user["email"], "username": user["username"], "licenses": licenses,
+            "is_admin": bool(user.get("is_admin")),
             "phone": user.get("phone"), "totp_enabled": bool(user.get("totp_enabled")),
             "discord_username": user.get("discord_username"), "discord_linked": bool(user.get("discord_id"))}
 
@@ -1966,9 +2024,13 @@ def redeem_license(p: RedeemReq, user: dict = Depends(current_user)):
         raise HTTPException(404, "License key not found.")
     if not license_active(lic):
         raise HTTPException(400, "This license is no longer active.")
-    if (lic["email"] or "").lower() == user["email"].lower():
+    unassigned = is_unassigned_license(lic)
+    if not unassigned and (lic["email"] or "").lower() == user["email"].lower():
         return {"message": "This key is already linked to your account.",
                 "plan": lic["plan_type"], "license_key": lic["license_key"]}
+    if not unassigned:
+        # A key generated for an email address cannot be claimed by someone else.
+        raise HTTPException(403, "This key belongs to a different account. Sign in with the email it was created for.")
     clash = db_get("licenses", {"email": eq(user["email"]), "plan_type": eq(lic["plan_type"])})
     if clash and license_active(clash):
         raise HTTPException(409, f"Your account already has an active {lic['plan_type']} license.")
@@ -2305,7 +2367,9 @@ def admin_licenses(search: str = "", limit: int = 50, admin: dict = Depends(curr
         rows = db_list("licenses", {}, limit=limit, order="created_at.desc")
     return {"licenses": [{"id": r["id"], "email": r["email"], "plan_type": r["plan_type"],
                            "license_key": r["license_key"], "status": r["status"],
-                           "expires_at": r["expires_at"], "created_at": r["created_at"]} for r in rows]}
+                           "expires_at": r["expires_at"], "created_at": r["created_at"],
+                           "unassigned": is_unassigned_license(r),
+                           "redeemed_at": r.get("redeemed_at")} for r in rows]}
 
 
 @app.post("/api/admin/licenses/{lic_id}")

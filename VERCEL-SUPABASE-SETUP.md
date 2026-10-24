@@ -12,7 +12,7 @@ In the Champ Site project on Vercel, set the following under **Settings → Envi
 - `JWT_SECRET` — a random secret with at least 32 characters.
 - `RESEND_API_KEY` — Resend API key authorized to send from the verified sender domain.
 - `FROM_EMAIL` — e.g. `Champ Client <verify@your-verified-domain>`.
-- `ADMIN_USERNAME` and `ADMIN_PASSWORD` — private admin credentials; use a unique, strong password.
+- `ADMIN_USERNAME` and `ADMIN_PASSWORD` — optional break-glass admin credentials for the normal login form; use a unique, strong password. Normal admin accounts are users with `is_admin = true` and sign in on `login.html`.
 - Stripe keys and price IDs from `.env.example` when enabling real checkout/webhooks.
 
 ### The Supabase key must be a server key

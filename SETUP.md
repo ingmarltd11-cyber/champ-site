@@ -105,13 +105,19 @@ The site now uses a purple / deep-blue theme and `html { scroll-behavior: smooth
 Open `/features.html`. Feature cards are loaded from the Supabase `features` table.
 
 ### Admin panel
-Open `/admin.html`.
-Set these Vercel environment variables:
+Sign in on `/login.html`. Accounts with `is_admin = true` land straight in `/admin.html`; the admin page no longer has its own login form. A normal (non-admin) account that opens `/admin.html` sees an "Admins only" message.
 
-- `ADMIN_USERNAME`
-- `ADMIN_PASSWORD`
+Enable admin for an existing account in Supabase:
 
-Use a long random admin password. The admin session is stored in an HttpOnly cookie.
+```sql
+update public.users set is_admin = true where email = 'you@example.com';
+```
+
+Admins automatically receive an active lifetime license, so their own key appears under **My account** in the admin panel.
+
+`ADMIN_USERNAME` / `ADMIN_PASSWORD` still work as a break-glass login through the normal login form; that account has no customer profile. Admin sessions are HttpOnly cookies. "Remember me" keeps the login for 30 days; without it the cookie ends when the browser closes.
+
+Discord keys (`/key generate` in the bot) are written to the same `licenses` table and appear in **Orders & Keys**. Keys without an email show an **Unclaimed** badge until the first account redeems them.
 
 The admin panel lets you edit each feature's:
 

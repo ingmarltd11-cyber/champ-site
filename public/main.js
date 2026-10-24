@@ -373,6 +373,7 @@ if (loginForm) {
             identifier: document.getElementById('loginUser').value.trim(),
             password: document.getElementById('loginPassword').value,
             totp_code: totpCode || null,
+            remember: Boolean(document.getElementById('loginRemember')?.checked),
           }),
         });
       }
@@ -383,7 +384,9 @@ if (loginForm) {
         ({ ok, status, data } = await attemptLogin(code.trim()));
       }
       if (ok) {
-        window.location.href = safeNext(params.get('next'));
+        // Admins land in the admin panel by default; an explicit ?next= still wins.
+        const requested = params.get('next');
+        window.location.href = requested ? safeNext(requested) : (data.is_admin ? 'admin.html' : 'dashboard.html');
         return;
       }
       if (status === 403 && data.needs_verification && data.email) {
@@ -650,6 +653,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     const sideEmail = document.getElementById('sidebar-email');
     if (sideName) sideName.textContent = d.username;
     if (sideEmail) sideEmail.textContent = d.email;
+    if (d.is_admin) {
+      const aside = document.querySelector('.dashboard-sidebar');
+      if (aside && !document.getElementById('adminPanelLink')) {
+        const link = document.createElement('a');
+        link.id = 'adminPanelLink';
+        link.className = 'sidebar-link';
+        link.href = 'admin.html';
+        link.innerHTML = '<span class="sidebar-icon">⚙</span><span>Admin panel</span>';
+        aside.insertBefore(link, aside.querySelector('.sidebar-account'));
+      }
+    }
     renderLicense('monthly', d.licenses.monthly);
     renderLicense('lifetime', d.licenses.lifetime);
     if (!window.dashboardExtrasInitialized) {
@@ -1493,16 +1507,31 @@ async function loadFindsPage() {
 // ============================================================
 async function loadAdminPanel() {
   const panel = document.getElementById('adminPanel');
-  const loginCard = document.getElementById('adminLoginCard');
+  const denied = document.getElementById('adminDenied');
   const logout = document.getElementById('adminLogout');
-  if (!panel || !loginCard) return;
+  if (!panel) return;
 
   const me = await api('/api/admin/me');
-  if (!me.ok) return;
+  if (!me.ok) {
+    const session = await api('/api/auth/me');
+    if (!session.ok) {
+      // No session at all: the normal login page is the only way in now.
+      window.location.href = 'login.html?next=admin.html';
+      return;
+    }
+    if (denied) {
+      denied.style.display = 'block';
+      const text = document.getElementById('adminDeniedText');
+      if (text) text.textContent = `${session.data.username || 'This account'} is signed in, but it does not have admin access. Ask an owner to enable admin on this account.`;
+    }
+    return;
+  }
 
-  loginCard.style.display = 'none';
   panel.style.display = 'block';
   if (logout) logout.style.display = 'inline-flex';
+  const badge = document.getElementById('adminSessionBadge');
+  if (badge) badge.textContent = me.data.email ? `Admin: ${me.data.username}` : `Admin: ${me.data.username} (environment)`;
+  loadAdminMyAccount(me.data);
 
   document.querySelectorAll('.admin-tab').forEach(tab => {
     tab.addEventListener('click', () => {
@@ -1531,21 +1560,35 @@ async function loadAdminPanel() {
   loadAdminFeatures();
 }
 
-const adminLoginForm = document.getElementById('adminLoginForm');
-if (adminLoginForm) {
-  loadAdminPanel();
-  adminLoginForm.addEventListener('submit', async e => {
-    e.preventDefault();
-    const button = adminLoginForm.querySelector('button');
-    button.disabled = true;
-    const res = await api('/api/admin/login', { method:'POST', body:JSON.stringify({
-      username: document.getElementById('adminUsername').value,
-      password: document.getElementById('adminPassword').value
-    })});
-    if (!res.ok) showMessage('adminMessage', errorText(res.data, 'Invalid admin credentials.'), true);
-    else window.location.reload();
-    button.disabled = false;
-  });
+if (document.getElementById('adminPanel')) loadAdminPanel();
+
+// Admins are customers too: show their own licenses here, not only the shop orders.
+async function loadAdminMyAccount(admin) {
+  const wrap = document.getElementById('adminMyKeys');
+  const name = document.getElementById('adminMyName');
+  const email = document.getElementById('adminMyEmail');
+  if (!wrap) return;
+  if (name) name.textContent = admin.username || 'admin';
+  if (email && admin.email) email.textContent = `(${admin.email})`;
+
+  const res = await api('/api/dashboard/user-data');
+  if (!res.ok) {
+    wrap.innerHTML = '<p class="no-license-text">This admin login has no customer account, so there are no personal keys to show. Use a normal account with admin access to see your own licenses here.</p>';
+    return;
+  }
+
+  const d = res.data;
+  if (name) name.textContent = d.username;
+  if (email) email.textContent = `(${d.email})`;
+  const rows = Object.entries(d.licenses || {}).filter(([, lic]) => lic);
+  if (!rows.length) {
+    wrap.innerHTML = '<p class="no-license-text">You do not have a license on this account yet.</p>';
+    return;
+  }
+
+  wrap.innerHTML = `<table class="admin-table"><thead><tr><th>Plan</th><th>Key</th><th>Status</th><th>Expires</th></tr></thead><tbody>` +
+    rows.map(([plan, lic]) => `<tr><td>${escapeHtml(plan)}</td><td><code>${escapeHtml(lic.key)}</code></td><td>${lic.active ? '<span class="status-badge status-active">Active</span>' : '<span class="status-badge status-none">Inactive</span>'}</td><td>${lic.expires_at ? fmtDate(lic.expires_at) : '—'}</td></tr>`).join('') +
+    `</tbody></table>`;
 }
 
 async function loadAdminOrders(search) {
@@ -1557,7 +1600,7 @@ async function loadAdminOrders(search) {
     const rows = res.data.licenses || [];
     if (!rows.length) { wrap.innerHTML = '<p class="no-license-text">No orders found.</p>'; return; }
     wrap.innerHTML = `<table class="admin-table"><thead><tr><th>Email</th><th>Plan</th><th>Key</th><th>Status</th><th>Created</th><th></th></tr></thead><tbody>` +
-      rows.map(r => `<tr><td>${escapeHtml(r.email)}</td><td>${escapeHtml(r.plan_type)}</td><td><code>${escapeHtml(r.license_key)}</code></td><td>${escapeHtml(r.status)}</td><td>${fmtDate(r.created_at)}</td><td><select data-lic="${r.id}" class="admin-status-select"><option value="">set…</option><option value="active">active</option><option value="inactive">inactive</option><option value="revoked">revoked</option></select></td></tr>`).join('') +
+      rows.map(r => `<tr><td>${r.unassigned ? '<span class="status-badge status-none" title="No owner yet — the first account that redeems this key gets it">Unclaimed</span>' : escapeHtml(r.email)}</td><td>${escapeHtml(r.plan_type)}</td><td><code>${escapeHtml(r.license_key)}</code></td><td>${escapeHtml(r.status)}</td><td>${fmtDate(r.created_at)}</td><td><select data-lic="${r.id}" class="admin-status-select"><option value="">set…</option><option value="active">active</option><option value="inactive">inactive</option><option value="revoked">revoked</option></select></td></tr>`).join('') +
       `</tbody></table>`;
     wrap.querySelectorAll('.admin-status-select').forEach(sel => {
       sel.addEventListener('change', async () => {
