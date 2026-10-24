@@ -101,6 +101,10 @@ DOWNLOAD_FILES = {
     "monthly": ("monthly.jar", "ChampClient-Monthly.jar"),
     "lifetime": ("lifetime.jar", "ChampClient-Lifetime.jar"),
 }
+# The client that ships with this deployment. It is the same build for both plans; whether access
+# is monthly or lifetime is decided by the license and its expiry, never by the JAR contents.
+PUBLIC_CLIENT_FILE = "ChampClient.jar"
+PUBLIC_CLIENT_BUILD = "0.1.0-license-screen"
 PLAN_PRICES = {
     "monthly": "STRIPE_PRICE_MONTHLY_ID",
     "lifetime": "STRIPE_PRICE_LIFETIME_ID",
@@ -501,6 +505,11 @@ def public_site() -> str:
     return (os.getenv("SITE_URL") or "https://champ-site-psi.vercel.app").rstrip("/")
 
 
+def public_client_url() -> str:
+    """The client JAR deployed with the site, used until an admin uploads a newer build."""
+    return f"{public_site()}/downloads/{PUBLIC_CLIENT_FILE}"
+
+
 def mask_hwid(hwid: Optional[str]) -> str:
     if not hwid:
         return ""
@@ -515,24 +524,23 @@ def license_token(lic: dict) -> str:
 
 
 def license_jar_info(lic: dict) -> tuple:
-    """Short-lived storage link to the client JAR plus its build id, after the hardware check.
+    """Client JAR link plus its build id, after the hardware check.
 
-    The build id lets the loader skip the download when the copy in mods/ is already the current
-    upload, instead of pulling ten megabytes on every launch.
+    An admin upload always wins. Without one, the build that ships with this deployment is used,
+    for monthly and lifetime alike: the plan only changes when the license expires. The build id
+    lets the loader skip the download when mods/ already holds this exact build.
     """
     plan = lic.get("plan_type") if lic.get("plan_type") in PLANS else "lifetime"
-    path, filename = DOWNLOAD_FILES[plan]
-    build = ""
     try:
         uploaded = db_get("download_files", {"plan": eq(plan)})
     except Exception as exc:
         print("Download mapping unavailable:", type(exc).__name__)
         uploaded = None
     if uploaded and uploaded.get("storage_path"):
-        path = uploaded["storage_path"]
-        filename = uploaded.get("filename") or filename
+        filename = uploaded.get("filename") or DOWNLOAD_FILES[plan][1]
         build = str(uploaded.get("updated_at") or uploaded.get("created_at") or "")
-    return signed_download_url(path, filename), build
+        return signed_download_url(uploaded["storage_path"], filename), build
+    return public_client_url(), PUBLIC_CLIENT_BUILD
 
 
 def free_reset_available(lic: dict) -> bool:
@@ -760,6 +768,11 @@ class RedeemReq(BaseModel):
 
 class BindReq(BaseModel):
     key: str
+    hwid: str
+    loader: Optional[str] = None
+
+
+class DeviceReq(BaseModel):
     hwid: str
     loader: Optional[str] = None
 
@@ -1530,6 +1543,35 @@ def signed_download_url(path: str, filename: str) -> str:
     return f"{full}{'&' if '?' in full else '?'}download={quote(filename)}"
 
 
+@app.get("/api/client/latest")
+def latest_client():
+    """Build info for a fresh install.
+
+    The loader needs the client JAR before it can ask for a key in-game, so this one download is
+    public. The JAR itself is useless without a license: the client keeps every module disabled
+    until a key is bound to this PC.
+    """
+    try:
+        uploaded = [row for row in db_list("download_files", {}) if row.get("storage_path")]
+    except Exception as exc:
+        print("Public client lookup failed:", type(exc).__name__)
+        uploaded = []
+    preferred = next((row for row in uploaded if row.get("plan") == "lifetime"), None) \
+        or (uploaded[0] if uploaded else None)
+    try:
+        if preferred:
+            jar_url = signed_download_url(preferred["storage_path"],
+                                          preferred.get("filename") or "ChampClient.jar")
+            build = str(preferred.get("updated_at") or preferred.get("created_at") or "")
+        else:
+            # No admin upload yet: fall back to the default lifetime artifact in the bucket.
+            jar_url, build = license_jar_info({"plan_type": "lifetime"})
+    except Exception as exc:
+        print("Public client link failed:", type(exc).__name__)
+        raise HTTPException(404, "No client build is published yet.")
+    return {"jar_url": jar_url, "build": build}
+
+
 @app.get("/api/download/{plan}")
 def download(plan: str, user: dict = Depends(current_user)):
     if plan not in DOWNLOAD_FILES:
@@ -1539,16 +1581,17 @@ def download(plan: str, user: dict = Depends(current_user)):
         ensure_admin_license(user)
     elif not license_active(db_get("licenses", {"email": eq(user["email"]), "plan_type": eq(plan)})):
         raise HTTPException(403, f"You don't have an active {plan} license.")
-    path, filename = DOWNLOAD_FILES[plan]
     try:
         uploaded = db_get("download_files", {"plan": eq(plan)})
     except Exception as exc:
         print("Download mapping unavailable:", type(exc).__name__)
         uploaded = None
     if uploaded and uploaded.get("storage_path"):
-        path = uploaded["storage_path"]
-        filename = uploaded.get("filename") or filename
-    return RedirectResponse(signed_download_url(path, filename), status_code=302, headers={"Cache-Control": "no-store"})
+        filename = uploaded.get("filename") or DOWNLOAD_FILES[plan][1]
+        target = signed_download_url(uploaded["storage_path"], filename)
+    else:
+        target = public_client_url()
+    return RedirectResponse(target, status_code=302, headers={"Cache-Control": "no-store"})
 
 
 # --------------------------------------------------------------------------
@@ -1779,6 +1822,47 @@ def bind_license(p: BindReq):
         "device": mask_hwid(hwid),
         "bound": bound_now,
         "message": "Device linked to this key." if bound_now else "Device already linked.",
+    }
+
+
+@app.post("/api/license/device")
+def device_license(p: DeviceReq):
+    """Recognises a licensed PC by its hardware alone, so no key has to be typed on a known device.
+
+    Only the device that is already bound to an active license can use this; the key it returns is
+    needed for the heartbeat. A machine that is not bound yet gets no match and asks for a key in
+    the game instead. The hardware ID is a SHA-256 fingerprint, not a secret shared between users.
+    """
+    hwid = normalize_hwid(p.hwid)
+    try:
+        rows = db_list("licenses", {"hwid": eq(hwid)})
+    except Exception as exc:
+        print("Device lookup failed:", type(exc).__name__)
+        raise HTTPException(503, "The license server is temporarily unavailable.")
+
+    active = [row for row in rows if license_active(row)]
+    if not active:
+        return {"ok": False, "error": "no_device_license"}
+    # Lifetime wins when both plans are linked to the same PC.
+    lic = sorted(active, key=lambda row: 0 if row.get("plan_type") == "lifetime" else 1)[0]
+
+    try:
+        jar_url, jar_build = license_jar_info(lic)
+    except Exception as exc:
+        print("Jar link failed:", type(exc).__name__)
+        jar_url, jar_build = "", ""
+
+    return {
+        "ok": True,
+        "key": lic["license_key"],
+        "plan": lic["plan_type"],
+        "expires_at": lic.get("expires_at"),
+        "token": license_token(lic),
+        "jar_url": jar_url,
+        "build": jar_build,
+        "device": mask_hwid(hwid),
+        "bound": True,
+        "message": "Device recognised.",
     }
 
 
