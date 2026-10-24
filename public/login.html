@@ -68,7 +68,7 @@
 
       <!-- REMEMBER ME -->
       <label for="loginRemember" style="display: flex; align-items: center; gap: 10px; margin: 0 0 24px; cursor: pointer; font-size: 13px; color: var(--muted); user-select: none;">
-        <input type="checkbox" id="loginRemember" style="width: auto; margin: 0; accent-color: #7c5cff; cursor: pointer;">
+        <input type="checkbox" id="loginRemember" checked style="width: auto; margin: 0; accent-color: #7c5cff; cursor: pointer;">
         <span>Remember me for 30 days</span>
       </label>
 
@@ -111,6 +111,21 @@ document.querySelectorAll('input').forEach(input => {
     input.style.boxShadow = 'none';
   });
 });
+</script>
+
+<script>
+// Stay signed in by default. Unchecking is remembered for this browser.
+(function () {
+  var box = document.getElementById('loginRemember');
+  if (!box) return;
+  try {
+    var saved = localStorage.getItem('champ_remember_login');
+    box.checked = saved === null ? true : saved === '1';
+    box.addEventListener('change', function () {
+      localStorage.setItem('champ_remember_login', box.checked ? '1' : '0');
+    });
+  } catch (_) { box.checked = true; }
+})();
 </script>
 
 <script src="main.js"></script>
