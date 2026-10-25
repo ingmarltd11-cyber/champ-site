@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Public configs — Champ Client</title>
+<link rel="icon" type="image/png" href="assets/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!-- ANNOUNCEMENT BANNER -->
+<div id="siteAnnouncementBanner" class="site-announcement-bar" style="display:none;">
+  <span id="siteAnnouncementText"></span>
+  <button onclick="dismissAnnouncement()" class="announcement-close" aria-label="Close announcement">&times;</button>
+</div>
+
+<nav>
+  <a class="nav-logo" href="index.html"><img src="assets/logo.png" alt="Champ crab logo"><span>Champ <em>Client</em></span></a>
+  <ul class="nav-links">
+    <li><a href="features.html">Features</a></li>
+    <li><a href="configs.html">Configs</a></li>
+    <li><a href="changelog.html">Changelog</a></li>
+    <li><a href="index.html#pricing">Pricing</a></li>
+    <li><a href="index.html#faq">FAQ</a></li>
+  </ul>
+  <div class="nav-actions">
+    <a href="login.html" class="btn-ghost">Sign In</a>
+    <a href="signup.html" class="btn-primary">Get Started →</a>
+    <button class="hamburger" onclick="toggleMenu()" aria-label="Menu"><span></span><span></span><span></span></button>
+  </div>
+</nav>
+<div class="mobile-menu" id="mobileMenu">
+  <a href="features.html" onclick="toggleMenu()">Features</a>
+  <a href="configs.html" onclick="toggleMenu()">Configs</a>
+  <a href="changelog.html" onclick="toggleMenu()">Changelog</a>
+  <a href="index.html#pricing" onclick="toggleMenu()">Pricing</a>
+  <a href="index.html#faq" onclick="toggleMenu()">FAQ</a>
+  <a href="login.html" onclick="toggleMenu()">Sign In</a>
+</div>
+
+<main class="features-page">
+  <section class="features-hero">
+    <p class="hero-eyebrow">Shared by the community</p>
+    <h1>Public <em>configs.</em></h1>
+    <p class="hero-sub">
+      Every config Champ players share from the client shows up here. Open one to read what it
+      contains, or download it and load it in Champ &rarr; Configs &rarr; Public configs.
+    </p>
+    <div class="feature-stats">
+      <div class="feature-stat"><b id="cfgCount">&mdash;</b><span>configs shared</span></div>
+      <div class="feature-stat"><b>Every config</b><span>free to copy</span></div>
+      <div class="feature-stat"><b>One click</b><span>loads in game</span></div>
+    </div>
+  </section>
+
+  <div class="configs-toolbar">
+    <input id="cfgSearch" class="configs-search" type="search" placeholder="Search configs, authors or tags…" autocomplete="off">
+    <button id="cfgSubmit" class="btn-primary" type="button">Search</button>
+  </div>
+
+  <section id="cfgGrid" class="configs-grid"><p class="no-license-text">Loading configs…</p></section>
+  <div class="configs-pager">
+    <button id="cfgPrev" class="btn-ghost" type="button">&larr; Newer</button>
+    <span id="cfgPage">Page 1</span>
+    <button id="cfgNext" class="btn-ghost" type="button">Older &rarr;</button>
+  </div>
+
+  <section class="features-cta">
+    <div>
+      <h2>Want your setup listed?</h2>
+      <p>In the client: Configs &rarr; Create config, set the visibility to Public, and it is on this page for everyone.</p>
+    </div>
+    <a class="btn-primary" href="index.html#pricing">Get Champ →</a>
+  </section>
+</main>
+
+<div id="cfgOverlay" class="configs-overlay" aria-hidden="true">
+  <div class="configs-panel" role="dialog" aria-modal="true" aria-labelledby="cfgDetailName">
+    <button class="configs-close" onclick="closeConfig()" aria-label="Close">&times;</button>
+    <h2 id="cfgDetailName">Config</h2>
+    <p id="cfgDetailMeta" class="configs-meta"></p>
+    <p id="cfgDetailDesc" class="configs-desc"></p>
+    <div id="cfgDetailTags" class="configs-tags"></div>
+    <h3 class="configs-sub">What is inside</h3>
+    <ul id="cfgDetailBody" class="configs-body"></ul>
+    <div class="configs-actions">
+      <a id="cfgDownload" class="btn-primary" href="#" download>Download .json</a>
+      <button class="btn-ghost" onclick="closeConfig()" type="button">Close</button>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <div class="footer-logo"><img src="assets/logo.png" alt="Champ">Champ <em style="font-style:italic;color:var(--red-hi)">Client</em></div>
+  <div class="footer-links"><a href="features.html">Features</a><a href="configs.html">Configs</a><a href="changelog.html">Changelog</a><a href="privacy.html">Privacy Policy</a><a href="terms.html">Terms of Service</a></div>
+  <p class="footer-copy">&copy; 2026 Champ Client. Not affiliated with Mojang or Microsoft.</p>
+</footer>
+
+<script>
+(function () {
+  var page = 0, query = '', current = null, lastPage = 0;
+  var grid = document.getElementById('cfgGrid');
+  var pageLabel = document.getElementById('cfgPage');
+  var search = document.getElementById('cfgSearch');
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function fmtDate(value) {
+    if (!value) return '';
+    var d = new Date(value);
+    return isNaN(d) ? '' : d.toLocaleDateString();
+  }
+
+  function card(c) {
+    var tags = (c.tags || []).slice(0, 4).map(function (t) { return '<span class="configs-tag">' + esc(t) + '</span>'; }).join('');
+    return '<article class="config-card" data-id="' + c.id + '">' +
+      '<h3>' + esc(c.name) + '</h3>' +
+      '<p class="configs-meta">by ' + esc(c.author) + (c.created_at ? ' · ' + esc(fmtDate(c.created_at)) : '') + '</p>' +
+      '<p class="configs-desc">' + esc(c.description || 'No description.') + '</p>' +
+      '<div class="configs-tags">' + tags + '</div>' +
+      '<div class="configs-foot"><span>' + (c.downloads || 0) + ' downloads</span>' +
+      '<button class="btn-ghost configs-open" data-id="' + c.id + '" type="button">Open</button></div>' +
+      '</article>';
+  }
+
+  function render(list) {
+    if (!list.length) {
+      grid.innerHTML = '<p class="no-license-text">' + (query ? 'No public configs match “' + esc(query) + '”.' : 'No public configs yet. Share the first one from the client.') + '</p>';
+      return;
+    }
+    grid.innerHTML = list.map(card).join('');
+    Array.prototype.forEach.call(grid.querySelectorAll('.configs-open'), function (btn) {
+      btn.addEventListener('click', function () { openConfig(btn.getAttribute('data-id')); });
+    });
+  }
+
+  function load() {
+    grid.innerHTML = '<p class="no-license-text">Loading configs…</p>';
+    fetch('/api/configs?page=' + page + '&q=' + encodeURIComponent(query), { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var list = data.configs || [];
+        lastPage = page;
+        render(list);
+        pageLabel.textContent = 'Page ' + (page + 1);
+        document.getElementById('cfgPrev').disabled = page <= 0;
+        document.getElementById('cfgNext').disabled = !data.has_more;
+        var counter = document.getElementById('cfgCount');
+        if (counter) counter.textContent = page === 0 && !query ? (list.length + (data.has_more ? '+' : '')) : counter.textContent;
+        if (window.ScrollTrigger) window.ScrollTrigger.refresh();
+      })
+      .catch(function () {
+        grid.innerHTML = '<p class="no-license-text">The config list could not be loaded. Try again in a moment.</p>';
+      });
+  }
+
+  function openConfig(id) {
+    fetch('/api/configs/' + encodeURIComponent(id), { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (c) {
+        current = c;
+        document.getElementById('cfgDetailName').textContent = c.name || 'Config';
+        document.getElementById('cfgDetailMeta').textContent = 'by ' + (c.author || 'Champ user') +
+          (c.created_at ? ' · ' + fmtDate(c.created_at) : '') + ' · ' + (c.downloads || 0) + ' downloads';
+        document.getElementById('cfgDetailDesc').textContent = c.description || 'No description.';
+        document.getElementById('cfgDetailTags').innerHTML = (c.tags || [])
+          .map(function (t) { return '<span class="configs-tag">' + esc(t) + '</span>'; }).join('');
+        document.getElementById('cfgDetailBody').innerHTML = summarise(c);
+        var blob = new Blob([JSON.stringify(c.data || {}, null, 2)], { type: 'application/json' });
+        var link = document.getElementById('cfgDownload');
+        link.href = URL.createObjectURL(blob);
+        link.download = (c.name || 'champ-config').replace(/[^A-Za-z0-9_.-]/g, '_') + '.json';
+        var overlay = document.getElementById('cfgOverlay');
+        overlay.classList.add('open');
+        overlay.setAttribute('aria-hidden', 'false');
+      })
+      .catch(function () {});
+  }
+
+  function summarise(c) {
+    var data = c.data || {};
+    var rows = [];
+    var modules = [];
+    function walk(node, prefix) {
+      if (!node || typeof node !== 'object') return;
+      Object.keys(node).forEach(function (key) {
+        var value = node[key];
+        var label = prefix ? prefix + ' › ' + key : key;
+        if (value && typeof value === 'object' && !Array.isArray(value) && modules.length < 400) walk(value, label);
+        else if (modules.length < 400) modules.push(label + ': ' + JSON.stringify(value));
+      });
+    }
+    walk(data, '');
+    rows.push('<li>' + modules.length + ' settings in this config</li>');
+    if (c.seed) rows.push('<li>World seed: ' + esc(c.seed) + '</li>');
+    modules.slice(0, 12).forEach(function (line) { rows.push('<li>' + esc(line) + '</li>'); });
+    if (modules.length > 12) rows.push('<li>…and ' + (modules.length - 12) + ' more</li>');
+    return rows.join('');
+  }
+
+  window.closeConfig = function () {
+    var overlay = document.getElementById('cfgOverlay');
+    overlay.classList.remove('open');
+    overlay.setAttribute('aria-hidden', 'true');
+    current = null;
+  };
+
+  document.getElementById('cfgSubmit').addEventListener('click', function () {
+    query = search.value.trim(); page = 0; load();
+  });
+  search.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); query = search.value.trim(); page = 0; load(); }
+  });
+  document.getElementById('cfgPrev').addEventListener('click', function () {
+    if (page > 0) { page--; load(); }
+  });
+  document.getElementById('cfgNext').addEventListener('click', function () {
+    page = lastPage + 1; load();
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') window.closeConfig(); });
+
+  load();
+})();
+</script>
+<script src="main.js"></script>
+<script src="vendor/gsap.min.js"></script>
+<script src="vendor/gsap-scrolltrigger.min.js"></script>
+<script src="motion.js"></script>
+</body></html>

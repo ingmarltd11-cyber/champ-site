@@ -112,6 +112,26 @@ create table if not exists public.base_finds (
 );
 create index if not exists base_finds_status_idx on public.base_finds (status, created_at desc);
 
+-- Public configs: client configs shared in the cloud and readable by everyone.
+-- license_id is the license that uploaded it; the client proves it with the same device-key
+-- handshake as the license check, so only real customers can publish.
+create table if not exists public.public_configs (
+  id            bigint generated always as identity primary key,
+  license_id    bigint not null,
+  author        text not null default '',
+  name          text not null,
+  description   text not null default '',
+  tags          text[] not null default '{}',
+  seed          bigint,
+  data          jsonb not null,
+  downloads     integer not null default 0,
+  hidden        boolean not null default false,
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
+);
+create unique index if not exists public_configs_owner_name on public.public_configs (license_id, lower(name));
+create index if not exists public_configs_listing on public.public_configs (hidden, created_at desc);
+
 create table if not exists public.stripe_events (
   id          text primary key,
   type        text not null,
@@ -232,6 +252,7 @@ alter table public.stripe_events    enable row level security;
 alter table public.referrals        enable row level security;
 alter table public.referral_uses    enable row level security;
 alter table public.base_finds       enable row level security;
+alter table public.public_configs   enable row level security;
 alter table public.features         enable row level security;
 alter table public.site_settings    enable row level security;
 alter table public.reviews          enable row level security;

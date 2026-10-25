@@ -958,6 +958,27 @@ class FindCreateReq(BaseModel):
     filename: str = ""
 
 
+class ConfigProof(BaseModel):
+    """The same device-key handshake the client uses for /api/license/session."""
+    hwid: str
+    public_key: str = ""
+    challenge: str = ""
+    signature: str = ""
+
+
+class ConfigUploadReq(ConfigProof):
+    name: str
+    description: str = ""
+    author: str = ""
+    tags: Optional[list] = None
+    seed: Optional[int] = None
+    data: Optional[dict] = None
+
+
+class AdminConfigUpdateReq(BaseModel):
+    hidden: bool = True
+
+
 class AdminLicenseUpdateReq(BaseModel):
     """Everything is optional: only the fields that are sent are changed."""
     status: Optional[str] = None
@@ -2404,6 +2425,166 @@ def redeem_license(p: RedeemReq, user: dict = Depends(current_user)):
         print("Redeem e-mail failed:", exc)
     return {"message": f"{lic['plan_type']} license linked to your account. Download is now available.",
             "plan": lic["plan_type"], "license_key": lic["license_key"]}
+
+
+# --------------------------------------------------------------------------
+# Public configs: shared client configs in the cloud, visible to everyone
+# --------------------------------------------------------------------------
+# A config is the client's own snapshot (modules, settings, keybinds, HUD layout) plus the card
+# metadata of the Configs page. Uploading proves the PC holds an active license with its device key,
+# exactly like the license check, so a config can never be posted without a real license. Reading is
+# open: the website and every Champ install show the same public list.
+CONFIG_MAX_JSON = 160 * 1024          # one snapshot; the whole request stays far below Vercel's cap
+CONFIG_PAGE = 9
+
+
+def config_owner(p: ConfigProof) -> dict:
+    """Returns the active license behind this proof, or raises why it cannot be trusted."""
+    hwid = normalize_hwid(p.hwid)
+    try:
+        lic = db_get("licenses", {"hwid": eq(hwid)})
+    except Exception as exc:
+        print("Config license lookup failed:", type(exc).__name__)
+        raise HTTPException(503, "The config server is temporarily unavailable.")
+    if not lic or not license_active(lic):
+        raise HTTPException(403, "An active Champ license is required. Sign in through the loader first.")
+    stored = (lic.get("device_pubkey") or "").strip()
+    public_key = normalize_public_key(p.public_key or "")
+    if stored:
+        if not (public_key and p.challenge and p.signature):
+            raise HTTPException(403, "Update Champ through the loader; this build cannot prove its device key.")
+        if not hmac.compare_digest(stored, public_key):
+            raise HTTPException(409, "This license is linked to another PC's security key. Reset the device on your dashboard.")
+        verify_challenge(p.challenge, hwid, public_key)
+        verify_device_signature(stored, p.challenge, p.signature)
+    return lic
+
+
+def config_card(row: dict, with_data: bool = False) -> dict:
+    card = {
+        "id": row["id"],
+        "name": row.get("name") or "",
+        "description": row.get("description") or "",
+        "author": row.get("author") or "Champ user",
+        "tags": row.get("tags") or [],
+        "downloads": int(row.get("downloads") or 0),
+        "seed": row.get("seed"),
+        "created_at": row.get("created_at"),
+    }
+    if with_data:
+        card["data"] = row.get("data")
+    return card
+
+
+@app.get("/api/configs")
+def list_configs(q: str = "", page: int = 0, limit: int = CONFIG_PAGE):
+    """The public list: newest first, searchable, one page at a time. No login required."""
+    limit = max(1, min(30, int(limit or CONFIG_PAGE)))
+    page = max(0, int(page or 0))
+    filters = {"hidden": eq("false"), "offset": page * limit}
+    query = re.sub(r"[^A-Za-z0-9 _-]", "", (q or "").strip())[:60]
+    if query:
+        filters["or"] = f"(name.ilike.*{query}*,description.ilike.*{query}*,author.ilike.*{query}*)"
+    try:
+        rows = db_list("public_configs", filters, limit=limit + 1, order="created_at.desc")
+    except Exception as exc:
+        print("Config list failed:", type(exc).__name__)
+        raise HTTPException(503, "The config server is temporarily unavailable.")
+    return {"configs": [config_card(row) for row in rows[:limit]],
+            "page": page, "has_more": len(rows) > limit,
+            "total_shown": min(len(rows), limit)}
+
+
+@app.get("/api/configs/{config_id}")
+def get_config(config_id: int):
+    """One config with its snapshot; the download counter is the only write this route does."""
+    try:
+        row = db_get("public_configs", {"id": eq(config_id), "hidden": eq("false")})
+    except Exception as exc:
+        print("Config read failed:", type(exc).__name__)
+        raise HTTPException(503, "The config server is temporarily unavailable.")
+    if not row:
+        raise HTTPException(404, "That config is no longer available.")
+    try:
+        db_update("public_configs", {"id": eq(row["id"])},
+                  {"downloads": int(row.get("downloads") or 0) + 1})
+    except Exception:
+        pass
+    return config_card(row, with_data=True)
+
+
+@app.post("/api/configs", status_code=201)
+def publish_config(p: ConfigUploadReq):
+    """Shares the current setup. A second upload with the same name replaces the earlier one."""
+    lic = config_owner(p)
+    name = (p.name or "").strip()[:48]
+    if len(name) < 3:
+        raise HTTPException(400, "Give the config a name (min 3 characters).")
+    if not p.data:
+        raise HTTPException(400, "The config snapshot is empty.")
+    snapshot = json.dumps(p.data, separators=(",", ":"))
+    if len(snapshot.encode("utf-8")) > CONFIG_MAX_JSON:
+        raise HTTPException(413, "This config is too large to share (max 160 KB).")
+    description = (p.description or "").strip()[:400]
+    author = (p.author or "").strip()[:32] or (lic.get("email") or "").split("@")[0][:32] or "Champ user"
+    tags = [str(tag).strip()[:16] for tag in (p.tags or []) if str(tag).strip()][:6]
+    values = {
+        "author": author,
+        "name": name,
+        "description": description,
+        "tags": tags,
+        "seed": p.seed,
+        "data": p.data,
+        "updated_at": iso(now()),
+    }
+    try:
+        existing = db_get("public_configs", {"license_id": eq(lic["id"]), "name": eq(name)})
+        if existing:
+            db_update("public_configs", {"id": eq(existing["id"])}, values)
+            return {"id": existing["id"], "updated": True,
+                    "message": f"\"{name}\" was updated in the public list."}
+        row = db_insert("public_configs", {"license_id": lic["id"], **values})
+    except Exception as exc:
+        print("Config save failed:", type(exc).__name__)
+        raise HTTPException(503, "The config could not be saved right now.")
+    return {"id": row["id"] if row else None, "updated": False,
+            "message": f"\"{name}\" is now visible to every Champ user."}
+
+
+@app.post("/api/configs/{config_id}/delete")
+def delete_config(config_id: int, p: ConfigProof):
+    lic = config_owner(p)
+    try:
+        row = db_get("public_configs", {"id": eq(config_id), "license_id": eq(lic["id"])})
+        if not row:
+            raise HTTPException(404, "That config is not one of yours.")
+        _sb("DELETE", "public_configs", params={"id": eq(row["id"])})
+    except HTTPException:
+        raise
+    except Exception as exc:
+        print("Config delete failed:", type(exc).__name__)
+        raise HTTPException(503, "The config could not be removed right now.")
+    return {"ok": True, "message": "Config removed from the public list."}
+
+
+@app.get("/api/admin/configs")
+def admin_configs(admin: dict = Depends(current_admin)):
+    rows = db_list("public_configs", {}, limit=200, order="created_at.desc")
+    return {"configs": [{**config_card(row), "hidden": bool(row.get("hidden"))} for row in rows]}
+
+
+@app.post("/api/admin/configs/{config_id}")
+def admin_config_hide(config_id: int, p: AdminConfigUpdateReq, admin: dict = Depends(current_admin)):
+    rows = db_update("public_configs", {"id": eq(config_id)}, {"hidden": p.hidden})
+    if not rows:
+        raise HTTPException(404, "Unknown config.")
+    return {"ok": True, "hidden": p.hidden}
+
+
+@app.delete("/api/admin/configs/{config_id}")
+def admin_config_delete(config_id: int, admin: dict = Depends(current_admin)):
+    _sb("DELETE", "public_configs", params={"id": eq(config_id)})
+    return {"ok": True}
 
 
 # --------------------------------------------------------------------------
