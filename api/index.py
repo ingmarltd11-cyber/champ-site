@@ -109,7 +109,7 @@ DOWNLOAD_FILES = {
 PUBLIC_CLIENT_FILE = "ChampClient.jar"
 # Bumped whenever downloads/ChampClient.jar changes: a build id newer than the uploaded row is served
 # straight from this deployment, so a client update is one commit instead of an admin upload.
-PUBLIC_CLIENT_BUILD = "2026-10-25T18:54:38Z"
+PUBLIC_CLIENT_BUILD = "2026-10-25T19:18:56Z"
 # A challenge is signed by the PC's Ed25519 key and must come back quickly.
 DEVICE_CHALLENGE_SECONDS = 120
 PLAN_PRICES = {
