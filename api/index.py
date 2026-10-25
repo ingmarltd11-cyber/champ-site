@@ -107,7 +107,9 @@ DOWNLOAD_FILES = {
 # The client that ships with this deployment. It is the same build for both plans; whether access
 # is monthly or lifetime is decided by the license and its expiry, never by the JAR contents.
 PUBLIC_CLIENT_FILE = "ChampClient.jar"
-PUBLIC_CLIENT_BUILD = "0.3.0-device-key"
+# Bumped whenever downloads/ChampClient.jar changes: a build id newer than the uploaded row is served
+# straight from this deployment, so a client update is one commit instead of an admin upload.
+PUBLIC_CLIENT_BUILD = "2026-10-25T15:48:04Z"
 # A challenge is signed by the PC's Ed25519 key and must come back quickly.
 DEVICE_CHALLENGE_SECONDS = 120
 PLAN_PRICES = {
@@ -539,8 +541,30 @@ def public_site() -> str:
 
 
 def public_client_url() -> str:
-    """The client JAR deployed with the site, used until an admin uploads a newer build."""
+    """The client JAR deployed with the site."""
     return f"{public_site()}/downloads/{PUBLIC_CLIENT_FILE}"
+
+
+def deployed_client_is_newer(uploaded_build: str) -> bool:
+    """True when the JAR shipped with this deployment is newer than the uploaded build.
+
+    Both sides carry an ISO timestamp as their build id, so they can be compared as times; anything
+    unreadable falls back to a plain string compare, which keeps an admin upload usable. With this,
+    a client update is one commit that replaces downloads/ChampClient.jar and bumps
+    PUBLIC_CLIENT_BUILD: the loader downloads it at the next start and installs it when the game
+    closes, so nobody needs a new loader JAR and no admin panel visit is involved.
+    """
+    if not PUBLIC_CLIENT_BUILD:
+        return False          # deployments without a stamp leave the uploaded build in charge
+    if not uploaded_build:
+        return True
+    try:
+        mine, theirs = parse_dt(PUBLIC_CLIENT_BUILD), parse_dt(uploaded_build)
+    except ValueError:
+        mine = theirs = None
+    if mine is not None and theirs is not None:
+        return mine > theirs
+    return str(PUBLIC_CLIENT_BUILD) > str(uploaded_build)
 
 
 def mask_hwid(hwid: Optional[str]) -> str:
@@ -645,6 +669,8 @@ def license_jar_info(lic: dict) -> tuple:
     if uploaded and uploaded.get("storage_path"):
         filename = uploaded.get("filename") or DOWNLOAD_FILES[plan][1]
         build = str(uploaded.get("updated_at") or uploaded.get("created_at") or "")
+        if deployed_client_is_newer(build):
+            return public_client_url(), PUBLIC_CLIENT_BUILD
         return signed_download_url(uploaded["storage_path"], filename), build
     return public_client_url(), PUBLIC_CLIENT_BUILD
 
@@ -1721,12 +1747,15 @@ def latest_client():
     preferred = next((row for row in uploaded if row.get("plan") == "lifetime"), None) \
         or (uploaded[0] if uploaded else None)
     try:
+        preferred_build = ""
         if preferred:
+            preferred_build = str(preferred.get("updated_at") or preferred.get("created_at") or "")
+        if preferred and not deployed_client_is_newer(preferred_build):
             jar_url = signed_download_url(preferred["storage_path"],
                                           preferred.get("filename") or "ChampClient.jar")
-            build = str(preferred.get("updated_at") or preferred.get("created_at") or "")
+            build = preferred_build
         else:
-            # No admin upload yet: fall back to the default lifetime artifact in the bucket.
+            # The build that ships with this deployment wins: it is a newer release than the row.
             jar_url, build = license_jar_info({"plan_type": "lifetime"})
     except Exception as exc:
         print("Public client link failed:", type(exc).__name__)
