@@ -1,283 +1,408 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Admin — Champ Client</title><link rel="icon" href="assets/logo.png"><link rel="stylesheet" href="style.css"></head>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Champ Client</title>
+<link rel="icon" type="image/png" href="assets/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="dashboard.css">
+<style>
+/* Admin-only bits on top of the shared dashboard shell (dashboard.css) */
+#adminPanel { display: flex; }
+.admin-tab {
+  width: 100%; display: flex; align-items: center; gap: 11px;
+  padding: 10px 13px; margin: 2px 0; border: 1px solid transparent;
+  border-radius: 0; background: transparent; color: #9a96a8; text-align: left;
+  font: 500 13px Inter, sans-serif; cursor: pointer;
+  transition: background .18s, color .18s, border-color .18s;
+}
+.admin-tab:hover { background: rgba(124,92,255,.08); color: var(--text); }
+.admin-tab.active {
+  background: linear-gradient(90deg, rgba(124,92,255,.24), rgba(124,92,255,.06));
+  border-color: rgba(124,92,255,.28); color: #fff;
+  box-shadow: 0 8px 20px rgba(0,0,0,.28);
+}
+.admin-tab.active .sidebar-icon { color: #c4b5fd; }
+.admin-tabpage { animation: dash-in .26s cubic-bezier(.2,.7,.2,1); }
+.admin-hero-top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; position: relative; margin-bottom: 12px; }
+.admin-hero-top .dash-eyebrow { margin: 0; }
+#adminSessionBadge { margin-left: 0; }
+.admin-section-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
+.admin-section-head h2 { font-size: 17px; font-weight: 650; color: #fff; margin: 0 0 5px; }
+.admin-section-head p { margin: 0; max-width: 660px; }
+.admin-form-panel {
+  margin-bottom: 24px; padding: 20px;
+  background: rgba(8,8,12,.6); border: 1px solid var(--border);
+}
+.admin-form-panel h3 { font-size: 15px; font-weight: 650; color: #fff; margin-bottom: 4px; }
+.admin-denied-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 100px 20px 60px; }
+.admin-denied-wrap .dash-card { width: min(520px, 100%); }
+@media(max-width: 980px) {
+  .admin-tab { width: auto; flex: 0 0 auto; padding: 9px 14px; margin: 0; gap: 8px; white-space: nowrap; }
+  .admin-tab.active { box-shadow: none; }
+}
+</style>
+</head>
 <body>
-<nav><a class="nav-logo" href="index.html"><img src="assets/logo.png" alt="Champ"><span>Champ <em>Admin</em></span></a><div class="nav-actions"><a class="btn-ghost" href="dashboard.html">My dashboard</a><button id="adminLogout" class="btn-ghost" style="display:none">Sign Out</button><button class="hamburger" onclick="toggleMenu()" aria-label="Menu"><span></span><span></span><span></span></button></div></nav>
-<div class="mobile-menu" id="mobileMenu"><a href="index.html" onclick="toggleMenu()">Homepage</a><a href="features.html" onclick="toggleMenu()">Features</a></div>
-<main class="admin-wrap">
-  <section id="adminPanel" class="admin-card" style="display:none">
-    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
-      <h1>Admin Control Panel</h1>
-      <span class="status-badge status-active" id="adminSessionBadge">Admin Session Active</span>
-    </div>
-    <p class="no-license-text" id="adminStatsLine">Loading stats...</p>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="i-sliders" viewBox="0 0 24 24"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/></symbol>
+    <symbol id="i-message" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></symbol>
+    <symbol id="i-zap" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10"/></symbol>
+    <symbol id="i-key" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="5.5"/><path d="M21 2l-9.6 9.6"/><path d="M15.5 7.5l3 3L22 7l-3-3"/></symbol>
+    <symbol id="i-layers" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></symbol>
+    <symbol id="i-gift" viewBox="0 0 24 24"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+  </defs>
+</svg>
 
-    <div class="admin-tabs">
-      <button class="admin-tab active" data-tab="settings" type="button">Announcements &amp; Links</button>
-      <button class="admin-tab" data-tab="orders" type="button">Orders &amp; Keys</button>
-      <button class="admin-tab" data-tab="texture-packs" type="button">Texture Packs</button>
-      <button class="admin-tab" data-tab="downloads" type="button">Client JAR</button>
-      <button class="admin-tab" data-tab="changelog" type="button">Changelog</button>
-      <button class="admin-tab" data-tab="features" type="button">Features &amp; Videos</button>
-      <button class="admin-tab" data-tab="reviews" type="button">Reviews</button>
-      <button class="admin-tab" data-tab="ai-knowledge" type="button">AI Knowledge</button>
-      <button class="admin-tab" data-tab="finds" type="button">Base Finds</button>
-      <button class="admin-tab" data-tab="referrals" type="button">Referrals</button>
-      <button class="admin-tab" data-tab="my-account" type="button">My account</button>
-    </div>
+<nav>
+  <a class="nav-logo" href="index.html"><img src="assets/logo.png" alt="Champ Client logo"><span>Champ <em>Admin</em></span></a>
+  <div class="nav-actions">
+    <a class="btn-ghost" href="dashboard.html">My dashboard</a>
+    <button id="adminLogout" class="btn-ghost" style="display:none">Sign Out</button>
+    <button class="hamburger" onclick="toggleMenu()" aria-label="Menu"><span></span><span></span><span></span></button>
+  </div>
+</nav>
+<div class="mobile-menu" id="mobileMenu"><a href="index.html" onclick="toggleMenu()">Homepage</a><a href="features.html" onclick="toggleMenu()">Features</a><a href="dashboard.html" onclick="toggleMenu()">My dashboard</a></div>
+
+<div id="adminPanel" class="dashboard-shell" style="display:none">
+  <aside class="dashboard-sidebar" aria-label="Admin navigation">
+    <a class="sidebar-brand" href="index.html" aria-label="Champ Client home"><img src="assets/logo.png" alt=""><span><b>Champ <em>Admin</em></b><small>Shop control</small></span></a>
+
+    <div class="sidebar-label">Site</div>
+    <button class="sidebar-link admin-tab active" data-tab="settings" type="button"><span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-sliders"></use></svg></span><span>Announcements</span></button>
+    <button class="sidebar-link admin-tab" data-tab="features" type="button"><span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-grid"></use></svg></span><span>Features &amp; videos</span></button>
+    <button class="sidebar-link admin-tab" data-tab="reviews" type="button"><span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-star"></use></svg></span><span>Reviews</span></button>
+    <button class="sidebar-link admin-tab" data-tab="ai-knowledge" type="button"><span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-message"></use></svg></span><span>AI knowledge</span></button>
+    <button class="sidebar-link admin-tab" data-tab="changelog" type="button"><span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-zap"></use></svg></span><span>Changelog</span></button>
+
+    <div class="sidebar-label">Shop</div>
+    <button class="sidebar-link admin-tab" data-tab="orders" type="button"><span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-key"></use></svg></span><span>Orders &amp; keys</span></button>
+    <button class="sidebar-link admin-tab" data-tab="texture-packs" type="button"><span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-layers"></use></svg></span><span>Texture packs</span></button>
+    <button class="sidebar-link admin-tab" data-tab="downloads" type="button"><span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-download"></use></svg></span><span>Client JAR</span></button>
+
+    <div class="sidebar-label">Community</div>
+    <button class="sidebar-link admin-tab" data-tab="finds" type="button"><span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-pin"></use></svg></span><span>Base finds</span></button>
+    <button class="sidebar-link admin-tab" data-tab="referrals" type="button"><span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-gift"></use></svg></span><span>Referrals</span></button>
+    <button class="sidebar-link admin-tab" data-tab="my-account" type="button"><span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-user"></use></svg></span><span>My account</span></button>
+
+    <div class="sidebar-spacer"></div>
+    <div class="sidebar-account"><b>Administrator</b><small>Shop &amp; website content</small></div>
+  </aside>
+
+  <main class="dashboard-main">
+    <header class="dash-hero">
+      <img class="dash-hero-mark" src="assets/logo.png" alt="" aria-hidden="true">
+      <div class="admin-hero-top">
+        <p class="dash-eyebrow">Admin workspace</p>
+        <span class="status-badge status-active" id="adminSessionBadge">Admin session active</span>
+      </div>
+      <h1>Shop <em>control</em><br>panel.</h1>
+      <p class="dash-sub" id="adminStatsLine">Loading stats...</p>
+      <div class="dash-trust"><span class="trust-badge"><span class="trust-dot"></span>Every tab loads live data</span><span class="trust-badge"><span class="trust-dot"></span>Changes go live instantly</span></div>
+    </header>
 
     <!-- TAB: SETTINGS & ANNOUNCEMENTS & LINKS -->
-    <div class="admin-tabpage" id="tab-settings">
-      <div style="margin: 18px 0 24px;">
-        <h2>Global Announcements &amp; Website Links</h2>
-        <p class="no-license-text">Control the top announcement banner, hero video embeds, and community links in real-time.</p>
-      </div>
-      <form id="adminSettingsForm" class="admin-editor">
-        <label>
-          Announcement Banner Text
-          <input name="announcement_text" id="settingAnnouncementText" placeholder="e.g. Champ Client 0.9.9.1 is out for 1.21.11!">
-        </label>
-        <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
-          <input type="checkbox" name="announcement_enabled" id="settingAnnouncementEnabled" style="width:auto; margin:0;">
-          <span>Enable top announcement banner on all pages</span>
-        </label>
-        <label>
-          Discord Invite Link
-          <input name="discord_link" id="settingDiscordLink" placeholder="https://discord.gg/...">
-        </label>
-        <label>
-          Homepage Showcase Video URL (YouTube embed or MP4 direct link)
-          <input name="youtube_video_url" id="settingYoutubeUrl" placeholder="https://www.youtube.com/embed/...">
-        </label>
-        <label>
-          Hero Tagline (e.g. Minecraft 1.21.11 Fabric Mod)
-          <input name="hero_tagline" id="settingHeroTagline" placeholder="Minecraft 1.21.11 Fabric Mod">
-        </label>
+    <section class="admin-tabpage" id="tab-settings">
+      <article class="dash-card">
+        <div class="admin-section-head">
+          <div>
+            <h2>Global announcements &amp; website links</h2>
+            <p class="no-license-text">Control the top announcement banner, hero video embeds and community links in real time.</p>
+          </div>
+        </div>
+        <form id="adminSettingsForm" class="admin-editor">
+          <label>Announcement banner text<input name="announcement_text" id="settingAnnouncementText" placeholder="e.g. Champ Client 0.9.9.1 is out for 1.21.11!"></label>
+          <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
+            <input type="checkbox" name="announcement_enabled" id="settingAnnouncementEnabled" style="width:auto; margin:0;">
+            <span>Enable top announcement banner on all pages</span>
+          </label>
+          <label>Discord invite link<input name="discord_link" id="settingDiscordLink" placeholder="https://discord.gg/..."></label>
+          <label>Homepage showcase video URL (YouTube embed or MP4 direct link)<input name="youtube_video_url" id="settingYoutubeUrl" placeholder="https://www.youtube.com/embed/..."></label>
+          <label>Hero tagline<input name="hero_tagline" id="settingHeroTagline" placeholder="Minecraft 1.21.11 Fabric Mod"></label>
 
-        <h3 style="margin-top:10px">Page texts</h3>
-        <p class="no-license-text" style="margin-top:-10px">Use <code>*text*</code> for the purple highlight and <code>|</code> for a line break.</p>
-        <label>Homepage hero title<input name="hero_title" id="settingHeroTitle" placeholder="Play at the|*highest level.*"></label>
-        <label>Homepage hero subtitle<textarea name="hero_sub" id="settingHeroSub" rows="3"></textarea></label>
-        <label>Pricing heading<input name="pricing_title" id="settingPricingTitle" placeholder="Simple *Pricing*"></label>
-        <label>Pricing subtitle<input name="pricing_sub" id="settingPricingSub"></label>
-        <label>Features heading<input name="features_title" id="settingFeaturesTitle" placeholder="Explore the *Features.*"></label>
-        <label>Features subtitle<textarea name="features_sub" id="settingFeaturesSub" rows="3"></textarea></label>
-        <label>Support heading<input name="support_title" id="settingSupportTitle" placeholder="Need *help?*"></label>
-        <label>Support subtitle<textarea name="support_sub" id="settingSupportSub" rows="2"></textarea></label>
+          <h3 style="margin-top:10px">Page texts</h3>
+          <p class="no-license-text" style="margin-top:-10px">Use <code>*text*</code> for the purple highlight and <code>|</code> for a line break.</p>
+          <label>Homepage hero title<input name="hero_title" id="settingHeroTitle" placeholder="Play at the|*highest level.*"></label>
+          <label>Homepage hero subtitle<textarea name="hero_sub" id="settingHeroSub" rows="3"></textarea></label>
+          <label>Pricing heading<input name="pricing_title" id="settingPricingTitle" placeholder="Simple *Pricing*"></label>
+          <label>Pricing subtitle<input name="pricing_sub" id="settingPricingSub"></label>
+          <label>Features heading<input name="features_title" id="settingFeaturesTitle" placeholder="Explore the *Features.*"></label>
+          <label>Features subtitle<textarea name="features_sub" id="settingFeaturesSub" rows="3"></textarea></label>
+          <label>Support heading<input name="support_title" id="settingSupportTitle" placeholder="Need *help?*"></label>
+          <label>Support subtitle<textarea name="support_sub" id="settingSupportSub" rows="2"></textarea></label>
 
-        <h3 style="margin-top:10px">Dashboard icons</h3>
-        <p class="no-license-text" style="margin-top:-10px">Pick the icon shown next to each dashboard item. Labels stay visible on mobile.</p>
-        <div id="adminDashboardIcons" class="admin-editor"></div>
+          <h3 style="margin-top:10px">Dashboard icons</h3>
+          <p class="no-license-text" style="margin-top:-10px">Pick the icon shown next to each dashboard item. Labels stay visible on mobile.</p>
+          <div id="adminDashboardIcons" class="admin-editor"></div>
 
-        <button class="btn-primary" type="submit">Save Site Settings</button>
-        <p id="settingsSaveMsg" class="save-message" style="display:none;"></p>
-      </form>
-    </div>
+          <div><button class="btn-primary" type="submit">Save site settings</button></div>
+          <p id="settingsSaveMsg" class="save-message" style="display:none;"></p>
+        </form>
+      </article>
+    </section>
 
     <!-- TAB: ORDERS & KEYS -->
-    <div class="admin-tabpage" id="tab-orders" style="display:none">
-      <form id="adminSearchForm" style="display:flex;gap:10px;margin:18px 0;flex-wrap:wrap">
-        <input id="adminSearch" class="pay-input" style="margin-bottom:0;flex:1;min-width:200px" placeholder="Search email or key...">
-        <button class="btn-primary" type="submit">Search</button>
-      </form>
-      <div id="adminOrders" class="admin-table-wrap"><p class="no-license-text">Loading orders...</p></div>
-    </div>
+    <section class="admin-tabpage" id="tab-orders" style="display:none">
+      <article class="dash-card">
+        <div class="admin-section-head">
+          <div>
+            <h2>Orders &amp; license keys</h2>
+            <p class="no-license-text">Search by customer e-mail or key, then change a license status.</p>
+          </div>
+        </div>
+        <form id="adminSearchForm" style="display:flex;gap:10px;margin:0 0 18px;flex-wrap:wrap">
+          <input id="adminSearch" class="pay-input" style="margin-bottom:0;flex:1;min-width:200px" placeholder="Search email or key...">
+          <button class="btn-primary" type="submit">Search</button>
+        </form>
+        <div id="adminOrders" class="admin-table-wrap"><p class="no-license-text">Loading orders...</p></div>
+      </article>
+    </section>
 
     <!-- TAB: TEXTURE PACKS -->
-    <div class="admin-tabpage" id="tab-texture-packs" style="display:none">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin:18px 0; flex-wrap:wrap; gap:12px;">
-        <div>
-          <h2>Manage Texture Packs</h2>
-          <p class="no-license-text">Add custom PvP, default or VIP texture packs for visitors or customers only.</p>
-        </div>
-        <button class="btn-primary" type="button" onclick="showAddTexturePackForm()">+ Add New Texture Pack</button>
-      </div>
-
-      <div id="addTexturePackContainer" style="display:none; margin-bottom:24px; padding:20px; background:var(--surface); border:1px solid var(--border); border-radius:10px;">
-        <h3>Add Texture Pack</h3>
-        <form id="createTexturePackForm" class="admin-editor">
-          <label>Pack Name<input name="name" required placeholder="e.g. Champ 16x Dark PvP"></label>
-          <label>Description<textarea name="description" required placeholder="Description of swords, GUI, particles..."></textarea></label>
-          <label>Pack file (ZIP, max 32 MB)<input name="pack_file" id="packFile" type="file" accept=".zip,application/zip"></label>
-          <p class="no-license-text" style="margin-top:-8px">Upload the ZIP to host it here, or leave this empty and use an external download URL below.</p>
-          <label>Download URL (only when not uploading)<input name="download_url" placeholder="https://... direct zip download or drive link"></label>
-          <label>Category<input name="category" value="PvP" required placeholder="e.g. PvP, Default, VIP Exclusive"></label>
-          <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
-            <input type="checkbox" name="is_customer_only" style="width:auto; margin:0;">
-            <span>Customers Only (VIP Pack &mdash; requires active Lifetime or Monthly license)</span>
-          </label>
-          <label>Preview image (optional, max 3 MB)<input name="preview_image" id="packPreviewImage" type="file" accept="image/png,image/jpeg,image/webp,image/gif"></label>
-          <label>or Preview Image URL<input name="image_url" placeholder="https://..."></label>
-          <div id="packPreviewPreview" class="admin-media-preview"><span class="no-license-text">No preview yet</span></div>
-          <label>Sort Order<input type="number" name="sort_order" value="1"></label>
-          <div style="display:flex; gap:10px;">
-            <button class="btn-primary" type="submit">Add Texture Pack</button>
-            <button class="btn-ghost" type="button" onclick="document.getElementById('addTexturePackContainer').style.display='none'">Cancel</button>
+    <section class="admin-tabpage" id="tab-texture-packs" style="display:none">
+      <article class="dash-card">
+        <div class="admin-section-head">
+          <div>
+            <h2>Texture packs</h2>
+            <p class="no-license-text">Add custom PvP, default or VIP texture packs for visitors or customers only.</p>
           </div>
-          <p id="createPackMsg" class="save-message" style="display:none"></p>
-        </form>
-      </div>
+          <button class="btn-primary" type="button" onclick="showAddTexturePackForm()">+ Add new pack</button>
+        </div>
 
-      <div id="adminTexturePacksList" class="admin-table-wrap"><p class="no-license-text">Loading texture packs...</p></div>
-    </div>
+        <div id="addTexturePackContainer" class="admin-form-panel" style="display:none">
+          <h3>New texture pack</h3>
+          <form id="createTexturePackForm" class="admin-editor">
+            <label>Pack name<input name="name" required placeholder="e.g. Champ 16x Dark PvP"></label>
+            <label>Description<textarea name="description" required placeholder="Description of swords, GUI, particles..."></textarea></label>
+            <label>Pack file (ZIP, max 32 MB)<input name="pack_file" id="packFile" type="file" accept=".zip,application/zip"></label>
+            <p class="no-license-text" style="margin-top:-8px">Upload the ZIP to host it here, or leave this empty and use an external download URL below.</p>
+            <label>Download URL (only when not uploading)<input name="download_url" placeholder="https://... direct zip download or drive link"></label>
+            <label>Category<input name="category" value="PvP" required placeholder="e.g. PvP, Default, VIP Exclusive"></label>
+            <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
+              <input type="checkbox" name="is_customer_only" style="width:auto; margin:0;">
+              <span>Customers only (VIP pack — requires an active Lifetime or Monthly license)</span>
+            </label>
+            <label>Preview image (optional, max 3 MB)<input name="preview_image" id="packPreviewImage" type="file" accept="image/png,image/jpeg,image/webp,image/gif"></label>
+            <label>or preview image URL<input name="image_url" placeholder="https://..."></label>
+            <div id="packPreviewPreview" class="admin-media-preview"><span class="no-license-text">No preview yet</span></div>
+            <label>Sort order<input type="number" name="sort_order" value="1"></label>
+            <div style="display:flex; gap:10px;">
+              <button class="btn-primary" type="submit">Add texture pack</button>
+              <button class="btn-ghost" type="button" onclick="document.getElementById('addTexturePackContainer').style.display='none'">Cancel</button>
+            </div>
+            <p id="createPackMsg" class="save-message" style="display:none"></p>
+          </form>
+        </div>
+
+        <div id="adminTexturePacksList" class="admin-table-wrap"><p class="no-license-text">Loading texture packs...</p></div>
+      </article>
+    </section>
 
     <!-- TAB: CLIENT JAR -->
-    <div class="admin-tabpage" id="tab-downloads" style="display:none">
-      <div style="margin:18px 0 20px;">
-        <h2>Client JAR downloads</h2>
-        <p class="no-license-text">Upload the .jar customers receive. Files are stored privately and only customers with an active license for that plan can download them. Uploads go straight to storage, so large JARs work too.</p>
-      </div>
-      <div id="adminDownloads" class="admin-editor"><p class="no-license-text">Loading client files...</p></div>
-    </div>
+    <section class="admin-tabpage" id="tab-downloads" style="display:none">
+      <article class="dash-card">
+        <div class="admin-section-head">
+          <div>
+            <h2>Client JAR downloads</h2>
+            <p class="no-license-text">Upload the .jar customers receive. Files are stored privately and only customers with an active license for that plan can download them. Uploads go straight to storage, so large JARs work too.</p>
+          </div>
+        </div>
+        <div id="adminDownloads" class="admin-editor"><p class="no-license-text">Loading client files...</p></div>
+      </article>
+    </section>
 
     <!-- TAB: CHANGELOG -->
-    <div class="admin-tabpage" id="tab-changelog" style="display:none">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin:18px 0; flex-wrap:wrap; gap:12px;">
-        <div>
-          <h2>Changelog</h2>
-          <p class="no-license-text">Releases shown on the public changelog page. Unpublished entries stay hidden.</p>
-        </div>
-        <button class="btn-primary" type="button" onclick="showAddChangelogForm()">+ Add release</button>
-      </div>
-
-      <div id="addChangelogContainer" style="display:none; margin-bottom:24px; padding:20px; background:var(--surface); border:1px solid var(--border); border-radius:10px;">
-        <h3>Add release</h3>
-        <form id="createChangelogForm" class="admin-editor">
-          <label>Version<input name="version" required placeholder="e.g. 0.9.9.2" maxlength="40"></label>
-          <label>Title<input name="title" required placeholder="e.g. Combat update" maxlength="160"></label>
-          <label>Release date<input type="date" name="released_at"></label>
-          <label>Changes<textarea name="body" rows="6" placeholder="- Added a new module&#10;- Fixed a crash when opening the menu"></textarea></label>
-          <p class="no-license-text" style="margin-top:-8px">Start a line with <code>-</code> for a bullet. Leave an empty line between paragraphs. Use <code>*text*</code> for the purple highlight.</p>
-          <label style="display:flex; align-items:center; gap:10px; cursor:pointer;"><input type="checkbox" name="published" style="width:auto; margin:0;" checked><span>Publish immediately</span></label>
-          <div style="display:flex; gap:10px; flex-wrap:wrap">
-            <button class="btn-primary" type="submit">Add release</button>
-            <button class="btn-ghost" type="button" onclick="document.getElementById('addChangelogContainer').style.display='none'">Cancel</button>
+    <section class="admin-tabpage" id="tab-changelog" style="display:none">
+      <article class="dash-card">
+        <div class="admin-section-head">
+          <div>
+            <h2>Changelog</h2>
+            <p class="no-license-text">Releases shown on the public changelog page. Unpublished entries stay hidden.</p>
           </div>
-          <p id="createChangelogMsg" class="save-message" style="display:none"></p>
-        </form>
-      </div>
+          <button class="btn-primary" type="button" onclick="showAddChangelogForm()">+ Add release</button>
+        </div>
 
-      <div id="adminChangelogList" class="admin-editor"><p class="no-license-text">Loading changelog...</p></div>
-    </div>
+        <div id="addChangelogContainer" class="admin-form-panel" style="display:none">
+          <h3>New release</h3>
+          <form id="createChangelogForm" class="admin-editor">
+            <label>Version<input name="version" required placeholder="e.g. 0.9.9.2" maxlength="40"></label>
+            <label>Title<input name="title" required placeholder="e.g. Combat update" maxlength="160"></label>
+            <label>Release date<input type="date" name="released_at"></label>
+            <label>Changes<textarea name="body" rows="6" placeholder="- Added a new module&#10;- Fixed a crash when opening the menu"></textarea></label>
+            <p class="no-license-text" style="margin-top:-8px">Start a line with <code>-</code> for a bullet. Leave an empty line between paragraphs. Use <code>*text*</code> for the purple highlight.</p>
+            <label style="display:flex; align-items:center; gap:10px; cursor:pointer;"><input type="checkbox" name="published" style="width:auto; margin:0;" checked><span>Publish immediately</span></label>
+            <div style="display:flex; gap:10px; flex-wrap:wrap">
+              <button class="btn-primary" type="submit">Add release</button>
+              <button class="btn-ghost" type="button" onclick="document.getElementById('addChangelogContainer').style.display='none'">Cancel</button>
+            </div>
+            <p id="createChangelogMsg" class="save-message" style="display:none"></p>
+          </form>
+        </div>
+
+        <div id="adminChangelogList" class="admin-editor"><p class="no-license-text">Loading changelog...</p></div>
+      </article>
+    </section>
 
     <!-- TAB: FEATURES & VIDEOS -->
-    <div class="admin-tabpage" id="tab-features" style="display:none">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin:18px 0 20px; flex-wrap:wrap; gap:12px;">
-        <div>
-          <h2>Modules, screenshots &amp; clips</h2>
-          <p class="no-license-text">Every module of the Features page is listed here. Pick a category, open a module and add a screenshot, a video or a longer description. Modules without their own media show the default text.</p>
-        </div>
-        <button class="btn-primary" type="button" onclick="showAddFeatureForm()">+ Add feature</button>
-      </div>
-
-      <div id="addFeatureContainer" style="display:none; margin-bottom:24px; padding:20px; background:var(--surface); border:1px solid var(--border); border-radius:10px;">
-        <h3>Add feature</h3>
-        <form id="createFeatureForm" class="admin-editor">
-          <label>Title<input name="title" required placeholder="e.g. Crystal PvP macros" maxlength="150"></label>
-          <label>Description<textarea name="description" rows="4" placeholder="What this feature does..."></textarea></label>
-          <label>Category
-            <select name="category">
-              <option value="combat">⚔️ Combat</option>
-              <option value="crystal">💎 Crystal</option>
-              <option value="mace">🔨 Mace</option>
-              <option value="spear">🗡️ Spear</option>
-              <option value="movement">🏃 Movement</option>
-              <option value="misc">🧰 Misc</option>
-              <option value="visual">👀 Visuals</option>
-              <option value="donut">🍩 Donut SMP</option>
-              <option value="">Other / no category</option>
-            </select>
-          </label>
-          <label>Screenshot (optional, max 3 MB)<input name="image_file" type="file" accept="image/png,image/jpeg,image/webp,image/gif"></label>
-          <label>Video embed URL<input name="video_url" placeholder="https://www.youtube.com/embed/... or https://.../clip.mp4"></label>
-          <label>Sort order<input type="number" name="sort_order" value="0"></label>
-          <div style="display:flex; gap:10px; flex-wrap:wrap">
-            <button class="btn-primary" type="submit">Add feature</button>
-            <button class="btn-ghost" type="button" onclick="document.getElementById('addFeatureContainer').style.display='none'">Cancel</button>
+    <section class="admin-tabpage" id="tab-features" style="display:none">
+      <article class="dash-card">
+        <div class="admin-section-head">
+          <div>
+            <h2>Modules, screenshots &amp; clips</h2>
+            <p class="no-license-text">Every module of the Features page is listed here. Pick a category, open a module and add a screenshot, a video or a longer description. Modules without their own media show the default text.</p>
           </div>
-          <p id="createFeatureMsg" class="save-message" style="display:none"></p>
-        </form>
-      </div>
+          <button class="btn-primary" type="button" onclick="showAddFeatureForm()">+ Add feature</button>
+        </div>
 
-      <div id="adminFeatures" class="admin-editor"><p class="no-license-text">Loading features...</p></div>
-    </div>
+        <div id="addFeatureContainer" class="admin-form-panel" style="display:none">
+          <h3>New feature</h3>
+          <form id="createFeatureForm" class="admin-editor">
+            <label>Title<input name="title" required placeholder="e.g. Crystal PvP macros" maxlength="150"></label>
+            <label>Description<textarea name="description" rows="4" placeholder="What this feature does..."></textarea></label>
+            <label>Category
+              <select name="category">
+                <option value="combat">Combat</option>
+                <option value="crystal">Crystal</option>
+                <option value="mace">Mace</option>
+                <option value="spear">Spear</option>
+                <option value="movement">Movement</option>
+                <option value="misc">Misc</option>
+                <option value="visual">Visuals</option>
+                <option value="donut">Donut SMP</option>
+                <option value="">Other / no category</option>
+              </select>
+            </label>
+            <label>Screenshot (optional, max 3 MB)<input name="image_file" type="file" accept="image/png,image/jpeg,image/webp,image/gif"></label>
+            <label>Video embed URL<input name="video_url" placeholder="https://www.youtube.com/embed/... or https://.../clip.mp4"></label>
+            <label>Sort order<input type="number" name="sort_order" value="0"></label>
+            <div style="display:flex; gap:10px; flex-wrap:wrap">
+              <button class="btn-primary" type="submit">Add feature</button>
+              <button class="btn-ghost" type="button" onclick="document.getElementById('addFeatureContainer').style.display='none'">Cancel</button>
+            </div>
+            <p id="createFeatureMsg" class="save-message" style="display:none"></p>
+          </form>
+        </div>
+
+        <div id="adminFeatures" class="admin-editor"><p class="no-license-text">Loading features...</p></div>
+      </article>
+    </section>
 
     <!-- TAB: REVIEWS -->
-    <div class="admin-tabpage" id="tab-reviews" style="display:none">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin:18px 0; flex-wrap:wrap; gap:12px;">
-        <div>
-          <h2>Customer Reviews</h2>
-          <p class="no-license-text">Add or moderate reviews displayed on the homepage.</p>
-        </div>
-        <button class="btn-primary" type="button" onclick="showAddReviewForm()">+ Add New Review</button>
-      </div>
-
-      <div id="addReviewContainer" style="display:none; margin-bottom:24px; padding:20px; background:var(--surface); border:1px solid var(--border); border-radius:10px;">
-        <h3>Add Review</h3>
-        <form id="createReviewForm" class="admin-editor">
-          <label>Author Username<input name="author" required placeholder="e.g. VortexPvP"></label>
-          <label>Star Rating (1-5)<input type="number" name="rating" min="1" max="5" value="5" required></label>
-          <label>Review Text<textarea name="text" required placeholder="Write the testimonial..."></textarea></label>
-          <label>Badge / Tag<input name="tag" value="Verified Buyer" required placeholder="e.g. Verified Buyer, Lifetime Member"></label>
-          <div style="display:flex; gap:10px;">
-            <button class="btn-primary" type="submit">Save Review</button>
-            <button class="btn-ghost" type="button" onclick="document.getElementById('addReviewContainer').style.display='none'">Cancel</button>
+    <section class="admin-tabpage" id="tab-reviews" style="display:none">
+      <article class="dash-card">
+        <div class="admin-section-head">
+          <div>
+            <h2>Customer reviews</h2>
+            <p class="no-license-text">Add or moderate reviews displayed on the homepage.</p>
           </div>
-          <p id="createReviewMsg" class="save-message" style="display:none"></p>
-        </form>
-      </div>
+          <button class="btn-primary" type="button" onclick="showAddReviewForm()">+ Add review</button>
+        </div>
 
-      <div id="adminReviewsList" class="admin-table-wrap"><p class="no-license-text">Loading reviews...</p></div>
-    </div>
+        <div id="addReviewContainer" class="admin-form-panel" style="display:none">
+          <h3>New review</h3>
+          <form id="createReviewForm" class="admin-editor">
+            <label>Author username<input name="author" required placeholder="e.g. VortexPvP"></label>
+            <label>Star rating (1-5)<input type="number" name="rating" min="1" max="5" value="5" required></label>
+            <label>Review text<textarea name="text" required placeholder="Write the testimonial..."></textarea></label>
+            <label>Badge / tag<input name="tag" value="Verified Buyer" required placeholder="e.g. Verified Buyer, Lifetime Member"></label>
+            <div style="display:flex; gap:10px;">
+              <button class="btn-primary" type="submit">Save review</button>
+              <button class="btn-ghost" type="button" onclick="document.getElementById('addReviewContainer').style.display='none'">Cancel</button>
+            </div>
+            <p id="createReviewMsg" class="save-message" style="display:none"></p>
+          </form>
+        </div>
+
+        <div id="adminReviewsList" class="admin-table-wrap"><p class="no-license-text">Loading reviews...</p></div>
+      </article>
+    </section>
 
     <!-- TAB: AI KNOWLEDGE -->
-    <div class="admin-tabpage" id="tab-ai-knowledge" style="display:none">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin:18px 0; flex-wrap:wrap; gap:12px;">
-        <div>
-          <h2>AI Assistant Knowledge</h2>
-          <p class="no-license-text">Maintain verified product facts used to answer customer questions. Never add secrets or private customer data.</p>
+    <section class="admin-tabpage" id="tab-ai-knowledge" style="display:none">
+      <article class="dash-card">
+        <div class="admin-section-head">
+          <div>
+            <h2>AI assistant knowledge</h2>
+            <p class="no-license-text">Maintain verified product facts used to answer customer questions. Never add secrets or private customer data.</p>
+          </div>
+          <button class="btn-primary" type="button" onclick="showAddAIKnowledgeForm()">+ Add knowledge</button>
         </div>
-        <button class="btn-primary" type="button" onclick="showAddAIKnowledgeForm()">+ Add Knowledge</button>
-      </div>
-      <div id="addAIKnowledgeContainer" style="display:none; margin-bottom:24px; padding:20px; background:var(--surface); border:1px solid var(--border); border-radius:10px;">
-        <h3>Add Knowledge</h3>
-        <form id="createAIKnowledgeForm" class="admin-editor">
-          <label>Title<input name="title" required maxlength="120"></label>
-          <label>Verified answer facts<textarea name="body" required maxlength="8000" rows="6"></textarea></label>
-          <div style="display:flex;gap:10px"><button class="btn-primary" type="submit">Save Knowledge</button><button class="btn-ghost" type="button" onclick="document.getElementById('addAIKnowledgeContainer').style.display='none'">Cancel</button></div>
-          <p id="createAIKnowledgeMsg" class="save-message" style="display:none"></p>
-        </form>
-      </div>
-      <div id="adminAIKnowledgeList" class="admin-table-wrap"><p class="no-license-text">Loading AI knowledge...</p></div>
-    </div>
+
+        <div id="addAIKnowledgeContainer" class="admin-form-panel" style="display:none">
+          <h3>New knowledge entry</h3>
+          <form id="createAIKnowledgeForm" class="admin-editor">
+            <label>Title<input name="title" required maxlength="120"></label>
+            <label>Verified answer facts<textarea name="body" required maxlength="8000" rows="6"></textarea></label>
+            <div style="display:flex;gap:10px"><button class="btn-primary" type="submit">Save knowledge</button><button class="btn-ghost" type="button" onclick="document.getElementById('addAIKnowledgeContainer').style.display='none'">Cancel</button></div>
+            <p id="createAIKnowledgeMsg" class="save-message" style="display:none"></p>
+          </form>
+        </div>
+
+        <div id="adminAIKnowledgeList" class="admin-table-wrap"><p class="no-license-text">Loading AI knowledge...</p></div>
+      </article>
+    </section>
 
     <!-- TAB: BASE FINDS -->
-    <div class="admin-tabpage" id="tab-finds" style="display:none">
-      <div id="adminFinds" class="admin-table-wrap"><p class="no-license-text">Loading finds...</p></div>
-    </div>
+    <section class="admin-tabpage" id="tab-finds" style="display:none">
+      <article class="dash-card">
+        <div class="admin-section-head">
+          <div>
+            <h2>Base finds awaiting review</h2>
+            <p class="no-license-text">Approved finds appear on the customer dashboard and on the public Base Finds page.</p>
+          </div>
+        </div>
+        <div id="adminFinds" class="admin-table-wrap"><p class="no-license-text">Loading finds...</p></div>
+      </article>
+    </section>
 
     <!-- TAB: REFERRALS -->
-    <div class="admin-tabpage" id="tab-referrals" style="display:none">
-      <div id="adminReferrals" class="admin-table-wrap"><p class="no-license-text">Loading referrals...</p></div>
-    </div>
+    <section class="admin-tabpage" id="tab-referrals" style="display:none">
+      <article class="dash-card">
+        <div class="admin-section-head">
+          <div>
+            <h2>Referrals</h2>
+            <p class="no-license-text">Every referral code with credits earned and paid out.</p>
+          </div>
+        </div>
+        <div id="adminReferrals" class="admin-table-wrap"><p class="no-license-text">Loading referrals...</p></div>
+      </article>
+    </section>
 
-    <!-- TAB: MY ACCOUNT (admin's own customer stuff) -->
-    <div class="admin-tabpage" id="tab-my-account" style="display:none">
-      <div style="margin:18px 0 20px;">
-        <h2>My account</h2>
-        <p class="no-license-text">Signed in as <b id="adminMyName">…</b> <span id="adminMyEmail"></span>. These are your own licenses, separate from the shop-wide orders.</p>
-      </div>
-      <div id="adminMyKeys" class="admin-table-wrap"><p class="no-license-text">Loading your licenses...</p></div>
-      <p style="margin-top:20px"><a class="btn-primary" href="dashboard.html">Open my customer dashboard</a></p>
-    </div>
+    <!-- TAB: MY ACCOUNT -->
+    <section class="admin-tabpage" id="tab-my-account" style="display:none">
+      <article class="dash-card">
+        <div class="admin-section-head">
+          <div>
+            <h2>My account</h2>
+            <p class="no-license-text">Signed in as <b id="adminMyName">…</b> <span id="adminMyEmail"></span>. These are your own licenses, separate from the shop-wide orders.</p>
+          </div>
+        </div>
+        <div id="adminMyKeys" class="admin-table-wrap"><p class="no-license-text">Loading your licenses...</p></div>
+        <p style="margin-top:20px"><a class="btn-primary" href="dashboard.html">Open my customer dashboard</a></p>
+      </article>
+    </section>
+  </main>
+</div>
 
-  </section>
-
-  <section id="adminDenied" class="admin-card" style="display:none;max-width:520px;margin:40px auto">
-    <h1>Admins only</h1>
-    <p class="no-license-text" id="adminDeniedText" style="margin:10px 0 22px"></p>
+<section id="adminDenied" class="admin-denied-wrap" style="display:none">
+  <div class="dash-card">
+    <p class="dash-eyebrow">Admins only</p>
+    <h1 class="dash-heading" style="font: 900 clamp(28px,4vw,36px) 'Playfair Display', serif; margin:0 0 10px">No admin access</h1>
+    <p class="no-license-text" id="adminDeniedText"></p>
     <p style="display:flex;gap:10px;flex-wrap:wrap;margin:0"><a class="btn-primary" href="dashboard.html">Open my dashboard</a><a class="btn-ghost" href="index.html">Back to the shop</a></p>
-  </section>
-</main>
+  </div>
+</section>
+
 <script src="feature-catalog.js"></script>
 <script src="main.js"></script>
 </body>

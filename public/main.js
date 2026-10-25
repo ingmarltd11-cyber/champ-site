@@ -1553,7 +1553,7 @@ async function loadAdminPanel() {
     return;
   }
 
-  panel.style.display = 'block';
+  panel.style.display = 'flex';
   if (logout) logout.style.display = 'inline-flex';
   const badge = document.getElementById('adminSessionBadge');
   if (badge) badge.textContent = me.data.email ? `Admin: ${me.data.username}` : `Admin: ${me.data.username} (environment)`;

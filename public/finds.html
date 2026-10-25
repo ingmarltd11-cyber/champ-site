@@ -42,12 +42,19 @@
 </div>
 
 <main class="page-wrap">
-  <h1 class="page-title">Customer <em>Finds</em></h1>
-  <p class="page-sub">Sign in with an active Champ Client license to view and share community finds.</p>
+  <section class="page-hero">
+    <h1 class="page-title">Customer <em>Finds</em></h1>
+    <p class="page-sub">Sign in with an active Champ Client license to view and share community finds.</p>
+    <div class="hero-trust">
+      <span class="trust-badge"><span class="trust-dot"></span>Staff reviewed</span>
+      <span class="trust-badge"><span class="trust-dot"></span>Fresh bases weekly</span>
+      <span class="trust-badge"><span class="trust-dot"></span>Customers only</span>
+    </div>
+  </section>
 
-  <section class="dash-card" style="max-width:640px;margin:36px auto">
+  <section class="dash-card find-share-card">
     <div class="card-title">Share a find</div>
-    <p class="no-license-text" id="findAuthHint">Customer access is required to browse or submit finds. <a href="login.html?next=finds.html" style="color:#7c5cff">Sign in</a> or <a href="signup.html" style="color:#7c5cff">create an account</a>.</p>
+    <p class="no-license-text" id="findAuthHint">Customer access is required to browse or submit finds. <a href="login.html?next=finds.html">Sign in</a> or <a href="signup.html">create an account</a>.</p>
     <form id="findUploadForm" class="admin-editor" style="display:none">
       <label>Title<input id="findTitle" maxlength="80" required placeholder="Ancient city loot stash..."></label>
       <label>Description<textarea id="findDesc" maxlength="1000" placeholder="Where is it, what loot, which server..."></textarea></label>
@@ -59,6 +66,10 @@
 
   <div id="findsGrid" class="finds-grid">
     <p class="no-license-text">Loading finds...</p>
+  </div>
+
+  <div class="finds-footer-note">
+    <p class="no-license-text">Every upload is reviewed by staff before it appears here. Coordinates and server details are shared at the finder's discretion.</p>
   </div>
 </main>
 
