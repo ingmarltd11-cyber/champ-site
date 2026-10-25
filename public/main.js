@@ -640,10 +640,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   const dashUsername = document.getElementById('dash-username');
   if (!dashUsername) return;
 
-  document.getElementById('logoutBtn')?.addEventListener('click', async () => {
+  const signOut = async () => {
     await api('/api/auth/logout', { method: 'POST' });
     window.location.href = 'login.html';
-  });
+  };
+  document.getElementById('logoutBtn')?.addEventListener('click', signOut);
+  document.getElementById('sidebarLogout')?.addEventListener('click', signOut);
   document.querySelectorAll('[data-section]').forEach(button => button.addEventListener('click', () => showDashboardSection(button.dataset.section)));
   document.querySelectorAll('[data-section-link]').forEach(button => button.addEventListener('click', () => showDashboardSection(button.dataset.sectionLink)));
   const initialSection = decodeURIComponent(window.location.hash.slice(1));
@@ -1693,9 +1695,11 @@ document.getElementById('adminLicenseEditForm')?.addEventListener('submit', asyn
   licEditorMessage('Saved.', true);
 });
 
-document.getElementById('licEditorClose')?.addEventListener('click', () => {
-  document.getElementById('adminLicenseEditor').style.display = 'none';
-  licEditorId = null;
+['licEditorClose', 'licEditorCloseTop'].forEach(id => {
+  document.getElementById(id)?.addEventListener('click', () => {
+    document.getElementById('adminLicenseEditor').style.display = 'none';
+    licEditorId = null;
+  });
 });
 
 document.getElementById('licEditorResetDevice')?.addEventListener('click', async () => {
