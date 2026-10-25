@@ -87,6 +87,7 @@
 
     <div class="sidebar-label">Shop</div>
     <button class="sidebar-link admin-tab" data-tab="orders" type="button"><span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-key"></use></svg></span><span>Orders &amp; keys</span></button>
+    <button class="sidebar-link admin-tab" data-tab="discounts" type="button"><span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-card"></use></svg></span><span>Discounts</span></button>
     <button class="sidebar-link admin-tab" data-tab="texture-packs" type="button"><span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-layers"></use></svg></span><span>Texture packs</span></button>
     <button class="sidebar-link admin-tab" data-tab="downloads" type="button"><span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-download"></use></svg></span><span>Client JAR</span></button>
 
@@ -157,14 +158,84 @@
         <div class="admin-section-head">
           <div>
             <h2>Orders &amp; license keys</h2>
-            <p class="no-license-text">Search by customer e-mail or key, then change a license status.</p>
+            <p class="no-license-text">Search by customer e-mail or key. Every key can be edited in place: owner, plan, status, expiry and the key itself.</p>
           </div>
+          <button class="btn-primary" type="button" onclick="showAddKeyForm()">+ Hand out a key</button>
         </div>
+
+        <div id="addKeyContainer" class="admin-form-panel" style="display:none">
+          <h3>New key</h3>
+          <p class="no-license-text">No Stripe needed. Leave the e-mail empty for an unclaimed key: the first account that redeems it becomes the owner.</p>
+          <form id="adminCreateKeyForm" class="admin-editor">
+            <label>Customer e-mail (optional)<input name="email" placeholder="customer@example.com"></label>
+            <label>Plan<select name="plan_type"><option value="lifetime">lifetime</option><option value="monthly">monthly</option></select></label>
+            <label>Status<select name="status"><option value="active">active</option><option value="inactive">inactive</option><option value="revoked">revoked</option></select></label>
+            <label>Expires (optional)<input name="expires_at" placeholder="2026-12-31"></label>
+            <label>Custom key (optional)<input name="license_key" placeholder="leave empty to generate"></label>
+            <div style="display:flex; gap:10px;">
+              <button class="btn-primary" type="submit">Create key</button>
+              <button class="btn-ghost" type="button" onclick="document.getElementById('addKeyContainer').style.display='none'">Cancel</button>
+            </div>
+            <p id="adminCreateKeyMsg" class="save-message" style="display:none"></p>
+          </form>
+        </div>
+
         <form id="adminSearchForm" style="display:flex;gap:10px;margin:0 0 18px;flex-wrap:wrap">
           <input id="adminSearch" class="pay-input" style="margin-bottom:0;flex:1;min-width:200px" placeholder="Search email or key...">
           <button class="btn-primary" type="submit">Search</button>
         </form>
+        <div id="adminLicenseEditor" class="admin-form-panel" style="display:none">
+          <h3>Edit key <code id="licEditorKeyLabel"></code></h3>
+          <form id="adminLicenseEditForm" class="admin-editor">
+            <label>Customer e-mail<input name="email" placeholder="empty = unclaimed"></label>
+            <label>Plan<select name="plan_type"><option value="lifetime">lifetime</option><option value="monthly">monthly</option></select></label>
+            <label>Status<select name="status"><option value="active">active</option><option value="inactive">inactive</option><option value="revoked">revoked</option></select></label>
+            <label>Expires<input name="expires_at" placeholder="2026-12-31, or empty for never"></label>
+            <label>Key<input name="license_key"></label>
+            <div style="display:flex; gap:10px; flex-wrap:wrap">
+              <button class="btn-primary" type="submit">Save changes</button>
+              <button class="btn-ghost" type="button" id="licEditorResetDevice">Reset device</button>
+              <button class="btn-ghost" type="button" id="licEditorCopy">Copy key</button>
+              <button class="btn-ghost" type="button" id="licEditorDelete">Delete key</button>
+              <button class="btn-ghost" type="button" id="licEditorClose">Close</button>
+            </div>
+            <p id="licEditorMsg" class="save-message" style="display:none"></p>
+          </form>
+          <p class="no-license-text" id="licEditorInfo"></p>
+        </div>
+
         <div id="adminOrders" class="admin-table-wrap"><p class="no-license-text">Loading orders...</p></div>
+      </article>
+    </section>
+
+    <!-- TAB: DISCOUNTS -->
+    <section class="admin-tabpage" id="tab-discounts" style="display:none">
+      <article class="dash-card">
+        <div class="admin-section-head">
+          <div>
+            <h2>Discount codes</h2>
+            <p class="no-license-text">Coupons that customers type on the Stripe checkout page. Stripe enforces the expiry and the usage limit, so a code can never be used more often than set here.</p>
+          </div>
+          <button class="btn-primary" type="button" onclick="showAddDiscountForm()">+ New code</button>
+        </div>
+
+        <div id="addDiscountContainer" class="admin-form-panel" style="display:none">
+          <h3>New discount</h3>
+          <form id="adminCreateDiscountForm" class="admin-editor">
+            <label>Code<input name="code" required placeholder="SUMMER25" maxlength="32"></label>
+            <label>Type<select name="kind"><option value="percent">Percentage off</option><option value="amount">Amount off (EUR)</option></select></label>
+            <label>Value<input type="number" name="value" step="0.01" min="0.01" required placeholder="25"></label>
+            <label>Max uses (0 = unlimited)<input type="number" name="max_uses" min="0" value="0"></label>
+            <label>Expires (optional)<input name="expires_at" placeholder="2026-12-31"></label>
+            <div style="display:flex; gap:10px;">
+              <button class="btn-primary" type="submit">Create code</button>
+              <button class="btn-ghost" type="button" onclick="document.getElementById('addDiscountContainer').style.display='none'">Cancel</button>
+            </div>
+            <p id="adminCreateDiscountMsg" class="save-message" style="display:none"></p>
+          </form>
+        </div>
+
+        <div id="adminDiscounts" class="admin-table-wrap"><p class="no-license-text">Loading discount codes...</p></div>
       </article>
     </section>
 

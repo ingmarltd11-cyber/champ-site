@@ -1563,6 +1563,8 @@ async function loadAdminPanel() {
       tab.classList.add('active');
       document.querySelectorAll('.admin-tabpage').forEach(p => { p.style.display = 'none'; });
       document.getElementById(`tab-${tab.dataset.tab}`).style.display = 'block';
+      // Discount codes live in Stripe, so they are fetched when the tab is opened (not on page load).
+      if (tab.dataset.tab === 'discounts') loadDiscounts();
     });
   });
 
@@ -1623,25 +1625,171 @@ async function loadAdminOrders(search) {
     if (!res.ok) throw new Error('orders');
     const rows = res.data.licenses || [];
     if (!rows.length) { wrap.innerHTML = '<p class="no-license-text">No orders found.</p>'; return; }
-    wrap.innerHTML = `<table class="admin-table"><thead><tr><th>Email</th><th>Plan</th><th>Key</th><th>Status</th><th>Created</th><th></th></tr></thead><tbody>` +
-      rows.map(r => `<tr><td>${r.unassigned ? '<span class="status-badge status-none" title="No owner yet — the first account that redeems this key gets it">Unclaimed</span>' : escapeHtml(r.email)}</td><td>${escapeHtml(r.plan_type)}</td><td><code>${escapeHtml(r.license_key)}</code></td><td>${escapeHtml(r.status)}</td><td>${fmtDate(r.created_at)}</td><td><select data-lic="${r.id}" class="admin-status-select"><option value="">set…</option><option value="active">active</option><option value="inactive">inactive</option><option value="revoked">revoked</option></select></td></tr>`).join('') +
+    wrap.innerHTML = `<table class="admin-table"><thead><tr><th>Email</th><th>Plan</th><th>Key</th><th>Status</th><th>Expires</th><th>Device</th><th>Created</th><th></th></tr></thead><tbody>` +
+      rows.map(r => `<tr><td>${r.unassigned ? '<span class="status-badge status-none" title="No owner yet — the first account that redeems this key gets it">Unclaimed</span>' : escapeHtml(r.email)}</td><td>${escapeHtml(r.plan_type)}</td><td><code>${escapeHtml(r.license_key)}</code></td><td><span class="status-badge ${r.status === 'active' ? 'status-active' : 'status-none'}">${escapeHtml(r.status)}</span></td><td>${r.expires_at ? fmtDate(r.expires_at) : 'never'}</td><td>${r.hwid ? 'linked' : '—'}</td><td>${fmtDate(r.created_at)}</td><td style="white-space:nowrap"><button class="btn-ghost" type="button" data-edit="${r.id}">Edit</button></td></tr>`).join('') +
       `</tbody></table>`;
-    wrap.querySelectorAll('.admin-status-select').forEach(sel => {
-      sel.addEventListener('change', async () => {
-        if (!sel.value) return;
-        const res = await api(`/api/admin/licenses/${sel.dataset.lic}`, { method: 'POST', body: JSON.stringify({ status: sel.value }) });
-        if (res.ok) loadAdminOrders(document.getElementById('adminSearch').value);
-        else alert(errorText(res.data, 'Could not update.'));
-      });
+    wrap.querySelectorAll('[data-edit]').forEach(btn => {
+      btn.addEventListener('click', () => openLicenseEditor(rows.find(r => String(r.id) === btn.dataset.edit)));
     });
   } catch (_) {
     wrap.innerHTML = '<p class="no-license-text">Could not load orders.</p>';
   }
 }
 
+// ------------------------------------------------------------
+// One key, every field: owner, plan, status, expiry and the key itself.
+// ------------------------------------------------------------
+let licEditorId = null;
+
+function licEditorMessage(text, ok) {
+  const el = document.getElementById('licEditorMsg');
+  if (!el) return;
+  el.textContent = text;
+  el.style.display = 'block';
+  el.style.color = ok ? 'var(--ok, #4ade80)' : 'var(--danger, #f87171)';
+}
+
+function openLicenseEditor(lic) {
+  if (!lic) return;
+  const panel = document.getElementById('adminLicenseEditor');
+  const form = document.getElementById('adminLicenseEditForm');
+  if (!panel || !form) return;
+  licEditorId = lic.id;
+  form.elements.email.value = lic.unassigned ? '' : (lic.email || '');
+  form.elements.plan_type.value = lic.plan_type || 'lifetime';
+  form.elements.status.value = lic.status || 'active';
+  form.elements.expires_at.value = lic.expires_at ? String(lic.expires_at).slice(0, 10) : '';
+  form.elements.license_key.value = lic.license_key || '';
+  form.elements.email.placeholder = 'empty = unclaimed';
+  document.getElementById('licEditorKeyLabel').textContent = lic.license_key || '';
+  const info = [`Created ${fmtDate(lic.created_at)}`];
+  if (lic.redeemed_at) info.push(`redeemed ${fmtDate(lic.redeemed_at)}`);
+  if (lic.hwid) info.push(`device ${lic.hwid} linked ${fmtDate(lic.hwid_bound_at)}`);
+  if (lic.hwid_reset_at) info.push(`device reset ${fmtDate(lic.hwid_reset_at)}`);
+  if (lic.last_seen_at) info.push(`last seen ${fmtDate(lic.last_seen_at)}`);
+  if (lic.stripe_customer_id) info.push(`stripe customer ${lic.stripe_customer_id}`);
+  if (lic.stripe_subscription_id) info.push(`subscription ${lic.stripe_subscription_id}`);
+  document.getElementById('licEditorInfo').textContent = info.join(' • ');
+  const msg = document.getElementById('licEditorMsg');
+  if (msg) { msg.style.display = 'none'; msg.textContent = ''; }
+  panel.style.display = 'block';
+}
+
+document.getElementById('adminLicenseEditForm')?.addEventListener('submit', async function (e) {
+  e.preventDefault();
+  if (licEditorId === null) return;
+  const f = e.target.elements;
+  const body = {
+    email: f.email.value.trim(),
+    plan_type: f.plan_type.value,
+    status: f.status.value,
+    expires_at: f.expires_at.value.trim(),
+    license_key: f.license_key.value.trim(),
+  };
+  const res = await api(`/api/admin/licenses/${licEditorId}`, { method: 'POST', body: JSON.stringify(body) });
+  if (!res.ok) { licEditorMessage(errorText(res.data, 'Could not save the key.'), false); return; }
+  loadAdminOrders(document.getElementById('adminSearch')?.value.trim() || '');
+  openLicenseEditor(res.data);
+  licEditorMessage('Saved.', true);
+});
+
+document.getElementById('licEditorClose')?.addEventListener('click', () => {
+  document.getElementById('adminLicenseEditor').style.display = 'none';
+  licEditorId = null;
+});
+
+document.getElementById('licEditorResetDevice')?.addEventListener('click', async () => {
+  if (licEditorId === null) return;
+  const res = await api(`/api/admin/licenses/${licEditorId}/reset-hwid`, { method: 'POST' });
+  if (!res.ok) { licEditorMessage(errorText(res.data, 'Could not reset the device.'), false); return; }
+  licEditorMessage(res.data.message || 'Device reset.', true);
+  loadAdminOrders(document.getElementById('adminSearch')?.value.trim() || '');
+});
+
+document.getElementById('licEditorCopy')?.addEventListener('click', async () => {
+  const key = document.getElementById('adminLicenseEditForm')?.elements.license_key.value;
+  if (!key) return;
+  try { await navigator.clipboard.writeText(key); licEditorMessage('Key copied.', true); }
+  catch (_) { licEditorMessage('Could not copy — select the key field instead.', false); }
+});
+
+document.getElementById('licEditorDelete')?.addEventListener('click', async () => {
+  if (licEditorId === null) return;
+  if (!confirm('Delete this key for good? The customer loses access immediately.')) return;
+  const res = await api(`/api/admin/licenses/${licEditorId}`, { method: 'DELETE' });
+  if (!res.ok) { licEditorMessage(errorText(res.data, 'Could not delete the key.'), false); return; }
+  document.getElementById('adminLicenseEditor').style.display = 'none';
+  licEditorId = null;
+  loadAdminOrders(document.getElementById('adminSearch')?.value.trim() || '');
+});
+
 document.getElementById('adminSearchForm')?.addEventListener('submit', function (e) {
   e.preventDefault();
   loadAdminOrders(document.getElementById('adminSearch').value.trim());
+});
+
+// ============================================================
+// Admin: discount codes (Stripe coupons + promotion codes)
+// ============================================================
+function showAddDiscountForm() {
+  const box = document.getElementById('addDiscountContainer');
+  if (!box) return;
+  box.style.display = box.style.display === 'none' ? 'block' : 'none';
+}
+
+async function loadDiscounts() {
+  const wrap = document.getElementById('adminDiscounts');
+  if (!wrap) return;
+  try {
+    const res = await api('/api/admin/discounts');
+    if (!res.ok) {
+      wrap.innerHTML = `<p class="no-license-text">${escapeHtml(errorText(res.data, 'Could not load discount codes.'))}</p>`;
+      return;
+    }
+    const rows = res.data.discounts || [];
+    if (!rows.length) {
+      wrap.innerHTML = '<p class="no-license-text">No discount codes yet — create one with “+ New code”.</p>';
+      return;
+    }
+    wrap.innerHTML = `<table class="admin-table"><thead><tr><th>Code</th><th>Discount</th><th>Used</th><th>Expires</th><th>Status</th><th></th></tr></thead><tbody>` +
+      rows.map(d => {
+        const off = d.percent_off ? `${d.percent_off}% off` : (d.amount_off != null ? `€${Number(d.amount_off).toFixed(2)} off` : '—');
+        const used = `${d.uses || 0}${d.max_uses ? ' / ' + d.max_uses : ''}`;
+        return `<tr><td><code>${escapeHtml(d.code)}</code></td><td>${escapeHtml(off)}</td><td>${escapeHtml(used)}</td><td>${d.expires_at ? fmtDate(d.expires_at) : 'never'}</td><td>${d.active ? '<span class="status-badge status-active">active</span>' : '<span class="status-badge status-none">paused</span>'}</td><td><button class="btn-ghost" type="button" data-promo="${escapeHtml(d.id)}" data-active="${d.active ? '1' : '0'}">${d.active ? 'Pause' : 'Resume'}</button></td></tr>`;
+      }).join('') + `</tbody></table>`;
+    wrap.querySelectorAll('[data-promo]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const active = btn.dataset.active !== '1';
+        const res = await api(`/api/admin/discounts/${btn.dataset.promo}`, { method: 'POST', body: JSON.stringify({ active }) });
+        if (!res.ok) { alert(errorText(res.data, 'Could not update the code.')); return; }
+        loadDiscounts();
+      });
+    });
+  } catch (_) {
+    wrap.innerHTML = '<p class="no-license-text">Could not load discount codes.</p>';
+  }
+}
+
+document.getElementById('adminCreateDiscountForm')?.addEventListener('submit', async function (e) {
+  e.preventDefault();
+  const f = e.target.elements;
+  const msg = document.getElementById('adminCreateDiscountMsg');
+  const body = {
+    code: f.code.value.trim().toUpperCase(),
+    kind: f.kind.value,
+    value: Number(f.value.value),
+    max_uses: Number(f.max_uses.value || 0),
+    expires_at: f.expires_at.value.trim(),
+  };
+  if (msg) { msg.style.display = 'block'; msg.textContent = 'Creating…'; msg.style.color = 'inherit'; }
+  const res = await api('/api/admin/discounts', { method: 'POST', body: JSON.stringify(body) });
+  if (!res.ok) {
+    if (msg) { msg.textContent = errorText(res.data, 'Could not create the code.'); msg.style.color = 'var(--danger, #f87171)'; }
+    return;
+  }
+  if (msg) { msg.textContent = `Code ${res.data.code} is live on the checkout page.`; msg.style.color = 'var(--ok, #4ade80)'; }
+  e.target.reset();
+  loadDiscounts();
 });
 
 async function loadAdminReferrals() {

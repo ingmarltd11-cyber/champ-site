@@ -959,7 +959,32 @@ class FindCreateReq(BaseModel):
 
 
 class AdminLicenseUpdateReq(BaseModel):
-    status: str
+    """Everything is optional: only the fields that are sent are changed."""
+    status: Optional[str] = None
+    plan_type: Optional[str] = None
+    expires_at: Optional[str] = None      # ISO date or timestamp; "" clears it
+    email: Optional[str] = None           # "" makes the key unclaimed again
+    license_key: Optional[str] = None
+
+
+class AdminLicenseCreateReq(BaseModel):
+    email: str = ""                        # empty generates an unclaimed key
+    plan_type: str = "lifetime"
+    status: str = "active"
+    expires_at: Optional[str] = ""
+    license_key: Optional[str] = None      # empty generates one
+
+
+class AdminDiscountReq(BaseModel):
+    code: str
+    kind: str = "percent"                  # percent | amount
+    value: float = 0                       # percent off, or euros off
+    max_uses: int = 0                      # 0 = unlimited
+    expires_at: Optional[str] = ""
+
+
+class AdminDiscountToggleReq(BaseModel):
+    active: bool = True
 
 
 class AdminFindUpdateReq(BaseModel):
@@ -2677,6 +2702,55 @@ def admin_stats(admin: dict = Depends(current_admin)):
             "note": "Counts cap at 1000." if len(users) == 1001 or len(licenses) == 1001 else "ok"}
 
 
+LICENSE_STATUSES = ("active", "inactive", "revoked")
+
+
+def admin_license_json(r: dict) -> dict:
+    """Everything support needs to judge a key, with the hardware id masked."""
+    return {
+        "id": r["id"],
+        "email": r["email"],
+        "plan_type": r["plan_type"],
+        "license_key": r["license_key"],
+        "status": r["status"],
+        "expires_at": r.get("expires_at"),
+        "created_at": r.get("created_at"),
+        "updated_at": r.get("updated_at"),
+        "unassigned": is_unassigned_license(r),
+        "redeemed_at": r.get("redeemed_at"),
+        "hwid": mask_hwid(r.get("hwid") or ""),
+        "hwid_bound_at": r.get("hwid_bound_at"),
+        "hwid_reset_at": r.get("hwid_reset_at"),
+        "last_seen_at": r.get("last_seen_at"),
+        "stripe_customer_id": r.get("stripe_customer_id") or "",
+        "stripe_subscription_id": r.get("stripe_subscription_id") or "",
+    }
+
+
+def admin_expiry(value: Optional[str]) -> Optional[str]:
+    """"" / "never" clears the expiry; a date or timestamp becomes a UTC timestamp."""
+    text = (value or "").strip()
+    if not text or text.lower() in ("never", "none", "-"):
+        return None
+    try:
+        dt = parse_dt(text if ("T" in text or " " in text) else text + "T23:59:59")
+    except ValueError:
+        raise HTTPException(400, "Use a date like 2026-12-31, or a full timestamp.")
+    if dt is None:
+        return None
+    return iso(dt.astimezone(timezone.utc))
+
+
+def admin_email(value: str, key: str) -> str:
+    """"" means unclaimed: the first account that redeems the key becomes the owner."""
+    email = (value or "").strip().lower()
+    if not email:
+        return f"unassigned+{key.lower()}@{UNASSIGNED_DOMAIN}"
+    if "@" not in email or email.startswith("@") or email.endswith("@"):
+        raise HTTPException(400, "That e-mail address is not valid.")
+    return email
+
+
 @app.get("/api/admin/licenses")
 def admin_licenses(search: str = "", limit: int = 50, admin: dict = Depends(current_admin)):
     limit = max(1, min(limit, 200))
@@ -2687,21 +2761,89 @@ def admin_licenses(search: str = "", limit: int = 50, admin: dict = Depends(curr
                            "order": "created_at.desc", "limit": limit}) or []
     else:
         rows = db_list("licenses", {}, limit=limit, order="created_at.desc")
-    return {"licenses": [{"id": r["id"], "email": r["email"], "plan_type": r["plan_type"],
-                           "license_key": r["license_key"], "status": r["status"],
-                           "expires_at": r["expires_at"], "created_at": r["created_at"],
-                           "unassigned": is_unassigned_license(r),
-                           "redeemed_at": r.get("redeemed_at")} for r in rows]}
+    return {"licenses": [admin_license_json(r) for r in rows]}
+
+
+@app.post("/api/admin/licenses")
+def admin_create_license(p: AdminLicenseCreateReq, admin: dict = Depends(current_admin)):
+    """Hand out a key without Stripe: unclaimed, or already tied to a customer."""
+    plan = (p.plan_type or "").strip().lower()
+    if plan not in PLANS:
+        raise HTTPException(400, "Plan must be monthly or lifetime.")
+    status = (p.status or "active").strip().lower()
+    if status not in LICENSE_STATUSES:
+        raise HTTPException(400, "Status must be active, inactive or revoked.")
+    key = (p.license_key or "").strip().upper() or new_license_key()
+    if len(key) < 6:
+        raise HTTPException(400, "A key needs at least 6 characters.")
+    row = {
+        "email": admin_email(p.email, key),
+        "plan_type": plan,
+        "license_key": key,
+        "status": status,
+        "expires_at": admin_expiry(p.expires_at),
+    }
+    try:
+        saved = db_insert("licenses", row)
+    except DBError as exc:
+        if exc.status == 409:
+            raise HTTPException(409, "That key already exists, or this e-mail already has a key for this plan.")
+        print("Create license failed:", exc.status)
+        raise HTTPException(503, "Could not create the key right now.")
+    return admin_license_json(saved or row)
 
 
 @app.post("/api/admin/licenses/{lic_id}")
 def admin_update_license(lic_id: int, p: AdminLicenseUpdateReq, admin: dict = Depends(current_admin)):
-    if p.status not in ("active", "inactive", "revoked"):
-        raise HTTPException(400, "Status must be active, inactive or revoked.")
-    rows = db_update("licenses", {"id": eq(lic_id)}, {"status": p.status, "updated_at": iso(now())})
-    if not rows:
+    """Change any part of a key: owner, plan, status, expiry or the key itself."""
+    lic = db_get("licenses", {"id": eq(lic_id)})
+    if not lic:
         raise HTTPException(404, "License not found.")
-    return rows[0]
+    values = {}
+    if p.status is not None:
+        status = p.status.strip().lower()
+        if status not in LICENSE_STATUSES:
+            raise HTTPException(400, "Status must be active, inactive or revoked.")
+        values["status"] = status
+    if p.plan_type is not None:
+        plan = p.plan_type.strip().lower()
+        if plan not in PLANS:
+            raise HTTPException(400, "Plan must be monthly or lifetime.")
+        values["plan_type"] = plan
+    if p.expires_at is not None:
+        values["expires_at"] = admin_expiry(p.expires_at)
+    if p.license_key is not None:
+        key = p.license_key.strip().upper()
+        if len(key) < 6:
+            raise HTTPException(400, "A key needs at least 6 characters.")
+        values["license_key"] = key
+    if p.email is not None:
+        values["email"] = admin_email(p.email, values.get("license_key") or lic["license_key"])
+    if not values:
+        return admin_license_json(lic)
+    values["updated_at"] = iso(now())
+    try:
+        rows = db_update("licenses", {"id": eq(lic_id)}, values)
+    except DBError as exc:
+        if exc.status == 409:
+            raise HTTPException(409, "That key is already in use, or this e-mail already has a key for this plan.")
+        print("Update license failed:", exc.status)
+        raise HTTPException(503, "Could not save the key right now.")
+    return admin_license_json((rows or [lic])[0])
+
+
+@app.delete("/api/admin/licenses/{lic_id}")
+def admin_delete_license(lic_id: int, admin: dict = Depends(current_admin)):
+    lic = db_get("licenses", {"id": eq(lic_id)})
+    if not lic:
+        raise HTTPException(404, "License not found.")
+    try:
+        _sb("DELETE", "licenses", params={"id": eq(lic_id)})
+        _sb("DELETE", "pending_payments", params={"email": eq(lic["email"])})
+    except DBError as exc:
+        print("Delete license failed:", exc.status)
+        raise HTTPException(503, "Could not delete the key right now.")
+    return {"message": f"Key {lic['license_key']} deleted."}
 
 
 @app.post("/api/admin/licenses/{lic_id}/reset-hwid")
@@ -2714,6 +2856,95 @@ def admin_reset_hwid(lic_id: int, admin: dict = Depends(current_admin)):
         return {"message": "This key has no device linked.", "hwid": ""}
     reset_license_hwid(lic, "admin")
     return {"message": "Hardware binding cleared.", "hwid": ""}
+
+
+# --------------------------------------------------------------------------
+# Admin: discount codes
+# --------------------------------------------------------------------------
+# A discount is a Stripe coupon with one promotion code: Stripe is the checkout, so it also enforces
+# the code, the expiry and the usage limit, and the checkout page already accepts promotion codes.
+DISCOUNT_CODE_RE = re.compile(r"^[A-Z0-9][A-Z0-9_-]{2,31}$")
+
+
+def stripe_timestamp(value: Optional[str]) -> Optional[int]:
+    """A date from the panel (2026-12-31) or a full timestamp, as a unix time for Stripe."""
+    text = (value or "").strip()
+    if not text:
+        return None
+    try:
+        dt = parse_dt(text if ("T" in text or " " in text) else text + "T23:59:59")
+    except ValueError:
+        raise HTTPException(400, "Use a date like 2026-12-31, or a full timestamp.")
+    return int(dt.timestamp()) if dt else None
+
+
+def discount_json(promo: dict) -> dict:
+    coupon = ((promo.get("promotion") or {}).get("coupon") or {})
+    if not isinstance(coupon, dict):
+        coupon = {}
+    amount_off = coupon.get("amount_off")
+    return {
+        "id": promo.get("id"),
+        "code": promo.get("code") or "",
+        "active": bool(promo.get("active")),
+        "uses": promo.get("times_redeemed") or 0,
+        "max_uses": promo.get("max_redemptions") or 0,
+        "expires_at": (datetime.fromtimestamp(promo["expires_at"], tz=timezone.utc).isoformat()
+                       if promo.get("expires_at") else None),
+        "created_at": (datetime.fromtimestamp(promo["created"], tz=timezone.utc).isoformat()
+                       if promo.get("created") else None),
+        "percent_off": coupon.get("percent_off"),
+        "amount_off": (amount_off / 100) if amount_off else None,
+        "currency": (coupon.get("currency") or "eur").upper(),
+    }
+
+
+@app.get("/api/admin/discounts")
+def admin_discounts(admin: dict = Depends(current_admin)):
+    body = stripe_request("GET", "promotion_codes?limit=100&expand[]=data.promotion.coupon")
+    return {"discounts": [discount_json(p) for p in body.get("data") or []]}
+
+
+@app.post("/api/admin/discounts", status_code=201)
+def admin_create_discount(p: AdminDiscountReq, admin: dict = Depends(current_admin)):
+    code = (p.code or "").strip().upper()
+    if not DISCOUNT_CODE_RE.match(code):
+        raise HTTPException(400, "A code is 3-32 characters: letters, digits, - and _.")
+    kind = (p.kind or "percent").strip().lower()
+    if kind not in ("percent", "amount"):
+        raise HTTPException(400, "Type must be percent or amount.")
+    coupon = {"duration": "once", "name": f"Champ {code}"}
+    if kind == "percent":
+        value = float(p.value or 0)
+        if not 0 < value <= 100:
+            raise HTTPException(400, "A percentage is between 0.1 and 100.")
+        coupon["percent_off"] = value
+    else:
+        cents = int(round(float(p.value or 0) * 100))
+        if not 0 < cents <= 100000:
+            raise HTTPException(400, "An amount is between 0.01 and 1000 euros.")
+        coupon["amount_off"] = cents
+        coupon["currency"] = "eur"
+    created = stripe_request("POST", "coupons", coupon)
+    promo = {"coupon": created["id"], "code": code}
+    max_uses = max(0, int(p.max_uses or 0))
+    if max_uses:
+        promo["max_redemptions"] = max_uses
+    expires = stripe_timestamp(p.expires_at)
+    if expires:
+        promo["expires_at"] = expires
+    saved = stripe_request("POST", "promotion_codes", promo)
+    expanded = stripe_request("GET", f"promotion_codes/{saved['id']}?expand[]=promotion.coupon")
+    return discount_json(expanded)
+
+
+@app.post("/api/admin/discounts/{promo_id}")
+def admin_toggle_discount(promo_id: str, p: AdminDiscountToggleReq, admin: dict = Depends(current_admin)):
+    """Pause or resume a code. Stripe keeps the redemptions, so the history stays intact."""
+    saved = stripe_request("POST", f"promotion_codes/{promo_id}",
+                           {"active": "true" if p.active else "false"})
+    expanded = stripe_request("GET", f"promotion_codes/{saved['id']}?expand[]=promotion.coupon")
+    return discount_json(expanded)
 
 
 @app.get("/api/admin/referrals")
