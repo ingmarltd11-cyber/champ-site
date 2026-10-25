@@ -89,7 +89,7 @@ SITE_MEDIA_BUCKET = os.getenv("SITE_MEDIA_BUCKET", "site-media")
 # Vercel rejects request bodies above ~4.5 MB, and base64 adds a third, so 3 MB is the real cap.
 MAX_SITE_IMAGE_BYTES = 3 * 1024 * 1024
 JAR_MAX_BYTES = 100 * 1024 * 1024
-FROM_EMAIL = os.getenv("FROM_EMAIL", "Champ Client <onboarding@resend.dev>")
+FROM_EMAIL = os.getenv("FROM_EMAIL", "Champ Beta <onboarding@resend.dev>")
 DEV_MODE = os.getenv("DEV_MODE", "").lower() in ("1", "true", "yes")
 # Email verification is off by default: without a domain there is no reliable sender,
 # and the shop can run with instant accounts. Set EMAIL_VERIFICATION=true to restore it.
@@ -341,7 +341,7 @@ def email_html(title: str, intro: str, button_url: Optional[str] = None, button_
         '<div style="font-family:Arial,sans-serif;background:#0a0a0a;padding:32px;color:#f0ede8">'
         '<div style="max-width:480px;margin:auto;background:#141414;border-radius:12px;padding:32px">'
         f'<h2 style="margin-top:0">{html.escape(title)}</h2><p style="line-height:1.6">{intro}</p>{button}'
-        '<p style="color:#666;font-size:12px;margin-bottom:0">Champ Client</p></div></div>'
+        '<p style="color:#666;font-size:12px;margin-bottom:0">Champ Beta</p></div></div>'
     )
 
 
@@ -381,7 +381,7 @@ def send_email(to: str, subject: str, body_html: str) -> None:
             port = int(os.getenv("SMTP_PORT") or "465")
         except ValueError:
             port = 465
-        sender = os.getenv("SMTP_FROM") or f"Champ Client <{user}>"
+        sender = os.getenv("SMTP_FROM") or f"Champ Beta <{user}>"
         message = EmailMessage()
         message["From"] = sender
         message["To"] = to
@@ -431,15 +431,15 @@ def send_verification_code(user: dict) -> None:
         '<div style="font-family:Arial,sans-serif;background:#0a0a0a;padding:32px;color:#f0ede8">'
         '<div style="max-width:480px;margin:auto;background:#141414;border-radius:12px;padding:32px">'
         '<h2 style="margin-top:0;color:#fff">Verify your email</h2>'
-        f'<p style="line-height:1.6;color:#ddd">Hi {html.escape(user["username"])}, enter this code on Champ Client:</p>'
+        f'<p style="line-height:1.6;color:#ddd">Hi {html.escape(user["username"])}, enter this code on Champ Beta:</p>'
         '<div style="background:#0d0d0d;border:1px solid #333;border-radius:8px;padding:20px;text-align:center;margin:25px 0">'
         f'<span style="font-size:32px;font-weight:bold;letter-spacing:10px;color:#fff">{code}</span>'
         '</div>'
         '<p style="color:#888;font-size:13px">This code expires in 10 minutes.</p>'
-        '<p style="color:#666;font-size:12px;margin-bottom:0">Champ Client</p>'
+        '<p style="color:#666;font-size:12px;margin-bottom:0">Champ Beta</p>'
         '</div></div>'
     )
-    send_email(user["email"], "Your Champ Client verification code", body)
+    send_email(user["email"], "Your Champ Beta verification code", body)
     db_update("users", {"id": eq(user["id"])}, {"last_email_at": iso(now())})
 
 
@@ -807,7 +807,7 @@ def on_checkout_completed(session: dict) -> None:
         except Exception as exc:
             print("Referral credit failed:", exc)
     try:
-        send_email(email, "Your Champ Client license",
+        send_email(email, "Your Champ Beta license",
                    email_html("Thanks for your purchase!",
                               f"Your {plan} license key:<br><b style='font-size:18px'>{html.escape(lic['license_key'])}</b><br><br>"
                               "Log in to your dashboard to download the client.",
@@ -1476,9 +1476,9 @@ def verify_code(p: VerifyCodeReq, response: Response):
     user["email_verified"] = True
     set_session(response, user)
     try:
-        send_email(email, "Welcome to Champ Client",
+        send_email(email, "Welcome to Champ Beta",
                    email_html("Your account is ready!",
-                              f"Hi {html.escape(user['username'])}, your Champ Client account is verified. "
+                              f"Hi {html.escape(user['username'])}, your Champ Beta account is verified. "
                               "Sign in to your dashboard to manage licenses and downloads.",
                               f"{SITE_URL}/dashboard.html", "Open dashboard"))
     except Exception as exc:
@@ -1606,7 +1606,7 @@ def forgot_password(p: EmailReq):
     user = db_get("users", {"email": eq(p.email.lower())})
     if user and throttle_ok(user):
         token = make_token(user["email"], "reset", 60, {"fp": fingerprint(user["password_hash"])})
-        send_email(user["email"], "Reset your Champ Client password",
+        send_email(user["email"], "Reset your Champ Beta password",
                    email_html("Reset your password", "Use the button below to choose a new password. This link is valid for 1 hour.",
                               f"{SITE_URL}/reset.html?token={token}", "Choose new password"))
         db_update("users", {"id": eq(user["id"])}, {"last_email_at": iso(now())})
@@ -1652,7 +1652,7 @@ def request_payment_link(p: PaymentLinkReq):
         ref = None
     db_insert("pending_payments", {"uid": str(uid), "email": email, "plan_type": plan, "referral_code": ref})
     link = f"{SITE_URL}/payment.html?uid={uid}"
-    send_email(email, f"Complete your Champ Client {plan} purchase",
+    send_email(email, f"Complete your Champ Beta {plan} purchase",
                email_html("Complete your purchase", f"Click below to continue to checkout for the <b>{plan}</b> plan. This link is valid for 24 hours.",
                           link, "Continue to checkout"))
     result = {"message": "Link sent."}
@@ -2393,7 +2393,7 @@ def redeem_license(p: RedeemReq, user: dict = Depends(current_user)):
         raise HTTPException(409, "This key could not be linked to your account.")
     lic = rows[0]
     try:
-        send_email(user["email"], "Your Champ Client license key",
+        send_email(user["email"], "Your Champ Beta license key",
                    email_html("License activated!",
                               f"Your <b>{html.escape(lic['plan_type'])}</b> license key:<br>"
                               f"<b style='font-size:18px'>{html.escape(lic['license_key'])}</b><br><br>"
@@ -2751,6 +2751,27 @@ def admin_email(value: str, key: str) -> str:
     return email
 
 
+def mail_license_key(email: str, key: str, plan: str) -> None:
+    """Mails a key that was handed out or changed by support, once, with the thank-you message.
+
+    A key that is already saved must never make the admin request fail over an e-mail, so every
+    error is logged and swallowed here - exactly like the confirmation mail after a purchase.
+    """
+    if not email or is_unassigned_license({"email": email}):
+        return
+    try:
+        send_email(email, "Your Champ Beta license key",
+                   email_html("Thanks for your purchase!",
+                              f"Your <b>{html.escape(plan or 'Champ Beta')}</b> license key:<br>"
+                              f"<b style='font-size:18px'>{html.escape(key)}</b><br><br>"
+                              "Thanks for your purchase! Paste this key in the license screen in-game, "
+                              "or link it to your account on the dashboard. The client and the loader "
+                              "can be downloaded there at any time.",
+                              f"{SITE_URL}/dashboard.html", "Open dashboard"))
+    except Exception as exc:
+        print("License e-mail failed:", exc)
+
+
 @app.get("/api/admin/licenses")
 def admin_licenses(search: str = "", limit: int = 50, admin: dict = Depends(current_admin)):
     limit = max(1, min(limit, 200))
@@ -2790,7 +2811,10 @@ def admin_create_license(p: AdminLicenseCreateReq, admin: dict = Depends(current
             raise HTTPException(409, "That key already exists, or this e-mail already has a key for this plan.")
         print("Create license failed:", exc.status)
         raise HTTPException(503, "Could not create the key right now.")
-    return admin_license_json(saved or row)
+    created = saved or row
+    mail_license_key(created.get("email") or "", created.get("license_key") or key,
+                     created.get("plan_type") or plan)
+    return admin_license_json(created)
 
 
 @app.post("/api/admin/licenses/{lic_id}")
@@ -2829,7 +2853,12 @@ def admin_update_license(lic_id: int, p: AdminLicenseUpdateReq, admin: dict = De
             raise HTTPException(409, "That key is already in use, or this e-mail already has a key for this plan.")
         print("Update license failed:", exc.status)
         raise HTTPException(503, "Could not save the key right now.")
-    return admin_license_json((rows or [lic])[0])
+    updated = (rows or [lic])[0]
+    if (values.get("email", lic.get("email")) != lic.get("email")
+            or values.get("license_key", lic.get("license_key")) != lic.get("license_key")):
+        mail_license_key(updated.get("email") or "", updated.get("license_key") or "",
+                         updated.get("plan_type") or "")
+    return admin_license_json(updated)
 
 
 @app.delete("/api/admin/licenses/{lic_id}")
@@ -3319,19 +3348,23 @@ def admin_delete_texture_pack(pack_id: int, admin: dict = Depends(current_admin)
 AI_DEFAULT_KNOWLEDGE = """
 CHAMP CLIENT PRODUCT FACTS
 
-Product: Champ Client is a native Minecraft Java Fabric mod (.jar) for Minecraft 1.21.11. It is not an injection tool and needs no DLL injector. Install Fabric Loader 0.16 or newer, then place the .jar in the Minecraft mods folder. It is designed to work alongside Sodium, Lithium, FerriteCore and Iris shaders on 1.21.11.
+Product: Champ Client is a native Minecraft Java Fabric mod (.jar) for Minecraft 1.21.11. It is not an injection tool and needs no DLL injector. It is designed to work alongside Sodium, Lithium, FerriteCore and Iris shaders on 1.21.11.
+
+Install and loaders: customers download a Champ loader jar from the dashboard, never a separate client jar. Exactly one loader jar goes into the Minecraft mods folder: either Champ Loader (the stable loader) or Champ Beta (the beta loader with its own update channel). The client itself travels inside the loader and never appears in mods, so never tell a customer to put ChampClient.jar or any client file in the mods folder. On the first launch the loader checks the licence online and fetches the current client build; after that first launch Minecraft should be closed fully and started once more. Both loaders update themselves and the client automatically, so a new build never needs a manual download. Only one Champ loader may sit in mods at a time: the loader that starts removes the other one, and when Windows has that jar locked it tells the player to delete the other jar by hand.
 
 Scope: the website advertises 136 modules, custom Dear ImGui render overlays, crystal macros and DonutSMP base raiding suites. The full module list lives on the features page. Never invent module names or describe a specific module that is not listed on the site.
 
-Plans and delivery: Monthly costs EUR 6.99 and can be cancelled anytime from the dashboard. Lifetime costs EUR 9.99 as a one-time payment and includes future 1.21.x updates. Checkout uses Stripe, which supports credit cards, debit cards, iDEAL and country-specific local payment methods. After successful payment the product is available in the customer's dashboard immediately, and a license confirmation email is sent. Downloads require an active license. PayPal, crypto and other payment providers are not available in this shop; never suggest them.
+Plans and delivery: Monthly costs EUR 6.99 and can be cancelled anytime from the dashboard. Lifetime costs EUR 9.99 as a one-time payment and includes future 1.21.x updates. Checkout uses Stripe, which supports credit cards, debit cards, iDEAL and country-specific local payment methods. After successful payment the product is available in the customer's dashboard immediately, and a licence e-mail with the key is sent. Downloads require an active license. PayPal, crypto and other payment providers are not available in this shop; never suggest them.
+
+Licence keys by e-mail: every purchase and every key that support hands out or edits is e-mailed automatically to the customer address, with the key in the message and a thank-you note; the same key is shown in the dashboard. Keys look like CHAMP-XXXX-XXXX-XXXX-XXXX. Advice on where to find the key, check the inbox and spam folder for the licence mail and then the dashboard. Never ask a customer to post a key in chat and never repeat a key back.
 
 Refunds and billing: a Monthly plan can be cancelled at any time and stays active until the paid period ends. Refund terms are not confirmed here, so for refunds or billing mistakes say a staff member must review the order and point to Discord support. Never promise a refund.
 
-Compatibility and versions: the current build is 0.9.9.1 for Minecraft Java 1.21.11 with Fabric Loader 0.16 or newer. Forge and OptiFine are not supported. There is no support for Minecraft versions outside the 1.21.x line. Sodium, Lithium, FerriteCore and Iris shaders are the tested companions.
+Compatibility and versions: the current client build is 0.9.9.1 for Minecraft Java 1.21.11 with Fabric Loader 0.16 or newer. The loader has its own version (0.6.x stable, 0.1.x for Champ Beta) and updates itself, so a customer never installs a new loader by hand. Forge and OptiFine are not supported. There is no support for Minecraft versions outside the 1.21.x line. Sodium, Lithium, FerriteCore and Iris shaders are the tested companions.
 
 Platforms: Windows, macOS and Linux all work wherever Minecraft Java 1.21.11 with Fabric runs; the mod has no OS-specific build. Minecraft 1.21.11 itself needs Java 21. Never state another Java version or an OS requirement that is not listed here.
 
-Safety: it is a normal Fabric .jar in the mods folder, with no injector and no background program, and it is only distributed through this website and the customer dashboard. Never promise that a specific server or anti-cheat will not react to it, never promise it is undetectable, and never state or guess that it will or will not get someone banned.
+Safety: it is a normal Fabric loader .jar in the mods folder (the client is nested inside it), with no injector and no background program, and it is only distributed through this website and the customer dashboard. Never promise that a specific server or anti-cheat will not react to it, never promise it is undetectable, and never state or guess that it will or will not get someone banned.
 
 Accounts: Customers register with a username, password and email address and can sign in immediately, because email verification is currently disabled. If a customer cannot sign in, ask them to confirm their exact username or email and to use the "Forgot password" page; if that fails, direct them to Discord support. Never ask for a password.
 
@@ -3438,8 +3471,12 @@ def _answer_billing_change() -> str:
 def _answer_install() -> str:
     return (
         "Champ Client is a native Fabric mod for Minecraft 1.21.11, not an injector, so there is nothing to "
-        "inject. Install Fabric Loader 0.16 or newer, then drop the .jar from your dashboard into the Minecraft "
-        "mods folder and start the Fabric profile.\n\n"
+        "inject. Install Fabric Loader 0.16 or newer, then put the Champ loader jar from your dashboard into the "
+        "Minecraft mods folder and start the Fabric profile.\n\n"
+        "You download Champ Loader (stable) or Champ Beta; the client itself sits inside that loader, so there is "
+        "no separate client jar to copy. On the first launch the loader pulls the current client build - close "
+        "Minecraft fully after that and start it once more. Keep only one Champ loader in mods: the loader removes "
+        "the other one automatically.\n\n"
         "It is built to run alongside Sodium, Lithium, FerriteCore and Iris shaders on 1.21.11. Forge and "
         "OptiFine are not supported.\n\n"
         f"Download from your dashboard: {SITE_LINKS['dashboard']}\nSetup help: {SITE_LINKS['support']}"
@@ -3449,7 +3486,10 @@ def _answer_install() -> str:
 def _answer_download() -> str:
     return (
         "Downloads and your licence key live in your dashboard, and downloading needs an active licence. "
-        "After a successful payment they appear there immediately.\n\n"
+        "After a successful payment they appear there immediately, and the key is also e-mailed to the address "
+        "on the order - check spam if it is missing.\n\n"
+        "There you download Champ Loader (stable) or Champ Beta. The client is inside the loader and updates "
+        "itself, so there is no separate client jar to download.\n\n"
         f"Dashboard: {SITE_LINKS['dashboard']}"
     )
 
@@ -3468,6 +3508,7 @@ def _answer_account() -> str:
 def _answer_requirements() -> str:
     return (
         "Champ Client runs as a Fabric mod on Minecraft Java 1.21.11 with Fabric Loader 0.16 or newer. "
+        "The download is the Champ loader jar; the client sits inside it and updates itself. "
         "There is no Forge or OptiFine build, and no support for older Minecraft versions beyond the 1.21.x line.\n\n"
         f"Features and modules: {SITE_LINKS['features']}"
     )
@@ -3499,16 +3540,19 @@ def _answer_base_finds() -> str:
 
 def _answer_updates() -> str:
     return (
-        "Lifetime includes future 1.21.x updates. The current build is 0.9.9.1 for Minecraft 1.21.11 on Fabric. "
-        "New builds show up in your dashboard when they are released.\n\n"
+        "Lifetime includes future 1.21.x updates. The current client build is 0.9.9.1 for Minecraft 1.21.11 on "
+        "Fabric.\n\n"
+        "You do not download new builds by hand: the loader updates itself and the client on the next launch. "
+        "Champ Loader and Champ Beta have separate update channels, so install the one you want to follow.\n\n"
         f"Dashboard: {SITE_LINKS['dashboard']}"
     )
 
 
 def _answer_safety() -> str:
     return (
-        "Champ Client is a normal Fabric mod: a .jar in your mods folder, no injector and no separate program "
-        "running in the background. It is only downloaded from this website and your dashboard.\n\n"
+        "Champ Client is a normal Fabric mod: one loader .jar in your mods folder (the client is nested inside "
+        "it), no injector and no separate program running in the background. It is only downloaded from this "
+        "website and your dashboard.\n\n"
         "I cannot promise how any specific server or anti-cheat will react, and I will not guess about bans. "
         "Use it at your own risk and ask the team if you are unsure.\n\n"
         "If an antivirus flags the jar, make sure the file came from your dashboard and ask the team on Discord "
@@ -3519,8 +3563,9 @@ def _answer_safety() -> str:
 
 def _answer_what_is_it() -> str:
     return (
-        "Champ Client is a native Minecraft Java Fabric mod for 1.21.11: it installs as a .jar, needs no injector, "
-        "and is built to run next to Sodium, Lithium, FerriteCore and Iris. The site lists 136 modules, custom "
+        "Champ Client is a native Minecraft Java Fabric mod for 1.21.11: it installs as one loader .jar in the mods "
+        "folder, needs no injector, and is built to run next to Sodium, Lithium, FerriteCore and Iris. The client "
+        "travels inside that loader. The site lists 136 modules, custom "
         "Dear ImGui overlays, crystal macros and DonutSMP base raiding suites.\n\n"
         f"Features and modules: {SITE_LINKS['features']}\nPlans and pricing: {SITE_LINKS['pricing']}"
     )
@@ -3589,7 +3634,8 @@ def _answer_troubleshooting() -> str:
     return (
         "Sorry it is not working. These checks solve most cases:\n"
         "- Confirm Minecraft 1.21.11 with Fabric Loader 0.16 or newer, and keep Forge or OptiFine out of the same mods folder.\n"
-        "- Re-download the latest .jar from your dashboard and replace the old file.\n"
+        "- Re-download the loader from your dashboard and keep exactly one Champ loader in mods; the client "
+        "updates itself from it.\n"
         "- Remove other mods one by one to find a conflict; Sodium, Lithium, FerriteCore and Iris are the tested companions.\n"
         "- Check the crash report for the line that names the failing mod.\n"
         "Still stuck? Post the crash report text on Discord - never your password or licence key.\n\n"

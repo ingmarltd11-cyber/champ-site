@@ -617,6 +617,7 @@ function renderLicense(kind, lic) {
   let html = `<div class="license-box">${escapeHtml(lic.key)}</div>`;
   if (kind === 'monthly' && lic.expires_at) html += `<p class="no-license-text" style="margin-bottom:12px">Renews / ends around ${fmtDate(lic.expires_at)}</p>`;
   html += `<a href="downloads/champ-loader.jar?v=0.4.0" class="btn-download" download>Download Champ Loader</a>`;
+  html += `<a href="downloads/champ-beta.jar" class="btn-download" download>Download Champ Beta</a>`;
   paint(state, html);
 
   if (kind === 'monthly' && lic.can_manage) {
