@@ -8,14 +8,13 @@ Mapstructuur: `public/` = de website (HTML, `main.js`, `style.css`, `assets/`), 
 
 ---
 
-## 1. Supabase (database + downloads)
+## 1. Supabase (database)
 1. Maak een project op supabase.com.
 2. **SQL Editor → New query** → plak de inhoud van `supabase/schema.sql` → **Run**.
-   (Maakt de tabellen én de private bucket `downloads`.)
-3. **Storage → bucket `downloads`** → upload je jars met **exact** deze namen (alleen de producten die je verkoopt):
-   - `monthly.jar`
-   - `lifetime.jar`
-   (Gratis plan: max 50 MB per bestand. Groter? Dan Supabase Pro of een andere opslag.)
+   (Maakt de tabellen aan.)
+3. **Storage**: er is geen bucket met jars meer nodig. De enige download is `public/downloads/champ-client.exe`,
+   de injector met de client erin; die zit in de deployment zelf, dus uploaden naar Supabase hoeft niet.
+   De bucket `downloads` mag je leeg laten of verwijderen.
 4. **Project Settings → API**: kopieer
    - Project URL → `SUPABASE_URL`
    - de **secret / service_role key** → `SUPABASE_SERVICE_KEY` (NOOIT de publieke/anon key, en nooit in je frontend zetten)
@@ -80,8 +79,8 @@ Mapstructuur: `public/` = de website (HTML, `main.js`, `style.css`, `assets/`), 
   Bij monthly-refunds: zeg het abonnement zelf op in Stripe.
 
 ## Belangrijk om te weten
-- De jar zelf is een statisch bestand: wie 'm eenmaal gedownload heeft, kan 'm blijven gebruiken.
-  Wil je dat de client de licentie controleert, laat hem `POST /api/license/validate` aanroepen met
+- De injector is een statisch bestand: wie 'm eenmaal gedownload heeft, kan 'm blijven gebruiken.
+  De licentie wordt bij elke start gecontroleerd via `POST /api/license/validate` met
   `{"key": "CHAMP-XXXX-XXXX-XXXX-XXXX"}` → antwoord `{"valid": true/false, "plan": ..., "expires_at": ...}`.
 - Terms of Service en Privacy Policy zijn sjablonen: lees ze door, pas ze aan en laat ze zo mogelijk
   door iemand met verstand van zaken checken (o.a. consumentenrechten/herroepingsrecht bij digitale producten,
@@ -142,5 +141,5 @@ Run the complete `supabase/schema.sql` again. It now also creates/seeds the `fea
 
 It also repairs the `plan_type` check on `pending_payments` and `licenses`. Run it once on your
 existing project (it is safe to run repeatedly, unless your database still contains `inject`
-licenses — delete or migrate those rows first, otherwise the tightened check fails), and upload
-`monthly.jar` and `lifetime.jar` to the `downloads` bucket.
+licenses — delete or migrate those rows first, otherwise the tightened check fails). There is
+nothing to upload: the injector (`public/downloads/champ-client.exe`) ships with the deployment.

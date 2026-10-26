@@ -1,4 +1,5 @@
--- Run this once in Supabase: SQL Editor -> New query -> paste -> Run
+-- Champ Client database schema.
+Run this once in Supabase: SQL Editor -> New query -> paste -> Run
 
 create table if not exists public.users (
   id              bigint generated always as identity primary key,
@@ -49,7 +50,7 @@ create index if not exists licenses_sub_idx on public.licenses (stripe_subscript
 create index if not exists licenses_pi_idx  on public.licenses (stripe_payment_intent);
 alter table public.licenses add column if not exists redeemed_at timestamptz;
 
--- Hardware binding: one PC per key. The loader sends a hashed hardware ID and the key is bound to
+-- Hardware binding: one PC per key. The injector sends a hashed hardware ID and the key is bound to
 -- the first one that uses it. A reset clears the binding, so the same key can move to a new PC.
 alter table public.licenses add column if not exists hwid text not null default '';
 alter table public.licenses add column if not exists hwid_bound_at timestamptz;
@@ -61,6 +62,12 @@ create index if not exists licenses_hwid_idx on public.licenses (hwid);
 -- cannot sign the licence challenge. A reset clears the pinned key together with the HWID.
 alter table public.licenses add column if not exists device_pubkey text not null default '';
 alter table public.licenses add column if not exists device_key_bound_at timestamptz;
+
+-- Network binding: a key works from one IP at a time (the launcher checks it before injecting).
+-- The IP can always be reset for free, from the launcher or the dashboard, so a new router, a VPN or
+-- a move never locks a paying customer out. Moving the key to another PC is the paid reset instead.
+alter table public.licenses add column if not exists bound_ip text not null default '';
+alter table public.licenses add column if not exists bound_ip_at timestamptz;
 
 -- Last online check, for support and for spotting a key that is used from two places at once.
 alter table public.licenses add column if not exists last_ip text not null default '';
@@ -293,11 +300,12 @@ where slug in ('fabric-mod', 'combat', 'movement', 'render', 'donut')
 -- Default settings
 insert into public.site_settings (key, value)
 values
-  ('announcement_text', '🔥 Champ Client 0.9.9.1 is out for Minecraft 1.21.11 Fabric Loader! Get Lifetime for €9.99 or Monthly for €6.99.'),
+  ('Product, plans, installation, accounts, customer support', 'Champ Client is a Windows injector for Minecraft Java 1.21.11. It is not a mod and not a jar: nothing is placed in the mods folder. The customer keeps their own Fabric Loader profile, starts the game, and runs one .exe that signs in to their Champ account and injects the client into the game that is already running. Plans: EUR 9.99 lifetime and EUR 6.99 monthly. Customers register with username, password, and email, then verify a 6-digit email code valid for 10 minutes; the email provider must be configured on Vercel before sending works. Purchases use Stripe Checkout, licenses are assigned by a Stripe webhook, and the injector is downloaded from the customer dashboard. Texture packs are public or customer-only. Site administration can manage announcements, Discord links, homepage and feature videos, features, reviews, texture pack files, orders, referrals and community finds. Only report facts confirmed by current records/site; do not invent features, user reviews, downloads, compatibility, guarantees or legal claims. If a detail is not found in the knowledge, say you do not have verified information and direct to the support link. Never disclose or request credentials, license keys or private account data.'),
+'announcement_text', '🔥 Champ Client 0.9.9.1 is out for Minecraft 1.21.11 Fabric Loader! Get Lifetime for €9.99 or Monthly for €6.99.'),
   ('announcement_enabled', 'true'),
   ('discord_link', 'https://discord.gg/6vyQnVjeX'),
   ('youtube_video_url', ''),
-  ('hero_tagline', 'The Ultimate Minecraft 1.21.11 Fabric Mod')
+  ('hero_tagline', 'The Ultimate Minecraft 1.21.11 Injector')
 on conflict (key) do nothing;
 
 -- Default reviews
@@ -306,15 +314,14 @@ values
   ('VortexPvP', 5, 'Best client mod I have used for 1.21.11. The Fabric integration is butter smooth and crystal PvP is instant.', 'Verified Buyer', 'approved', 1),
   ('Kxng_Shadow', 5, 'Lifetime for 9.99 is insane value. Base finder and anchor macro worked immediately without any lag or frame drops.', 'Lifetime Member', 'approved', 2),
   ('DonutGrinder99', 5, 'Been using it on DonutSMP for weeks. Auto totems and AH sniper are unbeatable.', 'Verified Buyer', 'approved', 3),
-  ('EliteCrafter', 5, 'The new UI is super clean and being a mod means you just put it in the mods folder. 10/10.', 'Verified Buyer', 'approved', 4)
+  ('EliteCrafter', 5, 'The new UI is super clean and the injector attaches to the game in a second. 10/10.', 'Verified Buyer', 'approved', 4)
 on conflict do nothing;
 
 -- Default texture packs
 insert into public.ai_knowledge (title, body)
 values
-  ('Product, plans, installation, accounts, customer support', 'Champ Client is a Minecraft Java Fabric mod for Minecraft 1.21.11, installed as a .jar in the mods folder alongside Fabric Loader (not an injection tool). Plans: EUR 9.99 lifetime and EUR 6.99 monthly. Customers register with username, password, and email, then verify a 6-digit email code valid for 10 minutes; the email provider must be configured on Vercel before sending works. Purchases use Stripe Checkout, licenses are assigned by a Stripe webhook, downloads are authorized from the customer dashboard. Texture packs are public or customer-only. Site administration can manage announcements, Discord links, homepage and feature videos, features, reviews, texture pack files, orders, referrals and community finds. Only report facts confirmed by current records/site; do not invent features, user reviews, downloads, compatibility, guarantees or legal claims. If a detail is not found in the knowledge, say you do not have verified information and direct to the support link. Never disclose or request credentials, license keys or private account data.'),
-  ('Installation', 'Install Fabric Loader for Minecraft 1.21.11, then place the Champ loader JAR from the customer dashboard in the Minecraft mods folder and launch that Fabric profile. Customers download Champ Loader (stable) or Champ Beta, not a separate client JAR: the client travels inside the loader. On the first launch the loader fetches the current client build, after which Minecraft should be closed fully and started once more. Ensure required dependencies listed with the current release are installed. Do not claim support for other Minecraft versions unless documented by the current release notes.'),
-  ('Loaders: Champ Loader and Champ Beta', 'Two loaders ship from the dashboard: Champ Loader (stable) and Champ Beta (its own update channel, for testing beta builds). Exactly one of them may sit in the mods folder; the loader that starts removes the other one automatically and tells the player to delete it by hand when Windows keeps the file locked. Both loaders update themselves and the client automatically, so a new build never means downloading a new jar. The client is nested inside the loader and never appears in mods.'),
+  ('Product, plans, installation, accounts, customer support', 'Champ Client is a Windows injector for Minecraft Java 1.21.11. It is not a mod and not a jar: nothing is placed in the mods folder. The customer keeps their own Fabric Loader profile, starts the game, and runs one .exe that signs in to their Champ account and injects the client into the game that is already running. Plans: EUR 9.99 lifetime and EUR 6.99 monthly. Customers register with username, password, and email, then verify a 6-digit email code valid for 10 minutes; the email provider must be configured on Vercel before sending works. Purchases use Stripe Checkout, licenses are assigned by a Stripe webhook, downloads are authorized from the customer dashboard. Texture packs are public or customer-only. Site administration can manage announcements, Discord links, homepage and feature videos, features, reviews, texture pack files, orders, referrals and community finds. Only report facts confirmed by current records/site; do not invent features, user reviews, downloads, compatibility, guarantees or legal claims. If a detail is not found in the knowledge, say you do not have verified information and direct to the support link. Never disclose or request credentials, license keys or private account data.'),
+  ('Installation', 'The install is the injector, not a jar. Order matters: (1) start Minecraft 1.21.11 on the Fabric profile the customer normally plays and wait in the main menu; (2) run the .exe downloaded from the dashboard; (3) sign in with the Champ account inside the splash and press inject; (4) Windows may ask for permission, which is the injection itself; (5) the splash says Champ is running and closes itself. Minecraft does not have to be restarted, and nothing is ever placed in the mods folder. Every download gets a random file name, so never tell a customer a fixed file name. Keep the file: the session is remembered and later sessions only need Minecraft open plus the same file. A newer release is a new download that replaces the old one. If the game is not running the splash says so and offers Retry. Do not claim support for other Minecraft versions unless documented by the current release notes.'),
   ('Licence keys by e-mail', 'Every purchase, and every key that support hands out or edits, is e-mailed automatically to the customer address with the key in the message plus a thank-you note; the same key is shown in the customer dashboard. Keys look like CHAMP-XXXX-XXXX-XXXX-XXXX. Never ask a customer to post a key in chat and never repeat a key back.'),
   ('Billing', 'The site lists EUR 9.99 lifetime (one-time) and EUR 6.99 monthly. Monthly plans can be managed/cancelled through the customer dashboard when billing is configured. Support handles purchase and account problems.')
 on conflict do nothing;

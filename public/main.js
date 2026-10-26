@@ -35,6 +35,24 @@ function showMessage(id, text, isError) {
   el.style.color = isError ? '#ff6b6b' : '#4ade80';
 }
 
+// ---- Downloads ----
+// The launcher is one executable and every copy gets its own name: two downloads never collide in
+// the Downloads folder, and a file name says nothing about which build it is. The browser takes the
+// name from the download attribute, so the name is per click, generated here.
+function randomDownloadName() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+  const bytes = new Uint8Array(8);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join('');
+}
+
+document.addEventListener('click', (event) => {
+  const target = event.target instanceof Element ? event.target : null;
+  const link = target ? target.closest('a[data-champ-download]') : null;
+  if (!link) return;
+  link.setAttribute('download', `${randomDownloadName()}.exe`);
+}, true);
+
 // Only allow redirects to our own pages (after login)
 function safeNext(value) {
   return /^[a-z]+\.html(\?[A-Za-z0-9=&_-]*)?$/.test(value || '') ? value : 'dashboard.html';
@@ -616,8 +634,7 @@ function renderLicense(kind, lic) {
   const state = { text: 'Active', className: 'status-badge status-active' };
   let html = `<div class="license-box">${escapeHtml(lic.key)}</div>`;
   if (kind === 'monthly' && lic.expires_at) html += `<p class="no-license-text" style="margin-bottom:12px">Renews / ends around ${fmtDate(lic.expires_at)}</p>`;
-  html += `<a href="downloads/champ-loader.jar?v=0.4.0" class="btn-download" download>Download Champ Loader</a>`;
-  html += `<a href="downloads/champ-beta.jar" class="btn-download" download>Download Champ Beta</a>`;
+  html += `<a href="downloads/champ-client.exe" class="btn-download" data-champ-download download>Download Champ Client</a>`;
   paint(state, html);
 
   if (kind === 'monthly' && lic.can_manage) {
@@ -754,14 +771,27 @@ function initDashboardExtras(data) {
       }
       const next = d.next_free_reset_at ? new Date(d.next_free_reset_at).toLocaleDateString() : '';
       box.innerHTML = `
-        <p class="no-license-text">One PC per key: the loader binds your hardware the first time it starts, so a shared key does not work on a second PC.</p>
+        <p class="no-license-text">One PC per key: the injector binds your hardware the first time it runs, so a shared key does not work on a second PC.</p>
         <div class="license-box">${d.device ? escapeHtml(d.device) : 'No device linked yet'}</div>
-        <p class="no-license-text">${d.bound_at ? 'Linked on ' + escapeHtml(new Date(d.bound_at).toLocaleString()) : 'Start the loader once to link this PC.'}</p>
+        <p class="no-license-text">${d.bound_at ? 'Linked on ' + escapeHtml(new Date(d.bound_at).toLocaleString()) : 'Run the injector once to link this PC.'}</p>
         ${d.device ? (d.free_reset
           ? '<button class="btn-ghost" type="button" id="deviceResetFree">Reset device (free)</button>'
           : `<button class="btn-ghost" type="button" id="deviceResetPaid">Reset device (${money(d.reset_price_cents)})</button>
              <p class="no-license-text" style="margin-top:10px">Free reset used${next ? `; available again on ${escapeHtml(next)}` : ''}. A paid reset clears it immediately.</p>`) : ''}
+
+        <p class="no-license-text" style="margin-top:22px">Network: Champ only injects from the network your key is linked to. Resetting it is free and unlimited &mdash; a new router, a VPN or a move is never a lockout.</p>
+        <div class="license-box">${d.ip_bound ? escapeHtml(d.ip) : 'No network linked yet'}</div>
+        <p class="no-license-text">${d.ip_bound_at ? 'Linked on ' + escapeHtml(new Date(d.ip_bound_at).toLocaleString()) : 'Your next check-in links the network you are on.'}</p>
+        <button class="btn-ghost" type="button" id="networkReset">Reset network (free)</button>
       `;
+
+      document.getElementById('networkReset')?.addEventListener('click', async (e) => {
+        e.target.disabled = true;
+        const r = await api('/api/account/device/reset/ip', { method: 'POST', body: '{}' });
+        say(r.ok ? (r.data.message || 'Network unlocked.') : errorText(r.data, 'Could not reset your network.'), r.ok);
+        await render();
+        document.getElementById('networkReset')?.blur();
+      });
 
       document.getElementById('deviceResetFree')?.addEventListener('click', async (e) => {
         e.target.disabled = true;
@@ -1584,7 +1614,6 @@ async function loadAdminPanel() {
   loadAdminTexturePacks();
   loadAdminReviews();
   loadAdminAIKnowledge();
-  loadAdminDownloads();
   loadAdminChangelog();
   loadAdminFeatures();
 }
@@ -1914,121 +1943,6 @@ function renderAdminDashboardIcons(raw) {
       `<option value="${name}"${name === current ? ' selected' : ''}>${name}</option>`).join('');
     return `<label>${label}<select data-icon-section="${section}">${options}</select></label>`;
   }).join('');
-}
-
-// ============================================================
-// Admin: client JAR uploads
-// ============================================================
-function formatBytes(bytes) {
-  const size = Number(bytes) || 0;
-  if (!size) return 'unknown size';
-  if (size >= 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
-  if (size >= 1024) return `${Math.round(size / 1024)} KB`;
-  return `${size} bytes`;
-}
-
-function planLabel(plan) {
-  return plan === 'lifetime' ? 'Lifetime' : 'Monthly';
-}
-
-async function loadAdminDownloads() {
-  const wrap = document.getElementById('adminDownloads');
-  if (!wrap) return;
-  let res;
-  try {
-    res = await api('/api/admin/downloads');
-  } catch (_) {
-    wrap.innerHTML = '<p class="no-license-text">Could not load the client files.</p>';
-    return;
-  }
-  if (!res.ok) {
-    wrap.innerHTML = `<p class="no-license-text">${escapeHtml(errorText(res.data, 'Could not load the client files.'))}</p>`;
-    return;
-  }
-  const items = res.data.downloads || [];
-  wrap.innerHTML = items.map(item => `
-    <div class="admin-feature" data-jar-plan="${escapeAttr(item.plan)}">
-      <h2>${planLabel(item.plan)} client JAR</h2>
-      <p class="no-license-text">${item.custom
-        ? `Current file: <strong>${escapeHtml(item.filename)}</strong> (${formatBytes(item.size_bytes)}). Customers on the ${item.plan} plan download this file.`
-        : 'No custom JAR uploaded yet — the default hosted file is used.'}</p>
-      <label>Upload or replace the .jar (max 100 MB)<input type="file" accept=".jar,application/java-archive" data-jar-input="${escapeAttr(item.plan)}"></label>
-      <div style="display:flex; gap:10px; flex-wrap:wrap">
-        <button class="btn-primary" type="button" data-jar-upload="${escapeAttr(item.plan)}">Upload JAR</button>
-        ${item.custom ? `<button class="btn-ghost" type="button" data-jar-remove="${escapeAttr(item.plan)}">Remove custom file</button>` : ''}
-      </div>
-      <p class="save-message" data-jar-msg="${escapeAttr(item.plan)}" style="display:none"></p>
-    </div>
-  `).join('');
-
-  wrap.querySelectorAll('[data-jar-upload]').forEach(button => {
-    button.addEventListener('click', async () => {
-      const plan = button.dataset.jarUpload;
-      const input = wrap.querySelector(`[data-jar-input="${plan}"]`);
-      const file = input && input.files && input.files[0];
-      const msg = wrap.querySelector(`[data-jar-msg="${plan}"]`);
-      if (!file) {
-        msg.style.display = 'block';
-        msg.style.color = '#ff6b6b';
-        msg.textContent = 'Choose a .jar file first.';
-        return;
-      }
-      if (!/\.jar$/i.test(file.name)) {
-        msg.style.display = 'block';
-        msg.style.color = '#ff6b6b';
-        msg.textContent = 'Choose a .jar file.';
-        return;
-      }
-      if (file.size > 100 * 1024 * 1024) {
-        msg.style.display = 'block';
-        msg.style.color = '#ff6b6b';
-        msg.textContent = 'The JAR must be 100 MB or smaller.';
-        return;
-      }
-      button.disabled = true;
-      msg.style.display = 'block';
-      msg.style.color = 'var(--muted)';
-      msg.textContent = 'Preparing upload…';
-      try {
-        const prep = await api('/api/admin/downloads/upload-url', {
-          method: 'POST', body: JSON.stringify({ plan, filename: file.name }),
-        });
-        if (!prep.ok) throw new Error(errorText(prep.data, 'Could not prepare the upload.'));
-        await new Promise((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.open('PUT', prep.data.upload_url);
-          xhr.setRequestHeader('Content-Type', 'application/java-archive');
-          xhr.upload.onprogress = event => {
-            if (event.lengthComputable) msg.textContent = `Uploading… ${Math.round((event.loaded / event.total) * 100)}%`;
-          };
-          xhr.onload = () => (xhr.status < 400 ? resolve() : reject(new Error(`Storage rejected the upload (${xhr.status}).`)));
-          xhr.onerror = () => reject(new Error('The upload connection failed. Please try again.'));
-          xhr.send(file);
-        });
-        msg.textContent = 'Saving…';
-        const saved = await api('/api/admin/downloads', {
-          method: 'POST',
-          body: JSON.stringify({ plan, storage_path: prep.data.path, filename: file.name, size_bytes: file.size }),
-        });
-        if (!saved.ok) throw new Error(errorText(saved.data, 'Could not save the JAR.'));
-        loadAdminDownloads();
-      } catch (error) {
-        msg.style.color = '#ff6b6b';
-        msg.textContent = error.message || 'Upload failed.';
-        button.disabled = false;
-      }
-    });
-  });
-
-  wrap.querySelectorAll('[data-jar-remove]').forEach(button => {
-    button.addEventListener('click', async () => {
-      const plan = button.dataset.jarRemove;
-      if (!confirm(`Remove the uploaded ${plan} JAR? The default file is used again.`)) return;
-      const res = await api(`/api/admin/downloads/${encodeURIComponent(plan)}`, { method: 'DELETE' });
-      if (res.ok) loadAdminDownloads();
-      else alert(errorText(res.data, 'Could not remove the JAR.'));
-    });
-  });
 }
 
 // ============================================================

@@ -91,7 +91,7 @@
     <button class="sidebar-link admin-tab" data-tab="orders" type="button"><span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-key"></use></svg></span><span>Orders &amp; keys</span></button>
     <button class="sidebar-link admin-tab" data-tab="discounts" type="button"><span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-tag"></use></svg></span><span>Discounts</span></button>
     <button class="sidebar-link admin-tab" data-tab="texture-packs" type="button"><span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-layers"></use></svg></span><span>Texture packs</span></button>
-    <button class="sidebar-link admin-tab" data-tab="downloads" type="button"><span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-download"></use></svg></span><span>Client JAR</span></button>
+    <button class="sidebar-link admin-tab" data-tab="downloads" type="button"><span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-download"></use></svg></span><span>Injector</span></button>
 
     <div class="sidebar-label">Community</div>
     <button class="sidebar-link admin-tab" data-tab="finds" type="button"><span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-pin"></use></svg></span><span>Base finds</span></button>
@@ -131,7 +131,7 @@
           </label>
           <label>Discord invite link<input name="discord_link" id="settingDiscordLink" placeholder="https://discord.gg/..."></label>
           <label>Homepage showcase video URL (YouTube embed or MP4 direct link)<input name="youtube_video_url" id="settingYoutubeUrl" placeholder="https://www.youtube.com/embed/..."></label>
-          <label>Hero tagline<input name="hero_tagline" id="settingHeroTagline" placeholder="Minecraft 1.21.11 Fabric Mod"></label>
+          <label>Hero tagline<input name="hero_tagline" id="settingHeroTagline" placeholder="Minecraft 1.21.11 Injector"></label>
 
           <h3 style="margin-top:10px">Page texts</h3>
           <p class="no-license-text" style="margin-top:-10px">Use <code>*text*</code> for the purple highlight and <code>|</code> for a line break.</p>
@@ -287,16 +287,16 @@
       </article>
     </section>
 
-    <!-- TAB: CLIENT JAR -->
+    <!-- TAB: INJECTOR -->
     <section class="admin-tabpage" id="tab-downloads" style="display:none">
       <article class="dash-card">
         <div class="admin-section-head">
           <div>
-            <h2>Client JAR downloads</h2>
-            <p class="no-license-text">Upload the .jar customers receive. Files are stored privately and only customers with an active license for that plan can download them. Uploads go straight to storage, so large JARs work too.</p>
+            <h2>Injector download</h2>
+            <p class="no-license-text">Champ ships as one injector: <code>public/downloads/champ-client.exe</code>. The client, the agent and the logo live inside that single file, and it injects into the Minecraft the customer already has open &mdash; there is no jar and nothing goes into mods.</p>
+            <p class="no-license-text">A new release means rebuilding the injector (<code>./native/build.sh</code> for Windows, <code>./linux/build.sh</code> for Linux) and deploying the site. There is nothing to upload here: the file in the deployment <em>is</em> the download, and every customer gets it under a random name.</p>
           </div>
         </div>
-        <div id="adminDownloads" class="admin-editor"><p class="no-license-text">Loading client files...</p></div>
       </article>
     </section>
 

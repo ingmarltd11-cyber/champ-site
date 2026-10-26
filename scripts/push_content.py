@@ -33,18 +33,18 @@ DEFAULT_SITE = "https://champ-site-psi.vercel.app"
 
 CHANGELOG = {
     "version": "0.9.9.2",
-    "title": "Champ Beta loader and a self-updating install",
+    "title": "One injector: no jar, no loader",
     "released_at": datetime.date.today().isoformat(),
     "published": True,
     "body": (
-        "- Champ Beta: a second loader with its own update channel, for trying beta builds "
-        "instead of the stable loader\n"
-        "- One loader in mods: the loader that starts removes the other one, so the client can "
-        "never load twice\n"
-        "- Self-updating install: the loader updates itself and the client, so a new build never "
-        "means downloading a new jar\n"
-        "- Licence keys arrive by e-mail on purchase and whenever support hands out or changes a key\n"
-        "- In-game branding refreshed: the client introduces itself as Champ Beta\n"
+        "- Champ is now a single .exe injector: keep your own Minecraft 1.21.11 Fabric profile "
+        "and inject the client into the game that is already running\n"
+        "- Nothing goes into the mods folder anymore, there is no jar and no loader to install\n"
+        "- Start Minecraft first, then run the injector: it signs in, checks the license and this PC, "
+        "injects, and closes itself once it says Champ is running\n"
+        "- No restart after injecting and no second launcher to keep track of\n"
+        "- Every download gets its own random file name, so keep the file where you can find it\n"
+        "- Reset network and reset device live in the injector splash and in your dashboard\n"
         "\n"
         "*Lifetime* is EUR 9.99 and *Monthly* is EUR 6.99."
     ),
@@ -52,16 +52,15 @@ CHANGELOG = {
 
 KNOWLEDGE = [
     {
-        "title": "Loaders: Champ Loader and Champ Beta",
+        "title": "Installation: one injector, no jar",
         "body": (
-            "Customers download a Champ loader jar from the dashboard, never a separate client jar. "
-            "Exactly one loader goes into the Minecraft mods folder: Champ Loader (stable) or Champ Beta "
-            "(its own update channel, for beta builds). The client is nested inside the loader and never "
-            "appears in mods. On the first launch the loader fetches the current client build, after which "
-            "Minecraft should be closed fully and started once more. Both loaders update themselves and the "
-            "client automatically; a new build never needs a manual download. Only one Champ loader may sit "
-            "in mods: the loader that starts removes the other one, and when Windows keeps that file locked "
-            "it tells the player to delete the other jar by hand."
+            "Champ Client is a Windows injector for Minecraft 1.21.11, not a mod. Customers download one .exe "
+            "from their dashboard; nothing is placed in the mods folder, there is no jar and no loader. The order "
+            "matters: start Minecraft first on the Fabric profile they normally play and stay in the main menu, then "
+            "run the downloaded file and sign in with the Champ account. The splash checks the license, this PC and "
+            "the network, injects, and closes itself once it says Champ is running. Minecraft never has to be "
+            "restarted. Every download gets a random file name, so never tell a customer a fixed file name; the file "
+            "can be kept and reused, and a newer release is simply a new download that replaces it."
         ),
     },
     {
@@ -74,7 +73,6 @@ KNOWLEDGE = [
         ),
     },
 ]
-
 
 class Api:
     def __init__(self, site: str) -> None:

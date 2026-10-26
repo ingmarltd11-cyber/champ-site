@@ -88,8 +88,7 @@ MAX_TEXTURE_PACK_BYTES = 32 * 1024 * 1024
 SITE_MEDIA_BUCKET = os.getenv("SITE_MEDIA_BUCKET", "site-media")
 # Vercel rejects request bodies above ~4.5 MB, and base64 adds a third, so 3 MB is the real cap.
 MAX_SITE_IMAGE_BYTES = 3 * 1024 * 1024
-JAR_MAX_BYTES = 100 * 1024 * 1024
-FROM_EMAIL = os.getenv("FROM_EMAIL", "Champ Beta <onboarding@resend.dev>")
+FROM_EMAIL = os.getenv("FROM_EMAIL", "Champ <onboarding@resend.dev>")
 DEV_MODE = os.getenv("DEV_MODE", "").lower() in ("1", "true", "yes")
 # Email verification is off by default: without a domain there is no reliable sender,
 # and the shop can run with instant accounts. Set EMAIL_VERIFICATION=true to restore it.
@@ -100,16 +99,13 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
 GRACE_HOURS = 24  # extra access after a subscription period ends (renewal lag)
 
 PLANS = ("monthly", "lifetime")
-DOWNLOAD_FILES = {
-    "monthly": ("monthly.jar", "ChampClient-Monthly.jar"),
-    "lifetime": ("lifetime.jar", "ChampClient-Lifetime.jar"),
-}
-# The client that ships with this deployment. It is the same build for both plans; whether access
-# is monthly or lifetime is decided by the license and its expiry, never by the JAR contents.
-PUBLIC_CLIENT_FILE = "ChampClient.jar"
-# Bumped whenever downloads/ChampClient.jar changes: a build id newer than the uploaded row is served
-# straight from this deployment, so a client update is one commit instead of an admin upload.
-PUBLIC_CLIENT_BUILD = "2026-10-25T19:18:56Z"
+# The only download there is: the injector. One executable with the client, the agent and the logo
+# inside, injected into the game the customer already has open. No jar, no per-plan file, nothing to
+# upload; the plan only decides whether the license is active.
+DIST_CLIENT_FILE = "champ-client.exe"
+# Bumped whenever public/downloads/champ-client.exe is replaced, so the dashboard can show which
+# release a customer has and an older injector can notice it is behind. One commit, no admin visit.
+PUBLIC_CLIENT_BUILD = "2026-10-26T20:00:00Z"
 # A challenge is signed by the PC's Ed25519 key and must come back quickly.
 DEVICE_CHALLENGE_SECONDS = 120
 PLAN_PRICES = {
@@ -341,7 +337,7 @@ def email_html(title: str, intro: str, button_url: Optional[str] = None, button_
         '<div style="font-family:Arial,sans-serif;background:#0a0a0a;padding:32px;color:#f0ede8">'
         '<div style="max-width:480px;margin:auto;background:#141414;border-radius:12px;padding:32px">'
         f'<h2 style="margin-top:0">{html.escape(title)}</h2><p style="line-height:1.6">{intro}</p>{button}'
-        '<p style="color:#666;font-size:12px;margin-bottom:0">Champ Beta</p></div></div>'
+        '<p style="color:#666;font-size:12px;margin-bottom:0">Champ</p></div></div>'
     )
 
 
@@ -381,7 +377,7 @@ def send_email(to: str, subject: str, body_html: str) -> None:
             port = int(os.getenv("SMTP_PORT") or "465")
         except ValueError:
             port = 465
-        sender = os.getenv("SMTP_FROM") or f"Champ Beta <{user}>"
+        sender = os.getenv("SMTP_FROM") or f"Champ <{user}>"
         message = EmailMessage()
         message["From"] = sender
         message["To"] = to
@@ -431,15 +427,15 @@ def send_verification_code(user: dict) -> None:
         '<div style="font-family:Arial,sans-serif;background:#0a0a0a;padding:32px;color:#f0ede8">'
         '<div style="max-width:480px;margin:auto;background:#141414;border-radius:12px;padding:32px">'
         '<h2 style="margin-top:0;color:#fff">Verify your email</h2>'
-        f'<p style="line-height:1.6;color:#ddd">Hi {html.escape(user["username"])}, enter this code on Champ Beta:</p>'
+        f'<p style="line-height:1.6;color:#ddd">Hi {html.escape(user["username"])}, enter this code on Champ:</p>'
         '<div style="background:#0d0d0d;border:1px solid #333;border-radius:8px;padding:20px;text-align:center;margin:25px 0">'
         f'<span style="font-size:32px;font-weight:bold;letter-spacing:10px;color:#fff">{code}</span>'
         '</div>'
         '<p style="color:#888;font-size:13px">This code expires in 10 minutes.</p>'
-        '<p style="color:#666;font-size:12px;margin-bottom:0">Champ Beta</p>'
+        '<p style="color:#666;font-size:12px;margin-bottom:0">Champ</p>'
         '</div></div>'
     )
-    send_email(user["email"], "Your Champ Beta verification code", body)
+    send_email(user["email"], "Your Champ verification code", body)
     db_update("users", {"id": eq(user["id"])}, {"last_email_at": iso(now())})
 
 
@@ -528,7 +524,7 @@ def license_active(lic: Optional[dict]) -> bool:
 # Hardware binding (one device per key)
 # --------------------------------------------------------------------------
 def normalize_hwid(value: str) -> str:
-    """The loader sends a SHA-256 of its hardware fingerprint, so only hex is allowed."""
+    """The injector sends a SHA-256 of its hardware fingerprint, so only hex is allowed."""
     hwid = re.sub(r"[^a-fA-F0-9]", "", (value or "")).lower()
     if len(hwid) < 32 or len(hwid) > 128:
         raise HTTPException(400, "That hardware ID is not valid.")
@@ -536,35 +532,27 @@ def normalize_hwid(value: str) -> str:
 
 
 def public_site() -> str:
-    """Absolute site URL for links the loader and Stripe have to follow."""
+    """Absolute site URL for links the injector and Stripe have to follow."""
     return (os.getenv("SITE_URL") or "https://champ-site-psi.vercel.app").rstrip("/")
 
 
 def public_client_url() -> str:
-    """The client JAR deployed with the site."""
-    return f"{public_site()}/downloads/{PUBLIC_CLIENT_FILE}"
+    """The Champ injector deployed with the site.
 
-
-def deployed_client_is_newer(uploaded_build: str) -> bool:
-    """True when the JAR shipped with this deployment is newer than the uploaded build.
-
-    Both sides carry an ISO timestamp as their build id, so they can be compared as times; anything
-    unreadable falls back to a plain string compare, which keeps an admin upload usable. With this,
-    a client update is one commit that replaces downloads/ChampClient.jar and bumps
-    PUBLIC_CLIENT_BUILD: the loader downloads it at the next start and installs it when the game
-    closes, so nobody needs a new loader JAR and no admin panel visit is involved.
+    One file for both plans: the injector puts the client into the game the customer already has
+    open, so there is no jar and nothing to install. The build stamp lets an older injector notice a
+    newer release.
     """
-    if not PUBLIC_CLIENT_BUILD:
-        return False          # deployments without a stamp leave the uploaded build in charge
-    if not uploaded_build:
-        return True
-    try:
-        mine, theirs = parse_dt(PUBLIC_CLIENT_BUILD), parse_dt(uploaded_build)
-    except ValueError:
-        mine = theirs = None
-    if mine is not None and theirs is not None:
-        return mine > theirs
-    return str(PUBLIC_CLIENT_BUILD) > str(uploaded_build)
+    return f"{public_site()}/downloads/{DIST_CLIENT_FILE}"
+
+
+def injector_info() -> dict:
+    """Where the injector lives and which build it is.
+
+    There is no per-plan file and nothing to upload: the executable in this deployment *is* the
+    download. The plan decides whether the license is active, never which file arrives.
+    """
+    return {"client_url": public_client_url(), "build": PUBLIC_CLIENT_BUILD}
 
 
 def mask_hwid(hwid: Optional[str]) -> str:
@@ -651,28 +639,6 @@ def client_ip(request: Request) -> str:
     if forwarded:
         return forwarded
     return request.client.host if request.client else ""
-
-
-def license_jar_info(lic: dict) -> tuple:
-    """Client JAR link plus its build id, after the hardware check.
-
-    An admin upload always wins. Without one, the build that ships with this deployment is used,
-    for monthly and lifetime alike: the plan only changes when the license expires. The build id
-    lets the loader skip the download when mods/ already holds this exact build.
-    """
-    plan = lic.get("plan_type") if lic.get("plan_type") in PLANS else "lifetime"
-    try:
-        uploaded = db_get("download_files", {"plan": eq(plan)})
-    except Exception as exc:
-        print("Download mapping unavailable:", type(exc).__name__)
-        uploaded = None
-    if uploaded and uploaded.get("storage_path"):
-        filename = uploaded.get("filename") or DOWNLOAD_FILES[plan][1]
-        build = str(uploaded.get("updated_at") or uploaded.get("created_at") or "")
-        if deployed_client_is_newer(build):
-            return public_client_url(), PUBLIC_CLIENT_BUILD
-        return signed_download_url(uploaded["storage_path"], filename), build
-    return public_client_url(), PUBLIC_CLIENT_BUILD
 
 
 def free_reset_available(lic: dict) -> bool:
@@ -807,7 +773,7 @@ def on_checkout_completed(session: dict) -> None:
         except Exception as exc:
             print("Referral credit failed:", exc)
     try:
-        send_email(email, "Your Champ Beta license",
+        send_email(email, "Your Champ license",
                    email_html("Thanks for your purchase!",
                               f"Your {plan} license key:<br><b style='font-size:18px'>{html.escape(lic['license_key'])}</b><br><br>"
                               "Log in to your dashboard to download the client.",
@@ -1039,18 +1005,6 @@ class SiteImageReq(BaseModel):
     kind: str = "feature"
     filename: str = ""
     image_base64: str
-
-
-class JarUploadUrlReq(BaseModel):
-    plan: str
-    filename: str
-
-
-class JarConfirmReq(BaseModel):
-    plan: str
-    storage_path: str
-    filename: str
-    size_bytes: int = 0
 
 
 class ChangelogCreateReq(BaseModel):
@@ -1497,9 +1451,9 @@ def verify_code(p: VerifyCodeReq, response: Response):
     user["email_verified"] = True
     set_session(response, user)
     try:
-        send_email(email, "Welcome to Champ Beta",
+        send_email(email, "Welcome to Champ",
                    email_html("Your account is ready!",
-                              f"Hi {html.escape(user['username'])}, your Champ Beta account is verified. "
+                              f"Hi {html.escape(user['username'])}, your Champ account is verified. "
                               "Sign in to your dashboard to manage licenses and downloads.",
                               f"{SITE_URL}/dashboard.html", "Open dashboard"))
     except Exception as exc:
@@ -1627,7 +1581,7 @@ def forgot_password(p: EmailReq):
     user = db_get("users", {"email": eq(p.email.lower())})
     if user and throttle_ok(user):
         token = make_token(user["email"], "reset", 60, {"fp": fingerprint(user["password_hash"])})
-        send_email(user["email"], "Reset your Champ Beta password",
+        send_email(user["email"], "Reset your Champ password",
                    email_html("Reset your password", "Use the button below to choose a new password. This link is valid for 1 hour.",
                               f"{SITE_URL}/reset.html?token={token}", "Choose new password"))
         db_update("users", {"id": eq(user["id"])}, {"last_email_at": iso(now())})
@@ -1673,7 +1627,7 @@ def request_payment_link(p: PaymentLinkReq):
         ref = None
     db_insert("pending_payments", {"uid": str(uid), "email": email, "plan_type": plan, "referral_code": ref})
     link = f"{SITE_URL}/payment.html?uid={uid}"
-    send_email(email, f"Complete your Champ Beta {plan} purchase",
+    send_email(email, f"Complete your Champ {plan} purchase",
                email_html("Complete your purchase", f"Click below to continue to checkout for the <b>{plan}</b> plan. This link is valid for 24 hours.",
                           link, "Continue to checkout"))
     result = {"message": "Link sent."}
@@ -1761,170 +1715,32 @@ def dashboard(user: dict = Depends(current_user)):
             "discord_username": user.get("discord_username"), "discord_linked": bool(user.get("discord_id"))}
 
 
-def signed_download_url(path: str, filename: str) -> str:
-    r = requests.post(
-        f"{SUPABASE_URL}/storage/v1/object/sign/{DOWNLOAD_BUCKET}/{path}",
-        headers=_sb_headers(), json={"expiresIn": 60}, timeout=15,
-    )
-    if r.status_code >= 400:
-        print("Storage sign error:", r.status_code, r.text)
-        raise HTTPException(502, "Download is temporarily unavailable.")
-    body = r.json()
-    signed = body.get("signedURL") or body.get("signedUrl")
-    if not signed:
-        raise HTTPException(502, "Download is temporarily unavailable.")
-    full = signed if signed.startswith("http") else f"{SUPABASE_URL}/storage/v1{signed}"
-    return f"{full}{'&' if '?' in full else '?'}download={quote(filename)}"
-
-
 @app.get("/api/client/latest")
 def latest_client():
-    """Build info for a fresh install.
+    """Build info for a fresh install: the injector, which is a public file.
 
-    The loader needs the client JAR before it can ask for a key in-game, so this one download is
-    public. The JAR itself is useless without a license: the client keeps every module disabled
-    until a key is bound to this PC.
+    The client inside it stays disabled without a license bound to this PC, so handing the file out
+    is safe.
     """
-    try:
-        uploaded = [row for row in db_list("download_files", {}) if row.get("storage_path")]
-    except Exception as exc:
-        print("Public client lookup failed:", type(exc).__name__)
-        uploaded = []
-    preferred = next((row for row in uploaded if row.get("plan") == "lifetime"), None) \
-        or (uploaded[0] if uploaded else None)
-    try:
-        preferred_build = ""
-        if preferred:
-            preferred_build = str(preferred.get("updated_at") or preferred.get("created_at") or "")
-        if preferred and not deployed_client_is_newer(preferred_build):
-            jar_url = signed_download_url(preferred["storage_path"],
-                                          preferred.get("filename") or "ChampClient.jar")
-            build = preferred_build
-        else:
-            # The build that ships with this deployment wins: it is a newer release than the row.
-            jar_url, build = license_jar_info({"plan_type": "lifetime"})
-    except Exception as exc:
-        print("Public client link failed:", type(exc).__name__)
-        raise HTTPException(404, "No client build is published yet.")
-    return {"jar_url": jar_url, "build": build}
+    return injector_info()
 
 
 @app.get("/api/download/{plan}")
 def download(plan: str, user: dict = Depends(current_user)):
-    if plan not in DOWNLOAD_FILES:
+    """Sends a licensed customer to the injector.
+
+    Both plans get the same executable, because the injector carries the client and puts it into the
+    running game; the plan only decides whether this account may use it.
+    """
+    if plan not in PLANS:
         raise HTTPException(404, "Unknown download.")
     if user.get("is_admin"):
-        # Admins hold a lifetime license and may fetch either build for testing.
+        # Admins hold a lifetime license and may test the download too.
         ensure_admin_license(user)
     elif not license_active(db_get("licenses", {"email": eq(user["email"]), "plan_type": eq(plan)})):
         raise HTTPException(403, f"You don't have an active {plan} license.")
-    try:
-        uploaded = db_get("download_files", {"plan": eq(plan)})
-    except Exception as exc:
-        print("Download mapping unavailable:", type(exc).__name__)
-        uploaded = None
-    if uploaded and uploaded.get("storage_path"):
-        filename = uploaded.get("filename") or DOWNLOAD_FILES[plan][1]
-        target = signed_download_url(uploaded["storage_path"], filename)
-    else:
-        target = public_client_url()
-    return RedirectResponse(target, status_code=302, headers={"Cache-Control": "no-store"})
-
-
-# --------------------------------------------------------------------------
-# Admin: client JAR uploads
-# --------------------------------------------------------------------------
-def safe_jar_name(filename: str) -> str:
-    name = re.sub(r"[^A-Za-z0-9_.-]", "_", (filename or "")[:120]).strip("._")
-    name = name or "ChampClient.jar"
-    return name if name.lower().endswith(".jar") else f"{name}.jar"
-
-
-@app.get("/api/admin/downloads")
-def admin_downloads(admin: dict = Depends(current_admin)):
-    try:
-        rows = db_list("download_files", {})
-    except Exception as exc:
-        print("Download list unavailable:", type(exc).__name__)
-        rows = []
-    by_plan = {r["plan"]: r for r in rows}
-    items = []
-    for plan in PLANS:
-        row = by_plan.get(plan) or {}
-        items.append({
-            "plan": plan,
-            "filename": row.get("filename") or DOWNLOAD_FILES[plan][1],
-            "size_bytes": row.get("size_bytes") or 0,
-            "custom": bool(row.get("storage_path")),
-            "updated_at": row.get("updated_at"),
-        })
-    return {"downloads": items, "max_bytes": JAR_MAX_BYTES}
-
-
-@app.post("/api/admin/downloads/upload-url")
-def admin_jar_upload_url(p: JarUploadUrlReq, admin: dict = Depends(current_admin)):
-    if p.plan not in DOWNLOAD_FILES:
-        raise HTTPException(400, "Unknown plan.")
-    if not SUPABASE_URL:
-        raise HTTPException(503, "File storage is not configured on this deployment.")
-    path = f"{p.plan}/{uuid.uuid4().hex}/{safe_jar_name(p.filename)}"
-    r = requests.post(
-        f"{SUPABASE_URL}/storage/v1/object/upload/sign/{DOWNLOAD_BUCKET}/{path}",
-        headers=_sb_headers(), json={"expiresIn": 3600}, timeout=15,
-    )
-    if r.status_code >= 400:
-        print("Signed upload URL failed:", r.status_code, r.text)
-        raise HTTPException(502, "Could not prepare the upload. Please try again.")
-    body = r.json()
-    signed = body.get("url") or body.get("signedURL") or body.get("signedUrl")
-    if not signed:
-        raise HTTPException(502, "Could not prepare the upload. Please try again.")
-    upload_url = signed if signed.startswith("http") else f"{SUPABASE_URL}/storage/v1{signed}"
-    return {"upload_url": upload_url, "path": path, "max_bytes": JAR_MAX_BYTES}
-
-
-@app.post("/api/admin/downloads")
-def admin_save_download(p: JarConfirmReq, admin: dict = Depends(current_admin)):
-    if p.plan not in DOWNLOAD_FILES:
-        raise HTTPException(400, "Unknown plan.")
-    path = p.storage_path.strip()
-    if not re.fullmatch(r"(monthly|lifetime)/[0-9a-f]{32}/[A-Za-z0-9_.-]{1,120}", path) or not path.startswith(f"{p.plan}/"):
-        raise HTTPException(400, "Invalid upload path.")
-    if p.size_bytes and p.size_bytes > JAR_MAX_BYTES:
-        raise HTTPException(400, "The JAR must be 100 MB or smaller.")
-    values = {
-        "storage_path": path,
-        "filename": safe_jar_name(p.filename),
-        "size_bytes": max(0, int(p.size_bytes or 0)),
-        "updated_at": iso(now()),
-    }
-    existing = db_get("download_files", {"plan": eq(p.plan)})
-    old_path = (existing or {}).get("storage_path")
-    if existing:
-        rows = db_update("download_files", {"plan": eq(p.plan)}, values)
-    else:
-        try:
-            rows = [db_insert("download_files", {"plan": p.plan, **values})]
-        except DBError as e:
-            if e.status != 409:
-                raise
-            rows = db_update("download_files", {"plan": eq(p.plan)}, values)
-    if old_path and old_path != path:
-        storage_delete(DOWNLOAD_BUCKET, old_path)
-    return rows[0]
-
-
-@app.delete("/api/admin/downloads/{plan}")
-def admin_delete_download(plan: str, admin: dict = Depends(current_admin)):
-    if plan not in DOWNLOAD_FILES:
-        raise HTTPException(404, "Unknown download.")
-    row = db_get("download_files", {"plan": eq(plan)})
-    if not row:
-        raise HTTPException(404, "No custom JAR is set for this plan.")
-    _sb("DELETE", "download_files", params={"plan": eq(plan)})
-    if row.get("storage_path"):
-        storage_delete(DOWNLOAD_BUCKET, row["storage_path"])
-    return {"message": "Custom JAR removed. The default file is used again."}
+    return RedirectResponse(public_client_url(), status_code=302,
+                            headers={"Cache-Control": "no-store"})
 
 
 # --------------------------------------------------------------------------
@@ -2015,7 +1831,7 @@ def validate_license(p: ValidateReq):
 
 @app.post("/api/license/bind")
 def bind_license(p: BindReq):
-    """The loader's first call: links the key to this PC (once) and hands over the client JAR."""
+    """A client's first call: links the key to this PC (once) and answers with the license state."""
     key = p.key.strip().upper()
     lic = db_get("licenses", {"license_key": eq(key)})
     if not lic:
@@ -2067,19 +1883,14 @@ def bind_license(p: BindReq):
         if rows:
             lic = rows[0]
 
-    try:
-        jar_url, jar_build = license_jar_info(lic)
-    except Exception as exc:
-        # A missing upload must not block the binding; the loader then keeps the local copy.
-        print("Jar link failed:", type(exc).__name__)
-        jar_url, jar_build = "", ""
+    info = injector_info()
 
     return {
         "ok": True,
         "plan": lic["plan_type"],
         "expires_at": lic.get("expires_at"),
-        "jar_url": jar_url,
-        "build": jar_build,
+        "client_url": info["client_url"],
+        "build": info["build"],
         "device": mask_hwid(hwid),
         "bound": bound_now,
         "watermark": watermark_for(lic),
@@ -2109,18 +1920,14 @@ def device_license(p: DeviceReq):
     # Lifetime wins when both plans are linked to the same PC.
     lic = sorted(active, key=lambda row: 0 if row.get("plan_type") == "lifetime" else 1)[0]
 
-    try:
-        jar_url, jar_build = license_jar_info(lic)
-    except Exception as exc:
-        print("Jar link failed:", type(exc).__name__)
-        jar_url, jar_build = "", ""
+    info = injector_info()
 
     return {
         "ok": True,
         "plan": lic["plan_type"],
         "expires_at": lic.get("expires_at"),
-        "jar_url": jar_url,
-        "build": jar_build,
+        "client_url": info["client_url"],
+        "build": info["build"],
         "device": mask_hwid(hwid),
         "bound": True,
         "watermark": watermark_for(lic),
@@ -2255,7 +2062,7 @@ def license_session(p: SessionReq, request: Request):
             return {
                 "ok": False,
                 "error": "device_key_required",
-                "detail": "Update Champ through the loader; this build cannot prove its device key.",
+                "detail": "Download the current Champ injector from your dashboard; this build cannot prove its device key.",
             }
         public_key = normalize_public_key(p.public_key)
         if not hmac.compare_digest(stored, public_key):
@@ -2298,13 +2105,13 @@ def license_session(p: SessionReq, request: Request):
 def license_heartbeat(p: HeartbeatReq):
     """Retired: older clients stored a key locally and were checked against a static token.
 
-    Those builds can no longer be verified against the cloud, so they are sent back through the
-    loader. The loader installs the current client, which uses /api/license/session instead.
+    Those builds can no longer be verified against the cloud, so they are sent back to the
+    injector. The current injector uses /api/license/session instead.
     """
     return {
         "ok": False,
         "error": "update_required",
-        "message": "Update Champ through the loader; this version is no longer supported.",
+        "message": "Download the current Champ injector from your dashboard; this version is no longer supported.",
     }
 
 
@@ -2330,10 +2137,24 @@ def account_device(user: dict = Depends(current_user)):
         "key": lic["license_key"],
         "device": mask_hwid(lic.get("hwid")),
         "bound_at": lic.get("hwid_bound_at"),
+        "ip": mask_ip(license_bound_ip(lic)),
+        "ip_bound": bool(license_bound_ip(lic)),
+        "ip_bound_at": lic.get("bound_ip_at"),
         "free_reset": free_reset_available(lic),
         "next_free_reset_at": next_free_reset_at(lic),
         "reset_price_cents": HWID_RESET_PRICE_CENTS,
     }
+
+
+@app.post("/api/account/device/reset/ip")
+def account_device_reset_ip(request: Request, user: dict = Depends(current_user)):
+    """Free, unlimited: unlocks the license for the network this request comes from."""
+    lic = account_license(user)
+    if not lic:
+        raise HTTPException(404, "You don't have an active license.")
+    if set_license_ip(lic, client_ip(request)) is None:
+        raise HTTPException(503, IP_LOCK_MISSING)
+    return {"message": "Network unlocked for this IP."}
 
 
 @app.post("/api/account/device/reset")
@@ -2347,7 +2168,7 @@ def account_device_reset(user: dict = Depends(current_user)):
         raise HTTPException(402, "You already used your free reset this week. A paid reset costs EUR 5.")
     lic = reset_license_hwid(lic, "free")
     return {
-        "message": "Device removed. The next PC that starts the loader takes this key.",
+        "message": "Device removed. The next PC that starts the injector takes this key.",
         "free_reset": free_reset_available(lic),
         "next_free_reset_at": next_free_reset_at(lic),
     }
@@ -2377,6 +2198,134 @@ def account_device_reset_checkout(user: dict = Depends(current_user)):
     }
     session = stripe_request("POST", "checkout/sessions", data)
     return {"url": session["url"]}
+
+
+# --------------------------------------------------------------------------
+# Launcher (the .exe): account sign-in, licence state and the IP reset
+#
+# Two locks, two rules:
+#   - the network (bound_ip) is free to reset, as often as needed: a new router, a VPN or a
+#     different house must never lock a paying customer out of their own client;
+#   - the PC (hwid) is the lock that costs money, because that is the one that moves a key to
+#     another machine.
+# --------------------------------------------------------------------------
+IP_LOCK_MISSING = ("The network lock is not available yet: bound_ip is missing on the licenses "
+                   "table of this deployment.")
+
+
+def license_bound_ip(lic: Optional[dict]) -> str:
+    return str((lic or {}).get("bound_ip") or "").strip()
+
+
+def set_license_ip(lic: dict, ip: str) -> Optional[dict]:
+    """Pins the license to an IP. None when the column does not exist, so the lock stays off.
+
+    Deployments that have not run the schema migration yet keep working: no column means no IP
+    lock, never a customer who cannot inject.
+    """
+    try:
+        rows = db_update("licenses", {"id": eq(lic["id"])},
+                         {"bound_ip": ip, "bound_ip_at": iso(now())})
+        return (rows[0] if rows else lic) if isinstance(rows, list) else lic
+    except DBError as exc:
+        print(f"IP binding unavailable ({exc.status}); run the licenses migration.")
+        return None
+
+
+def mask_ip(ip: str) -> str:
+    parts = (ip or "").split(".")
+    if len(parts) == 4:
+        return f"{parts[0]}.{parts[1]}.x.x"
+    if len(ip) > 24:
+        return ip[:12] + "\u2026"
+    return ip
+
+
+def launcher_payload(user: dict, request: Request, hwid: str = "") -> dict:
+    """What the launcher needs to decide whether it may inject anything."""
+    ip = client_ip(request)
+    lic = account_license(user)
+    if not lic:
+        return {"ok": True, "username": user["username"], "license": None, "active": False,
+                "can_inject": False, "reason": "no_license",
+                "message": "This account has no active license."}
+
+    bound_ip = license_bound_ip(lic)
+    if not bound_ip:
+        updated = set_license_ip(lic, ip)
+        if updated is not None:
+            lic = updated
+            bound_ip = ip
+
+    local = ""
+    if hwid:
+        try:
+            local = normalize_hwid(hwid)
+        except HTTPException:
+            local = ""
+    device = str(lic.get("hwid") or "").strip()
+    hwid_ok = not device or (bool(local) and hmac.compare_digest(device, local))
+    ip_ok = not bound_ip or bound_ip == ip
+    active = license_active(lic)
+    can_inject = active and hwid_ok and ip_ok
+    reason = ""
+    if not can_inject:
+        reason = "inactive" if not active else ("device" if not hwid_ok else "ip")
+
+    return {
+        "ok": True,
+        "username": user["username"],
+        "license": lic["plan_type"],
+        "active": active,
+        "expires_at": lic.get("expires_at"),
+        "device": mask_hwid(device),
+        "device_bound": bool(device),
+        "hwid_ok": hwid_ok,
+        "ip": mask_ip(bound_ip or ip),
+        "ip_bound": bool(bound_ip),
+        "ip_ok": ip_ok,
+        "can_inject": can_inject,
+        "reason": reason,
+        "free_device_reset": free_reset_available(lic),
+        "device_reset_price_cents": HWID_RESET_PRICE_CENTS,
+        "next_free_reset_at": next_free_reset_at(lic),
+    }
+
+
+@app.get("/api/launcher/state")
+def launcher_state(request: Request, hwid: str = "", user: dict = Depends(current_user)):
+    return launcher_payload(user, request, hwid)
+
+
+@app.post("/api/launcher/reset/ip")
+def launcher_reset_ip(request: Request, user: dict = Depends(current_user)):
+    """Free and unlimited: the network lock must never be a dead end."""
+    lic = account_license(user)
+    if not lic:
+        raise HTTPException(404, "You don't have an active license.")
+    ip = client_ip(request)
+    if set_license_ip(lic, ip) is None:
+        raise HTTPException(503, IP_LOCK_MISSING)
+    return {"ok": True, "ip": mask_ip(ip), "message": "Network unlocked for this IP."}
+
+
+@app.post("/api/launcher/reset/device")
+def launcher_reset_device(user: dict = Depends(current_user)):
+    """The PC lock: free while the weekly reset is unused, otherwise the EUR 5 checkout."""
+    lic = account_license(user)
+    if not lic:
+        raise HTTPException(404, "You don't have an active license.")
+    if not lic.get("hwid"):
+        return {"ok": True, "message": "No PC is linked to this key yet."}
+    if not free_reset_available(lic):
+        return JSONResponse(status_code=402, content={
+            "ok": False,
+            "error": "paid_required",
+            "price_cents": HWID_RESET_PRICE_CENTS,
+            "message": f"A new PC costs EUR {HWID_RESET_PRICE_CENTS // 100} to unlock.",
+        })
+    reset_license_hwid(lic, "free")
+    return {"ok": True, "message": "PC released. Start Champ again on the new PC."}
 
 
 # --------------------------------------------------------------------------
@@ -2414,7 +2363,7 @@ def redeem_license(p: RedeemReq, user: dict = Depends(current_user)):
         raise HTTPException(409, "This key could not be linked to your account.")
     lic = rows[0]
     try:
-        send_email(user["email"], "Your Champ Beta license key",
+        send_email(user["email"], "Your Champ license key",
                    email_html("License activated!",
                               f"Your <b>{html.escape(lic['plan_type'])}</b> license key:<br>"
                               f"<b style='font-size:18px'>{html.escape(lic['license_key'])}</b><br><br>"
@@ -2447,12 +2396,12 @@ def config_owner(p: ConfigProof) -> dict:
         print("Config license lookup failed:", type(exc).__name__)
         raise HTTPException(503, "The config server is temporarily unavailable.")
     if not lic or not license_active(lic):
-        raise HTTPException(403, "An active Champ license is required. Sign in through the loader first.")
+        raise HTTPException(403, "An active Champ license is required. Sign in through the injector first.")
     stored = (lic.get("device_pubkey") or "").strip()
     public_key = normalize_public_key(p.public_key or "")
     if stored:
         if not (public_key and p.challenge and p.signature):
-            raise HTTPException(403, "Update Champ through the loader; this build cannot prove its device key.")
+            raise HTTPException(403, "Download the current Champ injector from your dashboard; this build cannot prove its device key.")
         if not hmac.compare_digest(stored, public_key):
             raise HTTPException(409, "This license is linked to another PC's security key. Reset the device on your dashboard.")
         verify_challenge(p.challenge, hwid, public_key)
@@ -2941,12 +2890,12 @@ def mail_license_key(email: str, key: str, plan: str) -> None:
     if not email or is_unassigned_license({"email": email}):
         return
     try:
-        send_email(email, "Your Champ Beta license key",
+        send_email(email, "Your Champ license key",
                    email_html("Thanks for your purchase!",
-                              f"Your <b>{html.escape(plan or 'Champ Beta')}</b> license key:<br>"
+                              f"Your <b>{html.escape(plan or 'Champ')}</b> license key:<br>"
                               f"<b style='font-size:18px'>{html.escape(key)}</b><br><br>"
                               "Thanks for your purchase! Paste this key in the license screen in-game, "
-                              "or link it to your account on the dashboard. The client and the loader "
+                              "or link it to your account on the dashboard. The Champ injector "
                               "can be downloaded there at any time.",
                               f"{SITE_URL}/dashboard.html", "Open dashboard"))
     except Exception as exc:
@@ -3212,9 +3161,9 @@ def get_site_settings():
         "announcement_enabled": "true",
         "discord_link": "https://discord.gg/6vyQnVjeX",
         "youtube_video_url": "",
-        "hero_tagline": "The Ultimate Minecraft 1.21.11 Fabric Mod",
+        "hero_tagline": "The Ultimate Minecraft 1.21.11 Client",
         "hero_title": "Play at the|*highest level.*",
-        "hero_sub": "Champ Client is a 100% native Fabric Mod for Minecraft 1.21.11. Drop it straight into your mods folder — no injection, no external loaders.",
+        "hero_sub": "Champ Client is one Windows injector for Minecraft 1.21.11. Start the game, run the file, and the client opens inside it — nothing goes into your mods folder.",
         "pricing_title": "Simple *Pricing*",
         "pricing_sub": "Pick your plan. Safe and instant checkout via Stripe.",
         "features_title": "Explore the *Features.*",
@@ -3529,9 +3478,9 @@ def admin_delete_texture_pack(pack_id: int, admin: dict = Depends(current_admin)
 AI_DEFAULT_KNOWLEDGE = """
 CHAMP CLIENT PRODUCT FACTS
 
-Product: Champ Client is a native Minecraft Java Fabric mod (.jar) for Minecraft 1.21.11. It is not an injection tool and needs no DLL injector. It is designed to work alongside Sodium, Lithium, FerriteCore and Iris shaders on 1.21.11.
+Product: Champ Client is a Windows injector that injects the client into a Minecraft Java 1.21.11 game that is already running. It is not a mod: nothing is placed in the mods folder and there is no jar. It is built to work alongside Sodium, Lithium, FerriteCore and Iris shaders on 1.21.11.
 
-Install and loaders: customers download a Champ loader jar from the dashboard, never a separate client jar. Exactly one loader jar goes into the Minecraft mods folder: either Champ Loader (the stable loader) or Champ Beta (the beta loader with its own update channel). The client itself travels inside the loader and never appears in mods, so never tell a customer to put ChampClient.jar or any client file in the mods folder. On the first launch the loader checks the licence online and fetches the current client build; after that first launch Minecraft should be closed fully and started once more. Both loaders update themselves and the client automatically, so a new build never needs a manual download. Only one Champ loader may sit in mods at a time: the loader that starts removes the other one, and when Windows has that jar locked it tells the player to delete the other jar by hand.
+Install: customers download one .exe from their dashboard, never a jar. The order matters: start Minecraft first (the 1.21.11 Fabric profile, waiting in the main menu), then run the downloaded file. The launcher shows a splash while it unpacks the client on that PC, attaches to the running game and loads the client; it closes itself once it says "Champ is running". Minecraft does not have to be restarted afterwards, and nothing is ever placed in the mods folder. If the game is not running yet the splash says so and offers a Retry button. Every download gets a random file name, so never tell a customer a fixed file name; the file can be kept and reused, and a newer release is simply a new download.
 
 Scope: the website advertises 136 modules, custom Dear ImGui render overlays, crystal macros and DonutSMP base raiding suites. The full module list lives on the features page. Never invent module names or describe a specific module that is not listed on the site.
 
@@ -3541,11 +3490,11 @@ Licence keys by e-mail: every purchase and every key that support hands out or e
 
 Refunds and billing: a Monthly plan can be cancelled at any time and stays active until the paid period ends. Refund terms are not confirmed here, so for refunds or billing mistakes say a staff member must review the order and point to Discord support. Never promise a refund.
 
-Compatibility and versions: the current client build is 0.9.9.1 for Minecraft Java 1.21.11 with Fabric Loader 0.16 or newer. The loader has its own version (0.6.x stable, 0.1.x for Champ Beta) and updates itself, so a customer never installs a new loader by hand. Forge and OptiFine are not supported. There is no support for Minecraft versions outside the 1.21.x line. Sodium, Lithium, FerriteCore and Iris shaders are the tested companions.
+Compatibility and versions: the current client build is 0.9.9.1 for Minecraft Java 1.21.11 with Fabric Loader 0.16 or newer. There is no separate loader version to install any more: the launcher carries the client inside it, so a new release means downloading the launcher again from the dashboard. Forge and OptiFine are not supported. There is no support for Minecraft versions outside the 1.21.x line. Sodium, Lithium, FerriteCore and Iris shaders are the tested companions.
 
-Platforms: Windows, macOS and Linux all work wherever Minecraft Java 1.21.11 with Fabric runs; the mod has no OS-specific build. Minecraft 1.21.11 itself needs Java 21. Never state another Java version or an OS requirement that is not listed here.
+Platforms: the launcher is a Windows 10/11 x64 program; macOS and Linux are not supported. It attaches to the 64-bit Java 21 game that Minecraft 1.21.11 runs. Never state another Java version or an OS requirement that is not listed here.
 
-Safety: it is a normal Fabric loader .jar in the mods folder (the client is nested inside it), with no injector and no background program, and it is only distributed through this website and the customer dashboard. Never promise that a specific server or anti-cheat will not react to it, never promise it is undetectable, and never state or guess that it will or will not get someone banned.
+Safety: the launcher attaches to the running Minecraft process, which is exactly what an injection launcher does. There is no jar and nothing in the mods folder, and no program stays open after it closes. Because it attaches to another process, Windows or an antivirus may flag the download, so never promise it is undetectable, never claim no antivirus reacts, and never state or guess that a specific server or anti-cheat will or will not react. It is only distributed through this website and the customer dashboard.
 
 Accounts: Customers register with a username, password and email address and can sign in immediately, because email verification is currently disabled. If a customer cannot sign in, ask them to confirm their exact username or email and to use the "Forgot password" page; if that fails, direct them to Discord support. Never ask for a password.
 
@@ -3651,13 +3600,12 @@ def _answer_billing_change() -> str:
 
 def _answer_install() -> str:
     return (
-        "Champ Client is a native Fabric mod for Minecraft 1.21.11, not an injector, so there is nothing to "
-        "inject. Install Fabric Loader 0.16 or newer, then put the Champ loader jar from your dashboard into the "
-        "Minecraft mods folder and start the Fabric profile.\n\n"
-        "You download Champ Loader (stable) or Champ Beta; the client itself sits inside that loader, so there is "
-        "no separate client jar to copy. On the first launch the loader pulls the current client build - close "
-        "Minecraft fully after that and start it once more. Keep only one Champ loader in mods: the loader removes "
-        "the other one automatically.\n\n"
+        "Champ Client is one .exe from your dashboard, and it installs nothing: the client sits inside that "
+        "file and is injected into the game you already have open. Nothing goes into your mods folder.\n\n"
+        "Start Minecraft 1.21.11 with Fabric Loader 0.16 or newer and stay in the main menu. Then run the file "
+        "you downloaded. A small splash shows the steps - it attaches to the game, loads the client and closes "
+        "itself when it says Champ is running. You do not restart Minecraft afterwards. If the game was not "
+        "open yet, the splash says so and offers Retry.\n\n"
         "It is built to run alongside Sodium, Lithium, FerriteCore and Iris shaders on 1.21.11. Forge and "
         "OptiFine are not supported.\n\n"
         f"Download from your dashboard: {SITE_LINKS['dashboard']}\nSetup help: {SITE_LINKS['support']}"
@@ -3669,8 +3617,8 @@ def _answer_download() -> str:
         "Downloads and your licence key live in your dashboard, and downloading needs an active licence. "
         "After a successful payment they appear there immediately, and the key is also e-mailed to the address "
         "on the order - check spam if it is missing.\n\n"
-        "There you download Champ Loader (stable) or Champ Beta. The client is inside the loader and updates "
-        "itself, so there is no separate client jar to download.\n\n"
+        "There is one download, an .exe with the client inside it - no jar and no loader to install. Every "
+        "download gets its own random file name, so keep the file somewhere you can find it again.\n\n"
         f"Dashboard: {SITE_LINKS['dashboard']}"
     )
 
@@ -3688,9 +3636,10 @@ def _answer_account() -> str:
 
 def _answer_requirements() -> str:
     return (
-        "Champ Client runs as a Fabric mod on Minecraft Java 1.21.11 with Fabric Loader 0.16 or newer. "
-        "The download is the Champ loader jar; the client sits inside it and updates itself. "
-        "There is no Forge or OptiFine build, and no support for older Minecraft versions beyond the 1.21.x line.\n\n"
+        "Champ Client is a Windows injector for Minecraft Java 1.21.11 with Fabric Loader 0.16 or newer. "
+        "The download is one .exe with the client inside it; you start Minecraft first and then run the file. "
+        "There is no Forge or OptiFine build, no macOS or Linux launcher, and no support for Minecraft versions "
+        "outside the 1.21.x line.\n\n"
         f"Features and modules: {SITE_LINKS['features']}"
     )
 
@@ -3723,30 +3672,31 @@ def _answer_updates() -> str:
     return (
         "Lifetime includes future 1.21.x updates. The current client build is 0.9.9.1 for Minecraft 1.21.11 on "
         "Fabric.\n\n"
-        "You do not download new builds by hand: the loader updates itself and the client on the next launch. "
-        "Champ Loader and Champ Beta have separate update channels, so install the one you want to follow.\n\n"
+        "There is no automatic update: a new release is a new download from your dashboard. The copy you have "
+        "keeps working, so replace it whenever you want the newest build.\n\n"
         f"Dashboard: {SITE_LINKS['dashboard']}"
     )
 
 
 def _answer_safety() -> str:
     return (
-        "Champ Client is a normal Fabric mod: one loader .jar in your mods folder (the client is nested inside "
-        "it), no injector and no separate program running in the background. It is only downloaded from this "
-        "website and your dashboard.\n\n"
-        "I cannot promise how any specific server or anti-cheat will react, and I will not guess about bans. "
-        "Use it at your own risk and ask the team if you are unsure.\n\n"
-        "If an antivirus flags the jar, make sure the file came from your dashboard and ask the team on Discord "
-        "to check it - never run a copy from another source.\n\n"
+        "Champ is a launcher that attaches to the Minecraft process you are already running, which is how the "
+        "client gets into the game. It puts nothing in your mods folder and leaves no program running after it "
+        "closes. It is only downloaded from this website and your dashboard.\n\n"
+        "Because it attaches to another process, Windows or an antivirus can flag the download. I cannot promise "
+        "it is undetectable, and I will not guess about bans on any server. Use it at your own risk and ask the "
+        "team if you are unsure.\n\n"
+        "If it is flagged, make sure the file came from your dashboard and ask the team on Discord to check it - "
+        "never run a copy from another source.\n\n"
         f"Dashboard: {SITE_LINKS['dashboard']}\nDiscord support: {SITE_LINKS['discord']}"
     )
 
 
 def _answer_what_is_it() -> str:
     return (
-        "Champ Client is a native Minecraft Java Fabric mod for 1.21.11: it installs as one loader .jar in the mods "
-        "folder, needs no injector, and is built to run next to Sodium, Lithium, FerriteCore and Iris. The client "
-        "travels inside that loader. The site lists 136 modules, custom "
+        "Champ Client is a Windows injector for Minecraft Java 1.21.11: start the game, run the launcher, and the "
+        "client opens inside it - nothing goes into the mods folder. It is built to run next to Sodium, Lithium, "
+        "FerriteCore and Iris. The site lists 136 modules, custom "
         "Dear ImGui overlays, crystal macros and DonutSMP base raiding suites.\n\n"
         f"Features and modules: {SITE_LINKS['features']}\nPlans and pricing: {SITE_LINKS['pricing']}"
     )
@@ -3815,8 +3765,8 @@ def _answer_troubleshooting() -> str:
     return (
         "Sorry it is not working. These checks solve most cases:\n"
         "- Confirm Minecraft 1.21.11 with Fabric Loader 0.16 or newer, and keep Forge or OptiFine out of the same mods folder.\n"
-        "- Re-download the loader from your dashboard and keep exactly one Champ loader in mods; the client "
-        "updates itself from it.\n"
+        "- Re-download the injector from your dashboard, close Minecraft fully, then start it again and run "
+        "the injector; the client travels inside that one file.\n"
         "- Remove other mods one by one to find a conflict; Sodium, Lithium, FerriteCore and Iris are the tested companions.\n"
         "- Check the crash report for the line that names the failing mod.\n"
         "Still stuck? Post the crash report text on Discord - never your password or licence key.\n\n"
