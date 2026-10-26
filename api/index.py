@@ -2128,7 +2128,7 @@ def account_license(user: dict) -> Optional[dict]:
 
 
 @app.get("/api/account/device")
-def account_device(user: dict = Depends(current_user)):
+def account_device(request: Request, user: dict = Depends(current_user)):
     lic = account_license(user)
     if not lic:
         return {"license": None}
@@ -2140,6 +2140,7 @@ def account_device(user: dict = Depends(current_user)):
         "ip": mask_ip(license_bound_ip(lic)),
         "ip_bound": bool(license_bound_ip(lic)),
         "ip_bound_at": lic.get("bound_ip_at"),
+        "current_ip": mask_ip(client_ip(request)),
         "free_reset": free_reset_available(lic),
         "next_free_reset_at": next_free_reset_at(lic),
         "reset_price_cents": HWID_RESET_PRICE_CENTS,
@@ -2148,13 +2149,20 @@ def account_device(user: dict = Depends(current_user)):
 
 @app.post("/api/account/device/reset/ip")
 def account_device_reset_ip(request: Request, user: dict = Depends(current_user)):
-    """Free, unlimited: unlocks the license for the network this request comes from."""
+    """Free, unlimited: moves the license to the network this request comes from.
+
+    The reset does not clear the lock and leave the next request to fill it in: it writes the IP the
+    customer has right now, so the dashboard can show the new network straight away and the next
+    launch injects without another round trip.
+    """
     lic = account_license(user)
     if not lic:
         raise HTTPException(404, "You don't have an active license.")
-    if set_license_ip(lic, client_ip(request)) is None:
+    ip = client_ip(request)
+    if set_license_ip(lic, ip) is None:
         raise HTTPException(503, IP_LOCK_MISSING)
-    return {"message": "Network unlocked for this IP."}
+    return {"ok": True, "ip": mask_ip(ip), "bound_ip_at": iso(now()),
+            "message": f"Network reset to {mask_ip(ip)}."}
 
 
 @app.post("/api/account/device/reset")
@@ -2217,18 +2225,28 @@ def license_bound_ip(lic: Optional[dict]) -> str:
     return str((lic or {}).get("bound_ip") or "").strip()
 
 
-def set_license_ip(lic: dict, ip: str) -> Optional[dict]:
-    """Pins the license to an IP. None when the column does not exist, so the lock stays off.
+def missing_ip_column(exc: DBError) -> bool:
+    """True when this deployment's licenses table has no bound_ip column yet."""
+    return exc.status in (400, 404) and "bound_ip" in (exc.body or "")
 
-    Deployments that have not run the schema migration yet keep working: no column means no IP
-    lock, never a customer who cannot inject.
+
+def set_license_ip(lic: dict, ip: str) -> Optional[dict]:
+    """Pins the license to an IP, so the key follows the network it is reset to.
+
+    A deployment that has not run the schema migration yet has no bound_ip column and therefore no
+    IP lock at all; there the write is skipped and the call still succeeds, because a reset must
+    never fail on a lock that does not exist. Any other database error returns None so the caller
+    can answer with a real 503 instead of pretending the network moved.
     """
     try:
         rows = db_update("licenses", {"id": eq(lic["id"])},
                          {"bound_ip": ip, "bound_ip_at": iso(now())})
         return (rows[0] if rows else lic) if isinstance(rows, list) else lic
     except DBError as exc:
-        print(f"IP binding unavailable ({exc.status}); run the licenses migration.")
+        if missing_ip_column(exc):
+            print("IP lock off: bound_ip is missing on this deployment's licenses table.")
+            return lic
+        print(f"IP binding failed ({exc.status}); the network lock was not changed.")
         return None
 
 
@@ -2282,6 +2300,7 @@ def launcher_payload(user: dict, request: Request, hwid: str = "") -> dict:
         "device_bound": bool(device),
         "hwid_ok": hwid_ok,
         "ip": mask_ip(bound_ip or ip),
+        "current_ip": mask_ip(ip),
         "ip_bound": bool(bound_ip),
         "ip_ok": ip_ok,
         "can_inject": can_inject,
@@ -2299,14 +2318,19 @@ def launcher_state(request: Request, hwid: str = "", user: dict = Depends(curren
 
 @app.post("/api/launcher/reset/ip")
 def launcher_reset_ip(request: Request, user: dict = Depends(current_user)):
-    """Free and unlimited: the network lock must never be a dead end."""
+    """Free and unlimited: the network lock must never be a dead end.
+
+    Writes the IP this request comes from, so the reset binds the network the customer is on right
+    now instead of merely clearing the lock for whatever request happens to arrive next.
+    """
     lic = account_license(user)
     if not lic:
         raise HTTPException(404, "You don't have an active license.")
     ip = client_ip(request)
     if set_license_ip(lic, ip) is None:
         raise HTTPException(503, IP_LOCK_MISSING)
-    return {"ok": True, "ip": mask_ip(ip), "message": "Network unlocked for this IP."}
+    return {"ok": True, "ip": mask_ip(ip), "bound_ip_at": iso(now()),
+            "message": f"Network reset to {mask_ip(ip)}."}
 
 
 @app.post("/api/launcher/reset/device")

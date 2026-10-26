@@ -779,16 +779,22 @@ function initDashboardExtras(data) {
           : `<button class="btn-ghost" type="button" id="deviceResetPaid">Reset device (${money(d.reset_price_cents)})</button>
              <p class="no-license-text" style="margin-top:10px">Free reset used${next ? `; available again on ${escapeHtml(next)}` : ''}. A paid reset clears it immediately.</p>`) : ''}
 
-        <p class="no-license-text" style="margin-top:22px">Network: Champ only injects from the network your key is linked to. Resetting it is free and unlimited &mdash; a new router, a VPN or a move is never a lockout.</p>
+        <p class="no-license-text" style="margin-top:22px">Network: Champ only injects from the network your key is linked to. Resetting is free and unlimited &mdash; a new router, a VPN or a move is never a lockout.</p>
         <div class="license-box">${d.ip_bound ? escapeHtml(d.ip) : 'No network linked yet'}</div>
         <p class="no-license-text">${d.ip_bound_at ? 'Linked on ' + escapeHtml(new Date(d.ip_bound_at).toLocaleString()) : 'Your next check-in links the network you are on.'}</p>
-        <button class="btn-ghost" type="button" id="networkReset">Reset network (free)</button>
+        <p class="no-license-text">This browser is on <b>${escapeHtml(d.current_ip || 'an unknown network')}</b>. Resetting links the key to that network right away.</p>
+        <button class="btn-ghost" type="button" id="networkReset">Reset IP to this network (free)</button>
       `;
 
       document.getElementById('networkReset')?.addEventListener('click', async (e) => {
         e.target.disabled = true;
         const r = await api('/api/account/device/reset/ip', { method: 'POST', body: '{}' });
-        say(r.ok ? (r.data.message || 'Network unlocked.') : errorText(r.data, 'Could not reset your network.'), r.ok);
+        if (!r.ok) {
+          say(errorText(r.data, 'Could not reset your network.'), false);
+          e.target.disabled = false;
+          return;
+        }
+        say(r.data.message || `Network reset${r.data.ip ? ' to ' + r.data.ip : ''}.`, true);
         await render();
         document.getElementById('networkReset')?.blur();
       });
