@@ -962,6 +962,22 @@ class AdminLicenseCreateReq(BaseModel):
     license_key: Optional[str] = None      # empty generates one
 
 
+class AdminUserUpdateReq(BaseModel):
+    """Only the fields that are sent change; everything else stays as it is."""
+    username: Optional[str] = None
+    email: Optional[str] = None
+
+
+class AdminUserGrantReq(BaseModel):
+    plan_type: str = "monthly"
+    days: int = 30
+
+
+class AdminExtendReq(BaseModel):
+    days: int = 7
+    plan_type: Optional[str] = None      # empty = every plan
+
+
 class AdminDiscountReq(BaseModel):
     code: str
     kind: str = "percent"                  # percent | amount
@@ -3039,6 +3055,260 @@ def admin_reset_hwid(lic_id: int, admin: dict = Depends(current_admin)):
         return {"message": "This key has no device linked.", "hwid": ""}
     reset_license_hwid(lic, "admin")
     return {"message": "Hardware binding cleared.", "hwid": ""}
+
+
+# --------------------------------------------------------------------------
+# Accounts: every customer account, not only the keys it owns
+#
+# Support work is people work: an e-mail changes, a username is taken over, an account has to go,
+# or a customer gets a month on the house. These routes do exactly that, and every change is
+# written straight to the database the injector reads on the next launch.
+# --------------------------------------------------------------------------
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def admin_user_json(user: dict, licenses: list) -> dict:
+    """One account with what support needs: identity plus the keys that follow it."""
+    active = [lic for lic in licenses if license_active(lic)]
+    return {
+        "id": user.get("id"),
+        "username": user.get("username"),
+        "email": user.get("email"),
+        "created_at": user.get("created_at"),
+        "email_verified": bool(user.get("email_verified")),
+        "is_admin": bool(user.get("is_admin")),
+        "licenses": [
+            {
+                "plan_type": lic.get("plan_type"),
+                "status": lic.get("status"),
+                "license_key": lic.get("license_key"),
+                "expires_at": lic.get("expires_at"),
+                "active": license_active(lic),
+            }
+            for lic in licenses
+        ],
+        "active_plans": sorted({str(lic.get("plan_type")) for lic in active}),
+    }
+
+
+def admin_extend_expiry(value: Optional[str], days: int) -> str:
+    """Adds days to an expiry, counting from today when the key already lapsed."""
+    base = parse_dt(value)
+    start = base if base and base > now() else now()
+    return iso(start + timedelta(days=days))
+
+
+@app.get("/api/admin/users")
+def admin_users(search: str = "", limit: int = 50, admin: dict = Depends(current_admin)):
+    """Search accounts by username or e-mail, with their keys in the same answer."""
+    limit = max(1, min(limit, 200))
+    q = re.sub(r"[^A-Za-z0-9@._-]", "", (search or ""))[:64]
+    try:
+        if q:
+            rows = _sb("GET", "users",
+                       params={"select": "*", "or": f"(username.ilike.*{q}*,email.ilike.*{q}*)",
+                               "order": "created_at.desc", "limit": limit}) or []
+        else:
+            rows = db_list("users", {}, limit=limit, order="created_at.desc")
+        licenses = db_list("licenses", {}, limit=1000) or []
+    except DBError as exc:
+        print("Account list failed:", exc.status)
+        raise HTTPException(503, "Could not load the accounts right now.")
+
+    by_email: dict = {}
+    for lic in licenses:
+        by_email.setdefault(str(lic.get("email") or "").lower(), []).append(lic)
+    return {"users": [admin_user_json(u, by_email.get(str(u.get("email") or "").lower(), []))
+                      for u in rows]}
+
+
+@app.post("/api/admin/users/{user_id}")
+def admin_update_user(user_id: int, p: AdminUserUpdateReq, admin: dict = Depends(current_admin)):
+    """Changes the username or the e-mail of an account.
+
+    Keys belong to an account by e-mail, so an e-mail change moves them along; otherwise the
+    customer would keep the account and lose their license.
+    """
+    user = db_get("users", {"id": eq(user_id)})
+    if not user:
+        raise HTTPException(404, "Account not found.")
+
+    values: dict = {}
+    if p.username is not None:
+        name = p.username.strip()
+        if not USERNAME_RE.fullmatch(name):
+            raise HTTPException(400, "A username is 3-16 letters, numbers or underscores.")
+        values["username"] = name
+        values["username_lower"] = name.lower()
+    if p.email is not None:
+        email = p.email.strip().lower()
+        if not EMAIL_RE.fullmatch(email):
+            raise HTTPException(400, "That e-mail address is not valid.")
+        values["email"] = email
+    if not values:
+        return admin_user_json(user, [])
+
+    old_email = str(user.get("email") or "").lower()
+    try:
+        rows = db_update("users", {"id": eq(user_id)}, values)
+    except DBError as exc:
+        if exc.status == 409:
+            raise HTTPException(409, "That username or e-mail is already in use.")
+        print("Account update failed:", exc.status)
+        raise HTTPException(503, "Could not save the account right now.")
+
+    new_email = str(values.get("email") or old_email)
+    if new_email != old_email:
+        try:
+            db_update("licenses", {"email": eq(old_email)}, {"email": new_email,
+                                                            "updated_at": iso(now())})
+        except DBError as exc:
+            print("Moving licenses to the new e-mail failed:", exc.status)
+
+    updated = (rows or [user])[0]
+    licenses = db_list("licenses", {"email": eq(new_email)}) or []
+    return admin_user_json(updated, licenses)
+
+
+@app.delete("/api/admin/users/{user_id}")
+def admin_delete_user(user_id: int, admin: dict = Depends(current_admin)):
+    """Removes an account and the keys that belong to it.
+
+    Admin accounts are left alone, and so is the account you are signed in with: losing the last
+    way into the panel is not something support should be able to do by accident.
+    """
+    user = db_get("users", {"id": eq(user_id)})
+    if not user:
+        raise HTTPException(404, "Account not found.")
+    if user.get("is_admin"):
+        raise HTTPException(403, "Admin accounts cannot be deleted here.")
+    if (admin.get("email") or "").lower() == str(user.get("email") or "").lower():
+        raise HTTPException(400, "You cannot delete the account you are signed in with.")
+
+    email = str(user.get("email") or "")
+    try:
+        _sb("DELETE", "licenses", params={"email": eq(email)})
+        _sb("DELETE", "users", params={"id": eq(user_id)})
+    except DBError as exc:
+        print("Account delete failed:", exc.status)
+        raise HTTPException(503, "Could not delete the account right now.")
+    return {"message": f"Account {user.get('username')} and its keys were deleted."}
+
+
+@app.post("/api/admin/users/{user_id}/grant")
+def admin_grant_user(user_id: int, p: AdminUserGrantReq, admin: dict = Depends(current_admin)):
+    """Gives an account a subscription: a new key, or more time on the one it already has."""
+    user = db_get("users", {"id": eq(user_id)})
+    if not user:
+        raise HTTPException(404, "Account not found.")
+    plan = (p.plan_type or "").strip().lower()
+    if plan not in PLANS:
+        raise HTTPException(400, "Plan must be monthly or lifetime.")
+    days = max(1, min(int(p.days or 0), 3650))
+    email = str(user.get("email") or "")
+
+    lic = db_get("licenses", {"email": eq(email), "plan_type": eq(plan)})
+    if lic:
+        values = {"status": "active", "updated_at": iso(now())}
+        if plan == "monthly" or lic.get("expires_at"):
+            values["expires_at"] = admin_extend_expiry(lic.get("expires_at"), days)
+        try:
+            rows = db_update("licenses", {"id": eq(lic["id"])}, values)
+        except DBError as exc:
+            print("Grant update failed:", exc.status)
+            raise HTTPException(503, "Could not extend that key right now.")
+        updated = (rows or [lic])[0]
+        return {
+            "message": f"{plan.capitalize()} access extended by {days} days.",
+            "license": admin_license_json(updated),
+        }
+
+    row = {
+        "email": email,
+        "plan_type": plan,
+        "license_key": new_license_key(),
+        "status": "active",
+        "expires_at": None if plan == "lifetime" else iso(now() + timedelta(days=days)),
+    }
+    try:
+        saved = db_insert("licenses", row)
+    except DBError as exc:
+        if exc.status == 409:
+            raise HTTPException(409, "This account already has a key for that plan.")
+        print("Grant create failed:", exc.status)
+        raise HTTPException(503, "Could not create that key right now.")
+    created = saved or row
+    mail_license_key(email, created.get("license_key") or "", plan)
+    return {
+        "message": f"{plan.capitalize()} access added for {days} days.",
+        "license": admin_license_json(created),
+    }
+
+
+@app.post("/api/admin/licenses/{lic_id}/extend")
+def admin_extend_license(lic_id: int, p: AdminExtendReq, admin: dict = Depends(current_admin)):
+    """Adds time to one key without touching anything else about it."""
+    lic = db_get("licenses", {"id": eq(lic_id)})
+    if not lic:
+        raise HTTPException(404, "License not found.")
+    days = max(1, min(int(p.days or 0), 3650))
+    if lic.get("plan_type") == "lifetime" and not lic.get("expires_at"):
+        return {"message": "Lifetime keys never expire; there is nothing to extend.",
+                "expires_at": None}
+    values = {"expires_at": admin_extend_expiry(lic.get("expires_at"), days),
+              "updated_at": iso(now())}
+    if lic.get("status") != "revoked":
+        values["status"] = "active"
+    try:
+        rows = db_update("licenses", {"id": eq(lic_id)}, values)
+    except DBError as exc:
+        print("Extend failed:", exc.status)
+        raise HTTPException(503, "Could not extend that key right now.")
+    updated = (rows or [dict(lic, **values)])[0]
+    return {"message": f"Added {days} days to {lic.get('license_key')}.",
+            "license": admin_license_json(updated)}
+
+
+@app.post("/api/admin/extend-licenses")
+def admin_extend_all(p: AdminExtendReq, admin: dict = Depends(current_admin)):
+    """Adds time to every active key (or one plan), so nobody loses access on a bad release day."""
+    days = max(1, min(int(p.days or 0), 3650))
+    plan = (p.plan_type or "").strip().lower()
+    if plan and plan not in PLANS:
+        raise HTTPException(400, "Plan must be monthly or lifetime.")
+    try:
+        rows = db_list("licenses", {}, limit=1000)
+    except DBError as exc:
+        print("Bulk extend list failed:", exc.status)
+        raise HTTPException(503, "Could not load the keys right now.")
+
+    extended = 0
+    skipped = 0
+    failures = 0
+    for lic in rows:
+        if plan and lic.get("plan_type") != plan:
+            continue
+        if lic.get("status") == "revoked" or lic.get("status") != "active":
+            skipped += 1
+            continue
+        if lic.get("plan_type") == "lifetime" and not lic.get("expires_at"):
+            skipped += 1
+            continue
+        values = {"expires_at": admin_extend_expiry(lic.get("expires_at"), days),
+                  "updated_at": iso(now())}
+        try:
+            db_update("licenses", {"id": eq(lic["id"])}, values)
+            extended += 1
+        except DBError as exc:
+            failures += 1
+            print("Bulk extend row failed:", lic.get("id"), exc.status)
+
+    message = f"Added {days} days to {extended} key(s)."
+    if skipped:
+        message += f" {skipped} key(s) skipped (lifetime without expiry, or not active)."
+    if failures:
+        message += f" {failures} key(s) could not be saved."
+    return {"message": message, "extended": extended, "skipped": skipped, "failures": failures}
 
 
 # --------------------------------------------------------------------------

@@ -88,7 +88,8 @@
     <button class="sidebar-link admin-tab" data-tab="changelog" type="button"><span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-zap"></use></svg></span><span>Changelog</span></button>
 
     <div class="sidebar-label">Shop</div>
-    <button class="sidebar-link admin-tab" data-tab="orders" type="button"><span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-key"></use></svg></span><span>Orders &amp; keys</span></button>
+    <button class="sidebar-link admin-tab" data-tab="accounts" type="button"><span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-user"></use></svg></span><span>Accounts</span></button>
+    <button class="sidebar-link admin-tab" data-tab="orders" type="button"><span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-key"></use></svg></span><span>Licenses</span></button>
     <button class="sidebar-link admin-tab" data-tab="discounts" type="button"><span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-tag"></use></svg></span><span>Discounts</span></button>
     <button class="sidebar-link admin-tab" data-tab="texture-packs" type="button"><span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-layers"></use></svg></span><span>Texture packs</span></button>
     <button class="sidebar-link admin-tab" data-tab="downloads" type="button"><span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-download"></use></svg></span><span>Injector</span></button>
@@ -159,8 +160,8 @@
       <article class="dash-card">
         <div class="admin-section-head">
           <div>
-            <h2>Orders &amp; license keys</h2>
-            <p class="no-license-text">Search by customer e-mail or key. Every key can be edited in place: owner, plan, status, expiry and the key itself.</p>
+            <h2>Licenses &amp; keys</h2>
+            <p class="no-license-text">Search by customer e-mail or key. Every key can be edited in place: owner, plan, status, expiry and the key itself, and one key or every key can get extra time.</p>
           </div>
           <button class="btn-primary" type="button" onclick="showAddKeyForm()">+ Hand out a key</button>
         </div>
@@ -182,6 +183,17 @@
           </form>
         </div>
 
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin:0 0 20px;padding:16px;border:1px solid var(--border);border-radius:12px">
+          <div style="flex:1 1 260px">
+            <b>Give everyone extra time</b>
+            <p class="no-license-text" style="margin:4px 0 0">Adds days to every active key with an expiry. Lifetime keys without an expiry and revoked keys are skipped.</p>
+          </div>
+          <label style="flex:0 0 96px">Days<input id="bulkExtendDays" type="number" min="1" max="3650" value="7" style="width:100%"></label>
+          <label style="flex:0 0 150px">Plan<select id="bulkExtendPlan" style="width:100%"><option value="">All plans</option><option value="monthly">Monthly only</option><option value="lifetime">Lifetime only</option></select></label>
+          <button class="btn-primary" type="button" id="bulkExtendBtn">Add time</button>
+          <p id="bulkExtendMsg" class="save-message" style="display:none;flex-basis:100%;margin:0"></p>
+        </div>
+
         <form id="adminSearchForm" style="display:flex;gap:10px;margin:0 0 18px;flex-wrap:wrap">
           <input id="adminSearch" class="pay-input" style="margin-bottom:0;flex:1;min-width:200px" placeholder="Search email or key...">
           <button class="btn-primary" type="submit">Search</button>
@@ -200,8 +212,10 @@
             <label>Status<select name="status"><option value="active">active</option><option value="inactive">inactive</option><option value="revoked">revoked</option></select></label>
             <label>Expires<input name="expires_at" placeholder="2026-12-31, or empty for never"></label>
             <label>Key<input name="license_key"></label>
+            <label>Give extra time (days)<input name="extend_days" type="number" min="1" max="3650" placeholder="e.g. 7"></label>
             <div style="display:flex; gap:10px; flex-wrap:wrap">
               <button class="btn-primary" type="submit">Save changes</button>
+              <button class="btn-ghost" type="button" id="licEditorExtend">Add time</button>
               <button class="btn-ghost" type="button" id="licEditorResetDevice">Reset device</button>
               <button class="btn-ghost" type="button" id="licEditorCopy">Copy key</button>
               <button class="btn-ghost" type="button" id="licEditorDelete">Delete key</button>
@@ -213,6 +227,54 @@
         </div>
 
         <div id="adminOrders" class="admin-table-wrap"><p class="no-license-text">Loading orders...</p></div>
+      </article>
+    </section>
+
+    <!-- TAB: ACCOUNTS -->
+    <section class="admin-tabpage" id="tab-accounts" style="display:none">
+      <article class="dash-card">
+        <div class="admin-section-head">
+          <div>
+            <h2>Accounts</h2>
+            <p class="no-license-text">Search an account by username or e-mail. Rename it, move it to another e-mail, hand out a subscription, or delete it together with its keys.</p>
+          </div>
+        </div>
+
+        <form id="adminUserSearchForm" style="display:flex;gap:10px;margin:0 0 18px;flex-wrap:wrap">
+          <input id="adminUserSearch" class="pay-input" style="margin-bottom:0;flex:1;min-width:200px" placeholder="Search username or e-mail...">
+          <button class="btn-primary" type="submit">Search</button>
+        </form>
+        <div id="adminUsers" class="admin-table-wrap"><p class="no-license-text">Loading accounts...</p></div>
+
+        <div id="adminUserEditor" class="admin-form-panel" style="display:none">
+          <div class="admin-section-head" style="margin-bottom:14px">
+            <h3 style="margin:0">Edit account <code id="userEditorLabel"></code></h3>
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              <button class="btn-primary" type="submit" form="adminUserEditForm">Save account</button>
+              <button class="btn-ghost" type="button" id="userEditorCloseTop">Close</button>
+            </div>
+          </div>
+          <form id="adminUserEditForm" class="admin-editor">
+            <label>Username<input name="username" autocomplete="off" placeholder="3-16 letters, numbers or _"></label>
+            <label>E-mail<input name="email" type="email" autocomplete="off" placeholder="customer@example.com"></label>
+            <div style="display:flex; gap:10px; flex-wrap:wrap">
+              <button class="btn-primary" type="submit">Save account</button>
+              <button class="btn-ghost" type="button" id="userEditorDelete">Delete account</button>
+              <button class="btn-ghost" type="button" id="userEditorClose">Close</button>
+            </div>
+            <p id="userEditorMsg" class="save-message" style="display:none"></p>
+          </form>
+
+          <div class="admin-editor" style="margin-top:16px">
+            <label>Give subscription<select id="userGrantPlan"><option value="monthly">Monthly</option><option value="lifetime">Lifetime</option></select></label>
+            <label>Days<input id="userGrantDays" type="number" min="1" max="3650" value="30"></label>
+            <div style="display:flex; gap:10px; flex-wrap:wrap">
+              <button class="btn-primary" type="button" id="userGrantBtn">Give subscription</button>
+            </div>
+            <p id="userGrantMsg" class="save-message" style="display:none"></p>
+          </div>
+          <p class="no-license-text" id="userEditorInfo"></p>
+        </div>
       </article>
     </section>
 

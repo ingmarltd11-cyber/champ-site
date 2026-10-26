@@ -36,9 +36,24 @@ function showMessage(id, text, isError) {
 }
 
 // ---- Downloads ----
-// The launcher is one executable and every copy gets its own name: two downloads never collide in
-// the Downloads folder, and a file name says nothing about which build it is. The browser takes the
-// name from the download attribute, so the name is per click, generated here.
+// Two injectors ship: one .exe for Windows and one .tar.gz for Linux. The page asks the browser
+// which system it is on, and when that answer is not certain (a phone, an unknown platform) the
+// customer picks instead of being handed a file that cannot run. Every download also gets a random
+// file name, so two copies never collide and a name says nothing about the build.
+const DOWNLOAD_FLAVOURS = {
+  windows: { file: 'downloads/champ-client.exe', label: 'Windows', hint: 'Windows 10 or 11 — .exe' },
+  linux: { file: 'downloads/champ-client-linux.tar.gz', label: 'Linux', hint: '64-bit Linux met Java 21 — .tar.gz' },
+};
+
+function detectClientOS() {
+  const ua = navigator.userAgent || '';
+  if (/Android|iPhone|iPad|iPod|Windows Phone|Mobile/i.test(ua)) return '';
+  const platform = String((navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '').toLowerCase();
+  if (platform.includes('win') || /windows/i.test(ua)) return 'windows';
+  if (platform.includes('linux') || platform.includes('x11') || /linux/i.test(ua)) return 'linux';
+  return '';
+}
+
 function randomDownloadName() {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
   const bytes = new Uint8Array(8);
@@ -46,11 +61,73 @@ function randomDownloadName() {
   return Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join('');
 }
 
+function downloadNameFor(os) {
+  const extension = DOWNLOAD_FLAVOURS[os].file.split('/').pop().replace(/^[^.]+/, '');
+  return `${randomDownloadName()}${extension}`;
+}
+
+function startDownload(os) {
+  const flavour = DOWNLOAD_FLAVOURS[os];
+  if (!flavour) return;
+  const link = document.createElement('a');
+  link.href = flavour.file;
+  link.download = downloadNameFor(os);
+  link.rel = 'noopener';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  closeDownloadChooser();
+}
+
+function closeDownloadChooser() {
+  const overlay = document.getElementById('downloadChooser');
+  if (!overlay) return;
+  overlay.classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function openDownloadChooser() {
+  let overlay = document.getElementById('downloadChooser');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'downloadChooser';
+    overlay.className = 'overlay';
+    overlay.innerHTML = `
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="downloadChooserTitle">
+        <button class="modal-close" type="button" data-download-close aria-label="Close">&times;</button>
+        <p class="hero-eyebrow" style="margin-bottom:8px">One injector per system</p>
+        <h2 id="downloadChooserTitle" style="font: 900 clamp(24px,3vw,30px) 'Playfair Display', serif; margin:0 0 10px">Which system is your PC?</h2>
+        <p class="no-license-text" style="margin-bottom:20px">Champ runs on Windows and Linux. We could not tell which one this device is, so pick the file you need. On a phone or tablet neither runs &mdash; open this page on the PC you play on.</p>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <button class="btn-primary" type="button" data-download-os="windows">Download for Windows (.exe)</button>
+          <button class="btn-ghost" type="button" data-download-os="linux">Download for Linux (.tar.gz)</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', (event) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target) return;
+      if (target === overlay || target.closest('[data-download-close]')) closeDownloadChooser();
+      const pick = target.closest('[data-download-os]');
+      if (pick) startDownload(pick.dataset.downloadOs);
+    });
+  }
+  overlay.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') closeDownloadChooser();
+});
+
 document.addEventListener('click', (event) => {
   const target = event.target instanceof Element ? event.target : null;
   const link = target ? target.closest('a[data-champ-download]') : null;
   if (!link) return;
-  link.setAttribute('download', `${randomDownloadName()}.exe`);
+  event.preventDefault();
+  const os = detectClientOS();
+  if (os) startDownload(os);
+  else openDownloadChooser();
 }, true);
 
 // Only allow redirects to our own pages (after login)
@@ -1604,6 +1681,7 @@ async function loadAdminPanel() {
       document.getElementById(`tab-${tab.dataset.tab}`).style.display = 'block';
       // Discount codes live in Stripe, so they are fetched when the tab is opened (not on page load).
       if (tab.dataset.tab === 'discounts') loadDiscounts();
+      if (tab.dataset.tab === 'accounts') loadAdminUsers(document.getElementById('adminUserSearch')?.value.trim() || '');
     });
   });
 
@@ -1614,6 +1692,7 @@ async function loadAdminPanel() {
   } catch (_) { /* stats optional */ }
 
   loadAdminOrders('');
+  loadAdminUsers('');
   loadAdminReferrals();
   loadAdminFinds();
   loadAdminSettings();
@@ -1766,6 +1845,153 @@ document.getElementById('licEditorDelete')?.addEventListener('click', async () =
 document.getElementById('adminSearchForm')?.addEventListener('submit', function (e) {
   e.preventDefault();
   loadAdminOrders(document.getElementById('adminSearch').value.trim());
+});
+
+// ============================================================
+// Admin: accounts (username, e-mail, subscription, delete)
+// ============================================================
+let userEditorId = null;
+
+function userEditorMessage(text, ok) {
+  const el = document.getElementById('userEditorMsg');
+  if (!el) return;
+  el.textContent = text;
+  el.style.display = 'block';
+  el.style.color = ok ? 'var(--ok, #4ade80)' : 'var(--danger, #f87171)';
+}
+
+function userGrantMessage(text, ok) {
+  const el = document.getElementById('userGrantMsg');
+  if (!el) return;
+  el.textContent = text;
+  el.style.display = 'block';
+  el.style.color = ok ? 'var(--ok, #4ade80)' : 'var(--danger, #f87171)';
+}
+
+function openUserEditor(user) {
+  if (!user) return;
+  const panel = document.getElementById('adminUserEditor');
+  const form = document.getElementById('adminUserEditForm');
+  if (!panel || !form) return;
+  userEditorId = user.id;
+  form.elements.username.value = user.username || '';
+  form.elements.email.value = user.email || '';
+  document.getElementById('userEditorLabel').textContent = user.username || '';
+  const keys = (user.licenses || []).map(lic =>
+    `${lic.plan_type}${lic.active ? '' : ' (inactive)'}${lic.expires_at ? ' until ' + fmtDate(lic.expires_at) : ' — never expires'}`
+  );
+  document.getElementById('userEditorInfo').textContent =
+    `Account #${user.id} • created ${fmtDate(user.created_at)}${user.email_verified ? ' • e-mail verified' : ' • e-mail not verified'} • ` +
+    (keys.length ? `keys: ${keys.join(' | ')}` : 'no keys yet');
+  ['userEditorMsg', 'userGrantMsg'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.style.display = 'none'; el.textContent = ''; }
+  });
+  panel.style.display = 'block';
+}
+
+async function loadAdminUsers(search) {
+  const wrap = document.getElementById('adminUsers');
+  if (!wrap) return;
+  try {
+    const res = await api(`/api/admin/users?search=${encodeURIComponent(search || '')}&limit=50`);
+    if (!res.ok) throw new Error('accounts');
+    const rows = res.data.users || [];
+    if (!rows.length) { wrap.innerHTML = '<p class="no-license-text">No accounts found.</p>'; return; }
+    wrap.innerHTML = `<table class="admin-table"><thead><tr><th>Username</th><th>E-mail</th><th>Access</th><th>Keys</th><th>Created</th><th></th></tr></thead><tbody>` +
+      rows.map(u => `<tr><td>${escapeHtml(u.username)}${u.is_admin ? ' <span class="status-badge status-active">admin</span>' : ''}</td><td>${escapeHtml(u.email)}</td><td>${u.active_plans && u.active_plans.length ? escapeHtml(u.active_plans.join(' + ')) : '—'}</td><td>${(u.licenses || []).length}</td><td>${fmtDate(u.created_at)}</td><td style="white-space:nowrap"><button class="btn-ghost" type="button" data-user-edit="${u.id}">Manage</button></td></tr>`).join('') +
+      `</tbody></table>`;
+    wrap.querySelectorAll('[data-user-edit]').forEach(btn => {
+      btn.addEventListener('click', () => openUserEditor(rows.find(u => String(u.id) === btn.dataset.userEdit)));
+    });
+  } catch (_) {
+    wrap.innerHTML = '<p class="no-license-text">Could not load the accounts.</p>';
+  }
+}
+
+document.getElementById('adminUserSearchForm')?.addEventListener('submit', function (e) {
+  e.preventDefault();
+  loadAdminUsers(document.getElementById('adminUserSearch').value.trim());
+});
+
+document.getElementById('adminUserEditForm')?.addEventListener('submit', async function (e) {
+  e.preventDefault();
+  if (userEditorId === null) return;
+  const f = e.target.elements;
+  const res = await api(`/api/admin/users/${userEditorId}`, {
+    method: 'POST',
+    body: JSON.stringify({ username: f.username.value.trim(), email: f.email.value.trim() }),
+  });
+  if (!res.ok) { userEditorMessage(errorText(res.data, 'Could not save the account.'), false); return; }
+  userEditorMessage('Saved.', true);
+  openUserEditor(res.data);
+  loadAdminUsers(document.getElementById('adminUserSearch')?.value.trim() || '');
+});
+
+document.getElementById('userGrantBtn')?.addEventListener('click', async () => {
+  if (userEditorId === null) return;
+  const plan = document.getElementById('userGrantPlan').value;
+  const days = Number(document.getElementById('userGrantDays').value) || 30;
+  const res = await api(`/api/admin/users/${userEditorId}/grant`, {
+    method: 'POST', body: JSON.stringify({ plan_type: plan, days }),
+  });
+  if (!res.ok) { userGrantMessage(errorText(res.data, 'Could not give access.'), false); return; }
+  userGrantMessage(res.data.message || 'Access granted.', true);
+  loadAdminUsers(document.getElementById('adminUserSearch')?.value.trim() || '');
+});
+
+document.getElementById('userEditorDelete')?.addEventListener('click', async () => {
+  if (userEditorId === null) return;
+  const label = document.getElementById('userEditorLabel').textContent || 'this account';
+  if (!confirm(`Delete ${label} and every key it owns? This cannot be undone.`)) return;
+  const res = await api(`/api/admin/users/${userEditorId}`, { method: 'DELETE' });
+  if (!res.ok) { userEditorMessage(errorText(res.data, 'Could not delete the account.'), false); return; }
+  document.getElementById('adminUserEditor').style.display = 'none';
+  userEditorId = null;
+  loadAdminUsers(document.getElementById('adminUserSearch')?.value.trim() || '');
+});
+
+['userEditorClose', 'userEditorCloseTop'].forEach(id => {
+  document.getElementById(id)?.addEventListener('click', () => {
+    document.getElementById('adminUserEditor').style.display = 'none';
+    userEditorId = null;
+  });
+});
+
+// Extra time on a single key, from the licence editor.
+document.getElementById('licEditorExtend')?.addEventListener('click', async () => {
+  if (licEditorId === null) return;
+  const raw = document.getElementById('adminLicenseEditForm')?.elements.extend_days.value;
+  const days = Number(raw);
+  if (!days || days < 1) { licEditorMessage('Fill in a number of days first.', false); return; }
+  const res = await api(`/api/admin/licenses/${licEditorId}/extend`, {
+    method: 'POST', body: JSON.stringify({ days }),
+  });
+  if (!res.ok) { licEditorMessage(errorText(res.data, 'Could not add time.'), false); return; }
+  licEditorMessage(res.data.message || 'Time added.', true);
+  if (res.data.license) openLicenseEditor(res.data.license);
+  loadAdminOrders(document.getElementById('adminSearch')?.value.trim() || '');
+});
+
+// Extra time for every key at once.
+document.getElementById('bulkExtendBtn')?.addEventListener('click', async () => {
+  const days = Number(document.getElementById('bulkExtendDays').value);
+  const plan = document.getElementById('bulkExtendPlan').value;
+  const msg = document.getElementById('bulkExtendMsg');
+  if (!days || days < 1) {
+    if (msg) { msg.textContent = 'Fill in a number of days first.'; msg.style.display = 'block'; msg.style.color = 'var(--danger, #f87171)'; }
+    return;
+  }
+  if (!confirm(`Add ${days} day(s) to every active ${plan || ''} key?`.replace('  ', ' '))) return;
+  const res = await api('/api/admin/extend-licenses', {
+    method: 'POST', body: JSON.stringify({ days, plan_type: plan || null }),
+  });
+  if (msg) {
+    msg.textContent = res.ok ? (res.data.message || 'Time added.') : errorText(res.data, 'Could not extend the keys.');
+    msg.style.display = 'block';
+    msg.style.color = res.ok ? 'var(--ok, #4ade80)' : 'var(--danger, #f87171)';
+  }
+  if (res.ok) loadAdminOrders(document.getElementById('adminSearch')?.value.trim() || '');
 });
 
 // ============================================================
