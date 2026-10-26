@@ -52,6 +52,17 @@ CHANGELOG = {
 
 KNOWLEDGE = [
     {
+        "title": "Product, plans, installation, accounts, customer support",
+        "body": (
+            "Champ Client is a Windows injector for Minecraft Java 1.21.11, not a mod: nothing is placed in "
+            "the mods folder and there is no jar to install. Customers keep their own Fabric Loader profile, "
+            "start Minecraft, then run the one .exe downloaded from the dashboard, sign in with their Champ "
+            "account and inject into the running game. Plans are EUR 9.99 lifetime and EUR 6.99 monthly, paid "
+            "through Stripe Checkout; the license is bound to one PC and one network, and both can be reset "
+            "from the dashboard. Only report facts confirmed by current records or this knowledge."
+        ),
+    },
+    {
         "title": "Installation: one injector, no jar",
         "body": (
             "Champ Client is a Windows injector for Minecraft 1.21.11, not a mod. Customers download one .exe "
@@ -107,10 +118,22 @@ def upsert_changelog(api: Api, entry: dict) -> str:
     return f"added changelog {entry['version']} (id {created.get('id')})"
 
 
+# Rows that only describe the retired loader jars; they would keep the assistant answering with a
+# jar install. Deleted once so the knowledge matches what the site sells today.
+RETIRED_TITLES = (
+    "Installation",
+    "Loaders: Champ Loader and Champ Beta",
+)
+
+
 def upsert_knowledge(api: Api, rows: list[dict]) -> str:
     existing = api.call("GET", "/api/admin/ai-knowledge").get("knowledge", [])
     by_title = {row.get("title"): row for row in existing}
     done = []
+    for row in existing:
+        if row.get("title") in RETIRED_TITLES:
+            api.call("DELETE", f"/api/admin/ai-knowledge/{row['id']}")
+            done.append(f"removed stale “{row['title']}”")
     for row in rows:
         match = by_title.get(row["title"])
         if match:
