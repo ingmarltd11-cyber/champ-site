@@ -2384,6 +2384,108 @@ def launcher_reset_device(user: dict = Depends(current_user)):
 
 
 # --------------------------------------------------------------------------
+# Launcher without an account: the key alone, pinned to one PC and one network
+#
+# Not every customer wants an account, so the injector also takes a license key. The rules are the
+# same two locks the account path has: the first PC that uses the key takes it (a wrong PC is
+# refused, never silently moved), and the network is pinned to the IP the key was first used from.
+# Nothing is handed back but the state, so there is no token to steal.
+# --------------------------------------------------------------------------
+def key_license(raw: str) -> dict:
+    key = (raw or "").strip().upper()
+    if not re.fullmatch(r"CHAMP-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}", key):
+        raise HTTPException(400, "That does not look like a valid license key.")
+    lic = db_get("licenses", {"license_key": eq(key)})
+    if not lic:
+        raise HTTPException(404, "License key not found.")
+    return lic
+
+
+def key_payload(lic: dict, request: Request, hwid: str) -> dict:
+    """The same answer launcher_payload gives, computed from the key instead of a session."""
+    ip = client_ip(request)
+
+    local = ""
+    if hwid:
+        try:
+            local = normalize_hwid(hwid)
+        except HTTPException:
+            local = ""
+    device = str(lic.get("hwid") or "").strip()
+    if local and not device:
+        rows = db_update("licenses", {"id": eq(lic["id"])},
+                         {"hwid": local, "hwid_bound_at": iso(now()), "updated_at": iso(now())})
+        if rows:
+            lic = rows[0]
+            device = local
+    hwid_ok = not device or (bool(local) and hmac.compare_digest(device, local))
+
+    bound_ip = license_bound_ip(lic)
+    if not bound_ip:
+        updated = set_license_ip(lic, ip)
+        if updated is not None:
+            lic = updated
+            bound_ip = ip
+    ip_ok = not bound_ip or bound_ip == ip
+
+    active = license_active(lic)
+    can_inject = active and hwid_ok and ip_ok
+    reason = ""
+    if not can_inject:
+        reason = "inactive" if not active else ("device" if not hwid_ok else "ip")
+
+    key = str(lic.get("license_key") or "")
+    return {
+        "ok": True,
+        "username": f"CHAMP-…-{key[-4:]}" if len(key) >= 4 else "license key",
+        "license": lic.get("plan_type"),
+        "active": active,
+        "expires_at": lic.get("expires_at"),
+        "device": mask_hwid(device),
+        "device_bound": bool(device),
+        "hwid_ok": hwid_ok,
+        "ip": mask_ip(bound_ip or ip),
+        "current_ip": mask_ip(ip),
+        "ip_bound": bool(bound_ip),
+        "ip_ok": ip_ok,
+        "can_inject": can_inject,
+        "reason": reason,
+        "free_device_reset": free_reset_available(lic),
+        "device_reset_price_cents": HWID_RESET_PRICE_CENTS,
+        "next_free_reset_at": next_free_reset_at(lic),
+    }
+
+
+class LauncherKeyReq(BaseModel):
+    key: str
+    hwid: str = ""
+
+
+@app.post("/api/launcher/key")
+def launcher_key(request: Request, p: LauncherKeyReq):
+    """Signs the injector in with a license key: PC and network both have to match."""
+    return key_payload(key_license(p.key), request, p.hwid)
+
+
+@app.post("/api/launcher/key/reset/ip")
+def launcher_key_reset_ip(request: Request, p: LauncherKeyReq):
+    """Free network reset for key-only customers: same key, same PC, new IP."""
+    lic = key_license(p.key)
+    device = str(lic.get("hwid") or "").strip()
+    try:
+        local = normalize_hwid(p.hwid)
+    except HTTPException:
+        raise HTTPException(400, "That hardware ID is not valid.")
+    if device and not hmac.compare_digest(device, local):
+        raise HTTPException(403, "This key is linked to another PC. Reset the device first.")
+    ip = client_ip(request)
+    if set_license_ip(lic, ip) is None:
+        raise HTTPException(503, IP_LOCK_MISSING)
+    return {"ok": True, "ip": mask_ip(ip), "bound_ip_at": iso(now()),
+            "message": f"Network reset to {mask_ip(ip)}."}
+
+
+# --------------------------------------------------------------------------
 # License redeem: enter a key -> it is linked to your account -> download opens
 # --------------------------------------------------------------------------
 @app.post("/api/license/redeem")
