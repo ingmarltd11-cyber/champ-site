@@ -1575,6 +1575,21 @@ def login(p: LoginReq, response: Response):
     return {"message": "Logged in.", "username": user["username"], "is_admin": is_admin}
 
 
+@app.post("/api/auth/browser/token")
+def browser_login_token(user: dict = Depends(current_user)):
+    """Hands the signed-in session to the desktop injector, once the browser has signed in.
+
+    The injector opens the login page on a loopback port and waits for this token to come back
+    there. It is a normal session cookie value: the same claims a browser would carry, so the
+    injector can call every launcher route with it and nothing else changes. Only the account that
+    is signed in here can ask for it, and only its own session is returned.
+    """
+    minutes = 60 * 24 * SESSION_DAYS
+    token = make_token(user["email"], "session", minutes,
+                       {"fp": fingerprint(user["password_hash"])})
+    return {"token": token, "username": user["username"], "expires_in": minutes * 60}
+
+
 @app.post("/api/auth/logout")
 def logout(response: Response):
     response.delete_cookie("session_token", path="/")

@@ -455,9 +455,67 @@ if (verifyForm) {
 // ============================================================
 // Login
 // ============================================================
+// The desktop injector opens this page on a loopback port and waits for the session. Only a
+// numeric port above 1024 and an unguessable state are accepted, so a random page cannot make a
+// signed-in customer hand their session to a local process.
+//
+// The request is also kept in this tab: signing up or verifying the email leaves this page and
+// comes back to login.html without a query string, and the injector is still waiting on that port.
+const BROWSER_LOGIN_KEY = 'champ.browserLogin';
+const BROWSER_LOGIN_MAX_AGE = 10 * 60 * 1000;   // the injector gives up after five minutes
+
+function clearBrowserLogin() {
+  try { sessionStorage.removeItem(BROWSER_LOGIN_KEY); } catch (_) { /* private mode */ }
+}
+
+function validBrowserLogin(port, state) {
+  return Number.isInteger(port) && port >= 1024 && port <= 65535 &&
+    /^[A-Za-z0-9]{8,64}$/.test(state);
+}
+
+function browserLoginParams() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('browser') === '1') {
+    const port = Number(params.get('port'));
+    const state = params.get('state') || '';
+    if (!validBrowserLogin(port, state)) return null;
+    try {
+      sessionStorage.setItem(BROWSER_LOGIN_KEY, JSON.stringify({ port, state, at: Date.now() }));
+    } catch (_) { /* the handoff then only works straight from this page */ }
+    return { port, state };
+  }
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(BROWSER_LOGIN_KEY) || 'null');
+    if (!saved || !validBrowserLogin(saved.port, saved.state)) return null;
+    if (Date.now() - saved.at > BROWSER_LOGIN_MAX_AGE) {
+      clearBrowserLogin();
+      return null;
+    }
+    return { port: saved.port, state: saved.state };
+  } catch (_) {
+    return null;
+  }
+}
+
+async function finishBrowserLogin(target) {
+  showMessage('formMessage', 'Signing in to Champ on your PC…', false);
+  const res = await api('/api/auth/browser/token', { method: 'POST', body: '{}' });
+  if (!res.ok || !res.data || !res.data.token) {
+    showMessage('formMessage', errorText(res.data, 'Could not hand the session to the app. Try signing in again.'), true);
+    return false;
+  }
+  clearBrowserLogin();
+  window.location.href = `http://127.0.0.1:${target.port}/callback?state=${encodeURIComponent(target.state)}&token=${encodeURIComponent(res.data.token)}`;
+  return true;
+}
+
 const loginForm = document.getElementById('loginForm');
 if (loginForm) {
   const params = new URLSearchParams(window.location.search);
+  const browserLogin = browserLoginParams();
+  if (browserLogin) {
+    showMessage('formMessage', 'Champ on your PC opened this page. Sign in below and the app continues on its own.', false);
+  }
 
   // The form is only for signed-out visitors. Remember-me already keeps the
   // session cookie on this browser; this also skips the form when it is valid.
@@ -466,6 +524,10 @@ if (loginForm) {
       try {
         const res = await api('/api/auth/me');
         if (!res.ok || !res.data || !res.data.email) return;
+        if (browserLogin) {
+          await finishBrowserLogin(browserLogin);
+          return;
+        }
         const requested = params.get('next');
         const target = requested && !/^(login|signup)\.html/.test(requested)
           ? safeNext(requested)
@@ -504,6 +566,10 @@ if (loginForm) {
         ({ ok, status, data } = await attemptLogin(code.trim()));
       }
       if (ok) {
+        if (browserLogin) {
+          await finishBrowserLogin(browserLogin);
+          return;
+        }
         // Admins land in the admin panel by default; an explicit ?next= still wins.
         const requested = params.get('next');
         window.location.href = requested ? safeNext(requested) : (data.is_admin ? 'admin.html' : 'dashboard.html');
