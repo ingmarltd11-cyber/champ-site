@@ -25,105 +25,297 @@
     <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></symbol>
     <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></symbol>
     <symbol id="i-star" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/></symbol>
-    <symbol id="i-sliders" viewBox="0 0 24 24"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></symbol>
     <symbol id="i-user" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
-    <symbol id="i-box" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></symbol>
     <symbol id="i-zap" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></symbol>
   </defs>
 </svg>
+
 <nav>
   <a class="nav-logo" href="index.html"><img src="assets/logo.png" alt="Champ Client logo"><span>Champ <em>Client</em></span></a>
-  <div class="nav-actions"><a class="btn-ghost" href="support.html">Help</a><button id="logoutBtn" class="btn-ghost">Sign Out</button></div>
+  <div class="nav-actions">
+    <span class="topbar-crumb">Member area</span>
+    <a class="btn-ghost" href="support.html">Help</a>
+    <button id="logoutBtn" class="btn-ghost" type="button">Sign out</button>
+  </div>
 </nav>
+
 <div class="dashboard-shell">
   <aside class="dashboard-sidebar" aria-label="Dashboard navigation">
-    <a class="sidebar-brand" href="index.html" aria-label="Champ Client home"><img src="assets/logo.png" alt=""><span><b>Champ <em>Client</em></b><small>Member area</small></span></a><div class="sidebar-label">Workspace</div>
-    <button class="sidebar-link active" data-section="overview"><span class="sidebar-icon" data-dash-icon="grid"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-grid"></use></svg></span><span>Overview</span></button>
-    <button class="sidebar-link" data-section="install"><span class="sidebar-icon" data-dash-icon="download"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-download"></use></svg></span><span>Install</span></button>
-    <button class="sidebar-link" data-section="texture-packs"><span class="sidebar-icon" data-dash-icon="layers"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-layers"></use></svg></span><span>Texture Packs</span></button>
-    <button class="sidebar-link" data-section="base-finds"><span class="sidebar-icon" data-dash-icon="pin"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-pin"></use></svg></span><span>Base Finds</span></button>
+    <a class="sidebar-brand" href="index.html" aria-label="Champ Client home">
+      <img src="assets/logo.png" alt="">
+      <span><b>Champ <em>Client</em></b><small>Member area</small></span>
+    </a>
+
+    <div class="sidebar-label">Workspace</div>
+    <button class="sidebar-link active" data-section="overview" type="button"><span class="sidebar-icon" data-dash-icon="grid"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-grid"></use></svg></span><span>Overview</span></button>
+    <button class="sidebar-link" data-section="install" type="button"><span class="sidebar-icon" data-dash-icon="download"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-download"></use></svg></span><span>Install</span></button>
+    <button class="sidebar-link" data-section="texture-packs" type="button"><span class="sidebar-icon" data-dash-icon="layers"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-layers"></use></svg></span><span>Texture packs</span></button>
+    <button class="sidebar-link" data-section="base-finds" type="button"><span class="sidebar-icon" data-dash-icon="pin"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-pin"></use></svg></span><span>Base finds</span></button>
+
     <div class="sidebar-label">Account</div>
-    <button class="sidebar-link" data-section="keys"><span class="sidebar-icon" data-dash-icon="key"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-key"></use></svg></span><span>Keys &amp; Licenses</span></button>
-    <button class="sidebar-link" data-section="billing"><span class="sidebar-icon" data-dash-icon="card"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-card"></use></svg></span><span>Subscriptions</span></button>
-    <button class="sidebar-link" data-section="referrals"><span class="sidebar-icon" data-dash-icon="gift"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-gift"></use></svg></span><span>Referrals</span></button>
-    <button class="sidebar-link" data-section="discord"><span class="sidebar-icon" data-dash-icon="message"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-message"></use></svg></span><span>Discord</span></button>
-    <button class="sidebar-link" data-section="security"><span class="sidebar-icon" data-dash-icon="shield"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-shield"></use></svg></span><span>Security</span></button>
+    <button class="sidebar-link" data-section="keys" type="button"><span class="sidebar-icon" data-dash-icon="key"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-key"></use></svg></span><span>Keys &amp; licenses</span></button>
+    <button class="sidebar-link" data-section="billing" type="button"><span class="sidebar-icon" data-dash-icon="card"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-card"></use></svg></span><span>Subscription</span></button>
+    <button class="sidebar-link" data-section="referrals" type="button"><span class="sidebar-icon" data-dash-icon="gift"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-gift"></use></svg></span><span>Referrals</span></button>
+    <button class="sidebar-link" data-section="discord" type="button"><span class="sidebar-icon" data-dash-icon="message"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-message"></use></svg></span><span>Discord</span></button>
+    <button class="sidebar-link" data-section="security" type="button"><span class="sidebar-icon" data-dash-icon="shield"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-shield"></use></svg></span><span>Security</span></button>
+
     <div class="sidebar-label">Support</div>
-    <button class="sidebar-link" data-section="help"><span class="sidebar-icon" data-dash-icon="help"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-help"></use></svg></span><span>Help &amp; troubleshooting</span></button>
-    <a class="sidebar-link" href="changelog.html" data-dash-section="whats-new"><span class="sidebar-icon" data-dash-icon="star"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-star"></use></svg></span><span>What's new</span></a>
-    <div class="sidebar-account"><b id="sidebar-username">Account</b><small id="sidebar-email"></small>
-      <button id="sidebarLogout" class="btn-ghost" type="button" style="width:100%;margin-top:10px">Sign Out</button>
+    <button class="sidebar-link" data-section="help" type="button"><span class="sidebar-icon" data-dash-icon="help"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-help"></use></svg></span><span>Help</span></button>
+    <a class="sidebar-link" href="changelog.html"><span class="sidebar-icon" data-dash-icon="star"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-star"></use></svg></span><span>What's new</span></a>
+
+    <div class="sidebar-spacer"></div>
+    <div class="sidebar-account">
+      <b id="sidebar-username">Account</b>
+      <small id="sidebar-email"></small>
+      <button id="sidebarLogout" class="btn-ghost" type="button">Sign out</button>
     </div>
   </aside>
 
   <main class="dashboard-main">
-    <div id="dash-notice" class="dashboard-message"></div>
+    <div id="dash-notice" class="dashboard-message" role="status"></div>
+
+    <!-- ============================================================ OVERVIEW -->
     <section id="dash-section-overview" class="dashboard-section active">
-      <header class="dash-hero"><img class="dash-hero-mark" src="assets/logo.png" alt="" aria-hidden="true"><p class="dash-eyebrow">Member dashboard</p><h1>Welcome back,<br><em id="dash-username">User</em>.</h1><p class="dash-sub" id="dash-email">Loading account session…</p><div class="dash-trust"><span class="trust-badge"><span class="trust-dot"></span>Fabric 1.21.11</span><span class="trust-badge"><span class="trust-dot"></span>Instant delivery</span><span class="trust-badge"><span class="trust-dot"></span>Secure Stripe checkout</span></div></header>
+      <header class="dash-hero">
+        <img class="dash-hero-mark" src="assets/logo.png" alt="" aria-hidden="true">
+        <p class="dash-eyebrow">Member dashboard</p>
+        <h1>Welcome back,<br><em id="dash-username">User</em>.</h1>
+        <p class="dash-sub" id="dash-email">Loading account session…</p>
+        <div class="dash-trust">
+          <span class="trust-badge"><span class="trust-dot"></span>Fabric 1.21.11</span>
+          <span class="trust-badge"><span class="trust-dot"></span>Instant delivery</span>
+          <span class="trust-badge"><span class="trust-dot"></span>Secure Stripe checkout</span>
+        </div>
+      </header>
+
       <div class="dashboard-grid">
-        <article class="dash-card"><div class="card-title"><span class="title-icon" data-dash-icon="card"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-card"></use></svg></span>Monthly subscription <span class="status-badge status-none" id="badge-monthly">Inactive</span></div><div id="content-monthly"><p class="no-license-text">No active monthly subscription on this account.</p><a href="index.html#pricing" class="btn-purchase-direct">Browse plans</a></div></article>
-        <article class="dash-card"><div class="card-title"><span class="title-icon" data-dash-icon="star"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-star"></use></svg></span>Lifetime access <span class="status-badge status-none" id="badge-lifetime">Inactive</span></div><div id="content-lifetime"><p class="no-license-text">No lifetime license is linked to this account.</p><a href="index.html#pricing" class="btn-purchase-direct">Get lifetime access</a></div></article>
-        <article class="dash-card" id="device"><div class="card-title"><span class="title-icon" data-dash-icon="key"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-key"></use></svg></span>Device, HWID &amp; network</div><div id="deviceContent"><p class="no-license-text">Loading your device…</p></div><p id="deviceMessage" style="display:none;margin-top:12px;font-size:13px"></p></article>
+        <article class="dash-card">
+          <div class="card-title"><span class="title-icon" data-dash-icon="card"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-card"></use></svg></span>Monthly subscription <span class="status-badge status-none" id="badge-monthly">Inactive</span></div>
+          <div id="content-monthly"><p class="no-license-text">No active monthly subscription on this account.</p><a href="index.html#pricing" class="btn-purchase-direct">Browse plans</a></div>
+        </article>
+        <article class="dash-card">
+          <div class="card-title"><span class="title-icon" data-dash-icon="star"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-star"></use></svg></span>Lifetime access <span class="status-badge status-none" id="badge-lifetime">Inactive</span></div>
+          <div id="content-lifetime"><p class="no-license-text">No lifetime license is linked to this account.</p><a href="index.html#pricing" class="btn-purchase-direct">Get lifetime access</a></div>
+        </article>
       </div>
-      <article class="dash-card"><div class="card-title"><span class="title-icon" data-dash-icon="key"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-key"></use></svg></span>Activate a license key</div><p class="no-license-text">Bought a key? Redeem it here to link it to your account and unlock downloads.</p><form id="redeemForm" style="display:flex;gap:10px;flex-wrap:wrap"><input id="redeemKey" class="pay-input" style="margin:0;flex:1;min-width:200px" placeholder="CHAMP-XXXX-XXXX-XXXX-XXXX" autocomplete="off"><button class="btn-primary" type="submit">Activate key</button></form><p id="redeemMessage" style="display:none;margin-top:12px;font-size:13px"></p></article>
+
+      <article class="dash-card" id="device">
+        <div class="card-title"><span class="title-icon" data-dash-icon="shield"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-shield"></use></svg></span>Device, HWID &amp; network</div>
+        <div id="deviceContent"><p class="no-license-text">Loading your device…</p></div>
+        <p id="deviceMessage" role="status"></p>
+      </article>
+
+      <div class="overview-split">
+        <article class="dash-card">
+          <div class="card-title"><span class="title-icon" data-dash-icon="key"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-key"></use></svg></span>Activate a license key</div>
+          <p class="no-license-text">Bought a key from a reseller? Redeem it here to link it to this account and unlock the injector, texture packs and base finds.</p>
+          <form id="redeemForm" style="display:flex;gap:10px;flex-wrap:wrap">
+            <input id="redeemKey" class="pay-input" style="flex:1;min-width:200px" placeholder="CHAMP-XXXX-XXXX-XXXX-XXXX" autocomplete="off" aria-label="License key">
+            <button class="btn-primary" type="submit">Activate key</button>
+          </form>
+          <p id="redeemMessage" style="display:none;margin-top:12px;font-size:13px" role="status"></p>
+        </article>
+
+        <article class="dash-card">
+          <div class="card-title"><span class="title-icon" data-dash-icon="zap"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-zap"></use></svg></span>Shortcuts</div>
+          <div class="quick-list">
+            <button class="quick-link" type="button" data-section-link="install">
+              <span class="quick-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-download"></use></svg></span>
+              <span>Install the injector<small>Step-by-step setup</small></span>
+              <span class="quick-arrow">&rsaquo;</span>
+            </button>
+            <button class="quick-link" type="button" data-section-link="keys">
+              <span class="quick-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-key"></use></svg></span>
+              <span>Your licenses<small>Plans, expiry and keys</small></span>
+              <span class="quick-arrow">&rsaquo;</span>
+            </button>
+            <button class="quick-link" type="button" data-section-link="security">
+              <span class="quick-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-shield"></use></svg></span>
+              <span>Account security<small>Two-factor authentication</small></span>
+              <span class="quick-arrow">&rsaquo;</span>
+            </button>
+            <button class="quick-link" type="button" data-section-link="help">
+              <span class="quick-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-help"></use></svg></span>
+              <span>Need a hand?<small>Assistant and Discord support</small></span>
+              <span class="quick-arrow">&rsaquo;</span>
+            </button>
+          </div>
+        </article>
+      </div>
     </section>
 
+    <!-- ============================================================ INSTALL -->
     <section id="dash-section-install" class="dashboard-section">
-      <header class="dash-heading"><p class="dash-eyebrow">Setup</p><h1>Install Champ <em>Client</em></h1><p>Get it running in a few minutes.</p></header>
-      <article class="dash-card"><ol class="dash-steps">
-        <li><b>Download the injector</b><p class="no-license-text">One file &mdash; the client sits inside it. The button picks <b>Windows (.exe)</b> or <b>Linux (.tar.gz)</b> for this device automatically; on a phone or when the browser is unsure you choose yourself. Nothing goes into your <b>mods</b> folder, there is no jar to install, and every download gets its own file name, so keep it somewhere you can find it.</p><a class="btn-ghost" href="downloads/champ-client.exe" data-champ-download download>Download Champ Injector</a></li>
-        <li><b>Linux: unpack, then run</b><p class="no-license-text">The Linux download is a <b>.tar.gz</b> containing the launcher, the client and the logo. Unpack it (<code>tar -xzf &lt;file&gt;.tar.gz -C ~/champ</code>), make the launcher executable (<code>chmod +x ~/champ/champ</code>) and run <code>~/champ/champ</code> with Minecraft open. It needs a 64-bit JDK 21, because attaching to the running game uses the JDK tools that a plain JRE does not ship.</p></li>
-        <li><b>Start Minecraft first</b><p class="no-license-text">Launch the Minecraft 1.21.11 profile you normally play (Fabric Loader + Fabric API) and stay in the main menu. The injector attaches to the game that is already running.</p></li>
-        <li><b>Run the injector</b><p class="no-license-text">While Minecraft is open, run the file you downloaded and sign in with your Champ account. The splash checks your license, this PC and your network, then injects. Windows may ask for permission &mdash; that is the injection. It closes itself once you see <b>Champ is running</b>.</p></li>
-        <li><b>Locked to another network?</b><p class="no-license-text">Free and unlimited: press <b>Reset IP</b> in the splash, or <b>Reset network</b> in <b>Device, HWID &amp; network</b> above. A new router, a VPN or a move is never a lockout.</p></li>
-        <li><b>Locked to another PC?</b><p class="no-license-text">One PC per key. Reset the device above: the first reset is free, then one per week, after that &euro;5. Resetting is what moves your key to the new PC.</p></li>
-        <li><b>Starting again later</b><p class="no-license-text">Keep the file: start Minecraft, run it, done. The session is remembered, so it injects without typing anything. A newer release is a new download &mdash; the old one keeps working until you replace it.</p></li>
-      </ol></article>
+      <header class="page-head">
+        <p class="dash-eyebrow">Setup</p>
+        <h1>Install Champ <em>Client</em></h1>
+        <p>One file, no mods folder, no jar. Get it running in a few minutes.</p>
+      </header>
+      <article class="dash-card">
+        <ol class="dash-steps">
+          <li><b>Download the injector</b><p class="no-license-text">One file &mdash; the client sits inside it. The button picks <b>Windows (.exe)</b> or <b>Linux (.tar.gz)</b> for this device automatically; on a phone or when the browser is unsure you choose yourself. Nothing goes into your <b>mods</b> folder, and every download gets its own file name, so keep it somewhere you can find it.</p><a class="btn-ghost" href="downloads/champ-client.exe" data-champ-download download>Download Champ Injector</a></li>
+          <li><b>Linux: unpack, then run</b><p class="no-license-text">The Linux download is a <b>.tar.gz</b> containing the launcher, the client and the logo. Unpack it (<code>tar -xzf &lt;file&gt;.tar.gz -C ~/champ</code>), make the launcher executable (<code>chmod +x ~/champ/champ</code>) and run <code>~/champ/champ</code> with Minecraft open. It needs a 64-bit JDK 21, because attaching to the running game uses the JDK tools that a plain JRE does not ship.</p></li>
+          <li><b>Start Minecraft first</b><p class="no-license-text">Launch the Minecraft 1.21.11 profile you normally play (Fabric Loader + Fabric API) and stay in the main menu. The injector attaches to the game that is already running.</p></li>
+          <li><b>Run the injector</b><p class="no-license-text">While Minecraft is open, run the file you downloaded and sign in with your Champ account. The splash checks your license, this PC and your network, then injects. Windows may ask for permission &mdash; that is the injection. It closes itself once you see <b>Champ is running</b>.</p></li>
+          <li><b>Locked to another network?</b><p class="no-license-text">Free and unlimited: press <b>Reset IP</b> in the splash, or <b>Reset IP to this network</b> in <b>Device, HWID &amp; network</b> on the overview. A new router, a VPN or a move is never a lockout.</p></li>
+          <li><b>Locked to another PC?</b><p class="no-license-text">One PC per key. Reset the device on the overview: the first reset is free, then one per week, after that &euro;5. Resetting is what moves your key to the new PC.</p></li>
+          <li><b>Starting again later</b><p class="no-license-text">Keep the file: start Minecraft, run it, done. The session is remembered, so it injects without typing anything. A newer release is a new download &mdash; the old one keeps working until you replace it.</p></li>
+        </ol>
+      </article>
     </section>
 
+    <!-- ============================================================ TEXTURE PACKS -->
     <section id="dash-section-texture-packs" class="dashboard-section">
-      <header class="dash-heading"><p class="dash-eyebrow">Customer library</p><h1>Texture <em>Packs</em></h1><p>Downloads and pack details are available to active customers only.</p></header>
+      <header class="page-head">
+        <p class="dash-eyebrow">Customer library</p>
+        <h1>Texture <em>packs</em></h1>
+        <p>Downloads and pack details are available to active customers only.</p>
+      </header>
       <div id="dashboardTexturePacks" class="dashboard-list"><p class="no-license-text">An active license is required to view customer packs.</p></div>
     </section>
 
+    <!-- ============================================================ BASE FINDS -->
     <section id="dash-section-base-finds" class="dashboard-section">
-      <header class="dash-heading"><p class="dash-eyebrow">Community intel</p><h1>Base <em>Finds</em></h1><p>Private community finds for active Champ Client customers.</p></header>
-      <article class="dash-card" style="margin-bottom:18px"><div class="card-title">Share a find</div><form id="findUploadForm" class="admin-editor" style="display:none"><label>Title<input id="findTitle" maxlength="80" required placeholder="Give this find a title"></label><label>Description<textarea id="findDesc" maxlength="1000" placeholder="Description and verified location hints"></textarea></label><label>Screenshot (PNG/JPG/WEBP, max 4 MB)<input id="findImage" type="file" accept="image/png,image/jpeg,image/webp"></label><button class="btn-primary" type="submit">Submit for review</button><p id="findUploadMessage" style="display:none;font-size:13px"></p></form></article>
+      <header class="page-head">
+        <p class="dash-eyebrow">Community intel</p>
+        <h1>Base <em>finds</em></h1>
+        <p>Private community finds for active Champ Client customers.</p>
+      </header>
+      <article class="dash-card" style="margin-bottom:18px">
+        <div class="card-title"><span class="title-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-pin"></use></svg></span>Share a find</div>
+        <form id="findUploadForm" class="admin-editor">
+          <label>Title<input id="findTitle" maxlength="80" required placeholder="Give this find a title"></label>
+          <label>Description<textarea id="findDesc" maxlength="1000" placeholder="Description and verified location hints"></textarea></label>
+          <label>Screenshot (PNG/JPG/WEBP, max 4 MB)<input id="findImage" type="file" accept="image/png,image/jpeg,image/webp"></label>
+          <div><button class="btn-primary" type="submit">Submit for review</button></div>
+          <p id="findUploadMessage" class="save-message" style="display:none" role="status"></p>
+        </form>
+      </article>
       <div id="dashboardFindsGrid" class="finds-grid"><p class="no-license-text">An active license is required to view customer finds.</p></div>
     </section>
 
+    <!-- ============================================================ KEYS -->
     <section id="dash-section-keys" class="dashboard-section">
-      <header class="dash-heading"><h1>Keys &amp; <em>Licenses</em></h1><p>View your current access or activate a key from a purchase email.</p></header>
-      <div class="dashboard-grid"><article class="dash-card"><div class="card-title">Monthly license <span class="status-badge status-none" id="badge-monthly-copy">Inactive</span></div><div id="content-monthly-copy"><p class="no-license-text">No monthly license.</p></div></article><article class="dash-card"><div class="card-title">Lifetime license <span class="status-badge status-none" id="badge-lifetime-copy">Inactive</span></div><div id="content-lifetime-copy"><p class="no-license-text">No lifetime license.</p></div></article></div>
-      <article class="dash-card"><div class="card-title">Redeem a key</div><p class="no-license-text">The activation form is on the Overview tab.</p><button class="btn-ghost" type="button" data-section-link="overview">Go to activation</button></article>
+      <header class="page-head">
+        <p class="dash-eyebrow">Account</p>
+        <h1>Keys &amp; <em>licenses</em></h1>
+        <p>Everything that grants access to Champ Client on this account.</p>
+      </header>
+      <div class="dashboard-grid">
+        <article class="dash-card">
+          <div class="card-title">Monthly license <span class="status-badge status-none" id="badge-monthly-copy">Inactive</span></div>
+          <div id="content-monthly-copy"><p class="no-license-text">No monthly license.</p></div>
+        </article>
+        <article class="dash-card">
+          <div class="card-title">Lifetime license <span class="status-badge status-none" id="badge-lifetime-copy">Inactive</span></div>
+          <div id="content-lifetime-copy"><p class="no-license-text">No lifetime license.</p></div>
+        </article>
+      </div>
+      <article class="dash-card">
+        <div class="card-title"><span class="title-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-key"></use></svg></span>Redeem a key</div>
+        <p class="no-license-text">The activation form lives on the Overview tab. Copy the key from your purchase e-mail exactly as it was sent.</p>
+        <button class="btn-ghost" type="button" data-section-link="overview">Go to activation</button>
+      </article>
     </section>
 
+    <!-- ============================================================ BILLING -->
     <section id="dash-section-billing" class="dashboard-section">
-      <header class="dash-heading"><h1>Your <em>subscription</em></h1><p>Manage your recurring plan and billing in Stripe.</p></header>
-      <article class="dash-card"><div id="billingOverview"><p class="no-license-text">Loading subscription status…</p></div><button id="manageBillingBtn" class="btn-primary" type="button" style="display:none">Manage subscription</button></article>
+      <header class="page-head">
+        <p class="dash-eyebrow">Account</p>
+        <h1>Your <em>subscription</em></h1>
+        <p>Manage your recurring plan, payment details and cancellations in Stripe.</p>
+      </header>
+      <article class="dash-card">
+        <div id="billingOverview"><p class="no-license-text">Loading subscription status…</p></div>
+        <button id="manageBillingBtn" class="btn-primary" type="button" style="display:none">Manage subscription</button>
+      </article>
     </section>
 
+    <!-- ============================================================ REFERRALS -->
     <section id="dash-section-referrals" class="dashboard-section">
-      <header class="dash-heading"><h1>Referral <em>rewards</em></h1><p>Share your personal link and track referral credits.</p></header>
-      <article class="dash-card"><div class="license-box" id="refLink">Loading…</div><button class="btn-ghost" id="refCopyBtn" type="button">Copy referral link</button><p class="no-license-text" id="refStats" style="margin-top:14px"></p></article>
+      <header class="page-head">
+        <p class="dash-eyebrow">Account</p>
+        <h1>Referral <em>rewards</em></h1>
+        <p>Share your personal link and track the credits it earns.</p>
+      </header>
+      <article class="dash-card">
+        <div class="card-title"><span class="title-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-gift"></use></svg></span>Your link</div>
+        <div class="license-box" id="refLink">Loading…</div>
+        <button class="btn-ghost" id="refCopyBtn" type="button">Copy referral link</button>
+        <p class="no-license-text" id="refStats" style="margin-top:14px"></p>
+      </article>
     </section>
 
+    <!-- ============================================================ DISCORD -->
     <section id="dash-section-discord" class="dashboard-section">
-      <header class="dash-heading"><h1>Discord <em>access</em></h1><p>Link Discord to your customer account and get customer role access.</p></header>
-      <article class="dash-card"><p class="no-license-text" id="discordStatus">Connect your Discord account to get the Champ+ rank when you own a license.</p><a class="btn-discord" id="discordLinkBtn" href="/api/discord/link">Link Discord account</a><button class="btn-ghost" id="discordRoleBtn" type="button" style="display:none;margin-left:8px">Retry role sync</button><p id="discordMessage" style="display:none;margin-top:12px;font-size:13px"></p></article>
+      <header class="page-head">
+        <p class="dash-eyebrow">Community</p>
+        <h1>Discord <em>access</em></h1>
+        <p>Link Discord to your customer account and pick up the Champ+ rank.</p>
+      </header>
+      <article class="dash-card">
+        <div class="card-title"><span class="title-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-message"></use></svg></span>Account link</div>
+        <p class="no-license-text" id="discordStatus">Connect your Discord account to get the Champ+ rank when you own a license.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <a class="btn-discord" id="discordLinkBtn" href="/api/discord/link">Link Discord account</a>
+          <button class="btn-ghost" id="discordRoleBtn" type="button" style="display:none">Retry rank sync</button>
+        </div>
+        <p id="discordMessage" style="display:none;margin-top:12px;font-size:13px" role="status"></p>
+      </article>
     </section>
 
+    <!-- ============================================================ SECURITY -->
     <section id="dash-section-security" class="dashboard-section">
-      <header class="dash-heading"><h1>Account <em>security</em></h1><p>Protect your Champ Client account.</p></header>
-      <article class="dash-card"><p class="no-license-text" id="twofaStatus">Set up authenticator-based two-factor authentication.</p><div id="twofaOffBox"><button class="btn-primary" id="twofaSetupBtn" type="button">Set up 2FA</button></div><div id="twofaSetupBox" style="display:none;margin-top:14px"><p class="no-license-text">Add this secret to your authenticator app:</p><div class="license-box" id="twofaSecret"></div><form id="twofaEnableForm" style="display:flex;gap:10px;flex-wrap:wrap"><input id="twofaCode" class="pay-input" style="margin:0;flex:1;min-width:120px" placeholder="123456" inputmode="numeric" autocomplete="one-time-code"><input id="twofaPhone" class="pay-input" style="margin:0;flex:1;min-width:140px" placeholder="Phone (optional)" inputmode="tel" autocomplete="tel"><button class="btn-primary" type="submit">Enable 2FA</button></form></div><div id="twofaOnBox" style="display:none;margin-top:14px"><form id="twofaDisableForm" style="display:flex;gap:10px;flex-wrap:wrap"><input id="twofaDisablePw" type="password" class="pay-input" style="margin:0;flex:1;min-width:160px" placeholder="Current password" autocomplete="current-password"><button class="btn-ghost" type="submit">Turn 2FA off</button></form></div><p id="twofaMessage" style="display:none;margin-top:12px;font-size:13px"></p></article>
+      <header class="page-head">
+        <p class="dash-eyebrow">Account</p>
+        <h1>Account <em>security</em></h1>
+        <p>Protect your Champ Client account with two-factor authentication.</p>
+      </header>
+      <article class="dash-card">
+        <div class="card-title"><span class="title-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-shield"></use></svg></span>Two-factor authentication</div>
+        <p class="no-license-text" id="twofaStatus">Set up authenticator-based two-factor authentication.</p>
+        <div id="twofaOffBox"><button class="btn-primary" id="twofaSetupBtn" type="button">Set up 2FA</button></div>
+        <div id="twofaSetupBox" style="display:none;margin-top:14px">
+          <p class="no-license-text">Add this secret to your authenticator app:</p>
+          <div class="license-box" id="twofaSecret"></div>
+          <form id="twofaEnableForm" style="display:flex;gap:10px;flex-wrap:wrap">
+            <input id="twofaCode" class="pay-input" style="flex:1;min-width:120px" placeholder="123456" inputmode="numeric" autocomplete="one-time-code" aria-label="Authenticator code">
+            <input id="twofaPhone" class="pay-input" style="flex:1;min-width:140px" placeholder="Phone (optional)" inputmode="tel" autocomplete="tel" aria-label="Phone number">
+            <button class="btn-primary" type="submit">Enable 2FA</button>
+          </form>
+        </div>
+        <div id="twofaOnBox" style="display:none;margin-top:14px">
+          <form id="twofaDisableForm" style="display:flex;gap:10px;flex-wrap:wrap">
+            <input id="twofaDisablePw" type="password" class="pay-input" style="flex:1;min-width:160px" placeholder="Current password" autocomplete="current-password" aria-label="Current password">
+            <button class="btn-ghost" type="submit">Turn 2FA off</button>
+          </form>
+        </div>
+        <p id="twofaMessage" style="display:none;margin-top:12px;font-size:13px" role="status"></p>
+      </article>
     </section>
 
+    <!-- ============================================================ HELP -->
     <section id="dash-section-help" class="dashboard-section">
-      <header class="dash-heading"><h1>Help &amp; <em>troubleshooting</em></h1><p>Ask the assistant a question, or hand it to our support team.</p></header>
-      <article class="dash-card"><p class="no-license-text">For personalized help, use the Champ Assistant on the homepage. If it cannot resolve your issue, the chat will give you the Discord support link and suggested details to include.</p><a href="index.html#aiChatWidget" class="btn-primary">Open Champ Assistant</a><p class="no-license-text" style="margin-top:18px">Prefer a person? <a href="https://discord.gg/6vyQnVjeX" target="_blank" rel="noopener" style="color:#a78bfa">Open Discord support</a>.</p></article>
+      <header class="page-head">
+        <p class="dash-eyebrow">Support</p>
+        <h1>Help &amp; <em>troubleshooting</em></h1>
+        <p>Ask the assistant a question, or hand it straight to our support team.</p>
+      </header>
+      <article class="dash-card">
+        <div class="card-title"><span class="title-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-help"></use></svg></span>Champ Assistant</div>
+        <p class="no-license-text">For personalized help, use the Champ Assistant on the homepage. If it cannot resolve your issue, the chat gives you the Discord support link and the details to include.</p>
+        <a href="index.html#aiChatWidget" class="btn-primary">Open Champ Assistant</a>
+      </article>
+      <article class="dash-card">
+        <div class="card-title"><span class="title-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-message"></use></svg></span>A person, please</div>
+        <p class="no-license-text">Our team answers in the Discord server. Have your key, HWID and the exact error text ready &mdash; it makes a fix much faster.</p>
+        <a href="https://discord.gg/6vyQnVjeX" target="_blank" rel="noopener" class="btn-ghost">Open Discord support</a>
+      </article>
     </section>
   </main>
 </div>
+
 <script src="main.js"></script>
 <script src="vendor/gsap.min.js"></script>
 <script src="vendor/gsap-scrolltrigger.min.js"></script>

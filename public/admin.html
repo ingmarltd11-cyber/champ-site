@@ -10,42 +10,6 @@
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="dashboard.css">
-<style>
-/* Admin-only bits on top of the shared dashboard shell (dashboard.css) */
-#adminPanel { display: flex; }
-.admin-tab {
-  width: 100%; display: flex; align-items: center; gap: 11px;
-  padding: 10px 13px; margin: 2px 0; border: 1px solid transparent;
-  border-radius: 0; background: transparent; color: #9a96a8; text-align: left;
-  font: 500 13px Inter, sans-serif; cursor: pointer;
-  transition: background .18s, color .18s, border-color .18s;
-}
-.admin-tab:hover { background: rgba(124,92,255,.08); color: var(--text); }
-.admin-tab.active {
-  background: linear-gradient(90deg, rgba(124,92,255,.24), rgba(124,92,255,.06));
-  border-color: rgba(124,92,255,.28); color: #fff;
-  box-shadow: 0 8px 20px rgba(0,0,0,.28);
-}
-.admin-tab.active .sidebar-icon { color: #c4b5fd; }
-.admin-tabpage { animation: dash-in .26s cubic-bezier(.2,.7,.2,1); }
-.admin-hero-top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; position: relative; margin-bottom: 12px; }
-.admin-hero-top .dash-eyebrow { margin: 0; }
-#adminSessionBadge { margin-left: 0; }
-.admin-section-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
-.admin-section-head h2 { font-size: 17px; font-weight: 650; color: #fff; margin: 0 0 5px; }
-.admin-section-head p { margin: 0; max-width: 660px; }
-.admin-form-panel {
-  margin-bottom: 24px; padding: 20px;
-  background: rgba(8,8,12,.6); border: 1px solid var(--border);
-}
-.admin-form-panel h3 { font-size: 15px; font-weight: 650; color: #fff; margin-bottom: 4px; }
-.admin-denied-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 100px 20px 60px; }
-.admin-denied-wrap .dash-card { width: min(520px, 100%); }
-@media(max-width: 980px) {
-  .admin-tab { width: auto; flex: 0 0 auto; padding: 9px 14px; margin: 0; gap: 8px; white-space: nowrap; }
-  .admin-tab.active { box-shadow: none; }
-}
-</style>
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
@@ -63,22 +27,31 @@
     <symbol id="i-pin" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></symbol>
     <symbol id="i-gift" viewBox="0 0 24 24"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></symbol>
     <symbol id="i-user" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></symbol>
   </defs>
 </svg>
 
 <nav>
   <a class="nav-logo" href="index.html"><img src="assets/logo.png" alt="Champ Client logo"><span>Champ <em>Admin</em></span></a>
   <div class="nav-actions">
+    <span class="topbar-crumb">Admin</span>
     <a class="btn-ghost" href="dashboard.html">My dashboard</a>
-    <button id="adminLogout" class="btn-ghost" style="display:none">Sign Out</button>
+    <button id="adminLogout" class="btn-ghost" style="display:none" type="button">Sign out</button>
     <button class="hamburger" onclick="toggleMenu()" aria-label="Menu"><span></span><span></span><span></span></button>
   </div>
 </nav>
-<div class="mobile-menu" id="mobileMenu"><a href="index.html" onclick="toggleMenu()">Homepage</a><a href="features.html" onclick="toggleMenu()">Features</a><a href="dashboard.html" onclick="toggleMenu()">My dashboard</a></div>
+<div class="mobile-menu" id="mobileMenu">
+  <a href="index.html" onclick="toggleMenu()">Homepage</a>
+  <a href="features.html" onclick="toggleMenu()">Features</a>
+  <a href="dashboard.html" onclick="toggleMenu()">My dashboard</a>
+</div>
 
 <div id="adminPanel" class="dashboard-shell" style="display:none">
   <aside class="dashboard-sidebar" aria-label="Admin navigation">
-    <a class="sidebar-brand" href="index.html" aria-label="Champ Client home"><img src="assets/logo.png" alt=""><span><b>Champ <em>Admin</em></b><small>Shop control</small></span></a>
+    <a class="sidebar-brand" href="index.html" aria-label="Champ Client home">
+      <img src="assets/logo.png" alt="">
+      <span><b>Champ <em>Admin</em></b><small>Shop control</small></span>
+    </a>
 
     <div class="sidebar-label">Site</div>
     <button class="sidebar-link admin-tab active" data-tab="settings" type="button"><span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-sliders"></use></svg></span><span>Announcements</span></button>
@@ -100,42 +73,51 @@
     <button class="sidebar-link admin-tab" data-tab="my-account" type="button"><span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-user"></use></svg></span><span>My account</span></button>
 
     <div class="sidebar-spacer"></div>
-    <div class="sidebar-account"><b>Administrator</b><small>Shop &amp; website content</small></div>
+    <div class="sidebar-account">
+      <b>Administrator</b>
+      <small>Shop &amp; website content</small>
+    </div>
   </aside>
 
   <main class="dashboard-main">
     <header class="dash-hero">
       <img class="dash-hero-mark" src="assets/logo.png" alt="" aria-hidden="true">
-      <div class="admin-hero-top">
-        <p class="dash-eyebrow">Admin workspace</p>
-        <span class="status-badge status-active" id="adminSessionBadge">Admin session active</span>
-      </div>
-      <h1>Shop <em>control</em><br>panel.</h1>
+      <p class="dash-eyebrow">Admin workspace</p>
+      <h1>Shop <em>control</em>.</h1>
       <p class="dash-sub" id="adminStatsLine">Loading stats...</p>
-      <div class="dash-trust"><span class="trust-badge"><span class="trust-dot"></span>Every tab loads live data</span><span class="trust-badge"><span class="trust-dot"></span>Changes go live instantly</span></div>
+      <div class="dash-trust">
+        <span class="trust-badge"><span class="trust-dot"></span>Live data per tab</span>
+        <span class="trust-badge"><span class="trust-dot"></span>Changes go live instantly</span>
+      </div>
     </header>
 
-    <!-- TAB: SETTINGS & ANNOUNCEMENTS & LINKS -->
-    <section class="admin-tabpage" id="tab-settings">
+    <div class="admin-ribbon">
+      <div class="ribbon-cell"><span>Session</span><span class="status-badge status-active" id="adminSessionBadge">Admin session active</span></div>
+      <div class="ribbon-cell"><span>Storefront</span><strong><a href="index.html" style="color:inherit;text-decoration:none">Open the shop &rarr;</a></strong></div>
+      <div class="ribbon-cell"><span>Public changelog</span><strong><a href="changelog.html" style="color:inherit;text-decoration:none">View releases &rarr;</a></strong></div>
+    </div>
+
+    <!-- ======================================================== SETTINGS -->
+    <section class="admin-tabpage" id="tab-settings" style="display:block">
       <article class="dash-card">
         <div class="admin-section-head">
           <div>
-            <h2>Global announcements &amp; website links</h2>
-            <p class="no-license-text">Control the top announcement banner, hero video embeds and community links in real time.</p>
+            <h2>Announcements &amp; website links</h2>
+            <p class="no-license-text">Control the top banner, the hero video, the community links and the page copy in real time.</p>
           </div>
         </div>
         <form id="adminSettingsForm" class="admin-editor">
           <label>Announcement banner text<input name="announcement_text" id="settingAnnouncementText" placeholder="e.g. Champ Client 0.9.9.1 is out for 1.21.11!"></label>
-          <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
-            <input type="checkbox" name="announcement_enabled" id="settingAnnouncementEnabled" style="width:auto; margin:0;">
-            <span>Enable top announcement banner on all pages</span>
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:12.5px;height:100%">
+            <input type="checkbox" name="announcement_enabled" id="settingAnnouncementEnabled">
+            <span>Show the announcement banner on all pages</span>
           </label>
           <label>Discord invite link<input name="discord_link" id="settingDiscordLink" placeholder="https://discord.gg/..."></label>
-          <label>Homepage showcase video URL (YouTube embed or MP4 direct link)<input name="youtube_video_url" id="settingYoutubeUrl" placeholder="https://www.youtube.com/embed/..."></label>
+          <label>Homepage showcase video URL<input name="youtube_video_url" id="settingYoutubeUrl" placeholder="https://www.youtube.com/embed/..."></label>
           <label>Hero tagline<input name="hero_tagline" id="settingHeroTagline" placeholder="Minecraft 1.21.11 Injector"></label>
 
-          <h3 style="margin-top:10px">Page texts</h3>
-          <p class="no-license-text" style="margin-top:-10px">Use <code>*text*</code> for the purple highlight and <code>|</code> for a line break.</p>
+          <h3>Page texts</h3>
+          <p class="no-license-text" style="margin:0">Use <code>*text*</code> for the purple highlight and <code>|</code> for a line break.</p>
           <label>Homepage hero title<input name="hero_title" id="settingHeroTitle" placeholder="Play at the|*highest level.*"></label>
           <label>Homepage hero subtitle<textarea name="hero_sub" id="settingHeroSub" rows="3"></textarea></label>
           <label>Pricing heading<input name="pricing_title" id="settingPricingTitle" placeholder="Simple *Pricing*"></label>
@@ -145,17 +127,17 @@
           <label>Support heading<input name="support_title" id="settingSupportTitle" placeholder="Need *help?*"></label>
           <label>Support subtitle<textarea name="support_sub" id="settingSupportSub" rows="2"></textarea></label>
 
-          <h3 style="margin-top:10px">Dashboard icons</h3>
-          <p class="no-license-text" style="margin-top:-10px">Pick the icon shown next to each dashboard item. Labels stay visible on mobile.</p>
+          <h3>Dashboard icons</h3>
+          <p class="no-license-text" style="margin:0">Pick the icon shown next to each dashboard item. Labels stay visible on mobile.</p>
           <div id="adminDashboardIcons" class="admin-editor"></div>
 
           <div><button class="btn-primary" type="submit">Save site settings</button></div>
-          <p id="settingsSaveMsg" class="save-message" style="display:none;"></p>
+          <p id="settingsSaveMsg" class="save-message" style="display:none" role="status"></p>
         </form>
       </article>
     </section>
 
-    <!-- TAB: ORDERS & KEYS -->
+    <!-- ======================================================== LICENSES -->
     <section class="admin-tabpage" id="tab-orders" style="display:none">
       <article class="dash-card">
         <div class="admin-section-head">
@@ -175,29 +157,30 @@
             <label>Status<select name="status"><option value="active">active</option><option value="inactive">inactive</option><option value="revoked">revoked</option></select></label>
             <label>Expires (optional)<input name="expires_at" placeholder="2026-12-31"></label>
             <label>Custom key (optional)<input name="license_key" placeholder="leave empty to generate"></label>
-            <div style="display:flex; gap:10px;">
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
               <button class="btn-primary" type="submit">Create key</button>
               <button class="btn-ghost" type="button" onclick="document.getElementById('addKeyContainer').style.display='none'">Cancel</button>
             </div>
-            <p id="adminCreateKeyMsg" class="save-message" style="display:none"></p>
+            <p id="adminCreateKeyMsg" class="save-message" style="display:none" role="status"></p>
           </form>
         </div>
 
-        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin:0 0 20px;padding:16px;border:1px solid var(--border);border-radius:12px">
-          <div style="flex:1 1 260px">
+        <div class="admin-toolbar">
+          <div>
             <b>Give everyone extra time</b>
-            <p class="no-license-text" style="margin:4px 0 0">Adds days to every active key with an expiry. Lifetime keys without an expiry and revoked keys are skipped.</p>
+            <p class="no-license-text" style="margin:3px 0 0">Adds days to every active key with an expiry. Lifetime keys without an expiry and revoked keys are skipped.</p>
           </div>
-          <label style="flex:0 0 96px">Days<input id="bulkExtendDays" type="number" min="1" max="3650" value="7" style="width:100%"></label>
-          <label style="flex:0 0 150px">Plan<select id="bulkExtendPlan" style="width:100%"><option value="">All plans</option><option value="monthly">Monthly only</option><option value="lifetime">Lifetime only</option></select></label>
+          <label>Days<input id="bulkExtendDays" type="number" min="1" max="3650" value="7"></label>
+          <label>Plan<select id="bulkExtendPlan"><option value="">All plans</option><option value="monthly">Monthly only</option><option value="lifetime">Lifetime only</option></select></label>
           <button class="btn-primary" type="button" id="bulkExtendBtn">Add time</button>
-          <p id="bulkExtendMsg" class="save-message" style="display:none;flex-basis:100%;margin:0"></p>
+          <p id="bulkExtendMsg" class="save-message" style="display:none;flex-basis:100%" role="status"></p>
         </div>
 
-        <form id="adminSearchForm" style="display:flex;gap:10px;margin:0 0 18px;flex-wrap:wrap">
-          <input id="adminSearch" class="pay-input" style="margin-bottom:0;flex:1;min-width:200px" placeholder="Search email or key...">
+        <form id="adminSearchForm" style="display:flex;gap:10px;margin:0 0 16px;flex-wrap:wrap">
+          <input id="adminSearch" class="pay-input" style="flex:1;min-width:200px" placeholder="Search e-mail or key…" aria-label="Search licenses">
           <button class="btn-primary" type="submit">Search</button>
         </form>
+
         <div id="adminLicenseEditor" class="admin-form-panel" style="display:none">
           <div class="admin-section-head" style="margin-bottom:14px">
             <h3 style="margin:0">Edit key <code id="licEditorKeyLabel"></code></h3>
@@ -213,7 +196,7 @@
             <label>Expires<input name="expires_at" placeholder="2026-12-31, or empty for never"></label>
             <label>Key<input name="license_key"></label>
             <label>Give extra time (days)<input name="extend_days" type="number" min="1" max="3650" placeholder="e.g. 7"></label>
-            <div style="display:flex; gap:10px; flex-wrap:wrap">
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
               <button class="btn-primary" type="submit">Save changes</button>
               <button class="btn-ghost" type="button" id="licEditorExtend">Add time</button>
               <button class="btn-ghost" type="button" id="licEditorResetDevice">Reset device</button>
@@ -221,16 +204,16 @@
               <button class="btn-ghost" type="button" id="licEditorDelete">Delete key</button>
               <button class="btn-ghost" type="button" id="licEditorClose">Close</button>
             </div>
-            <p id="licEditorMsg" class="save-message" style="display:none"></p>
+            <p id="licEditorMsg" class="save-message" style="display:none" role="status"></p>
           </form>
-          <p class="no-license-text" id="licEditorInfo"></p>
+          <p class="no-license-text" id="licEditorInfo" style="margin-top:12px"></p>
         </div>
 
-        <div id="adminOrders" class="admin-table-wrap"><p class="no-license-text">Loading orders...</p></div>
+        <div id="adminOrders" class="admin-table-wrap"><p class="no-license-text">Loading orders…</p></div>
       </article>
     </section>
 
-    <!-- TAB: ACCOUNTS -->
+    <!-- ======================================================== ACCOUNTS -->
     <section class="admin-tabpage" id="tab-accounts" style="display:none">
       <article class="dash-card">
         <div class="admin-section-head">
@@ -240,11 +223,11 @@
           </div>
         </div>
 
-        <form id="adminUserSearchForm" style="display:flex;gap:10px;margin:0 0 18px;flex-wrap:wrap">
-          <input id="adminUserSearch" class="pay-input" style="margin-bottom:0;flex:1;min-width:200px" placeholder="Search username or e-mail...">
+        <form id="adminUserSearchForm" style="display:flex;gap:10px;margin:0 0 16px;flex-wrap:wrap">
+          <input id="adminUserSearch" class="pay-input" style="flex:1;min-width:200px" placeholder="Search username or e-mail…" aria-label="Search accounts">
           <button class="btn-primary" type="submit">Search</button>
         </form>
-        <div id="adminUsers" class="admin-table-wrap"><p class="no-license-text">Loading accounts...</p></div>
+        <div id="adminUsers" class="admin-table-wrap"><p class="no-license-text">Loading accounts…</p></div>
 
         <div id="adminUserEditor" class="admin-form-panel" style="display:none">
           <div class="admin-section-head" style="margin-bottom:14px">
@@ -257,34 +240,34 @@
           <form id="adminUserEditForm" class="admin-editor">
             <label>Username<input name="username" autocomplete="off" placeholder="3-16 letters, numbers or _"></label>
             <label>E-mail<input name="email" type="email" autocomplete="off" placeholder="customer@example.com"></label>
-            <div style="display:flex; gap:10px; flex-wrap:wrap">
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
               <button class="btn-primary" type="submit">Save account</button>
               <button class="btn-ghost" type="button" id="userEditorDelete">Delete account</button>
               <button class="btn-ghost" type="button" id="userEditorClose">Close</button>
             </div>
-            <p id="userEditorMsg" class="save-message" style="display:none"></p>
+            <p id="userEditorMsg" class="save-message" style="display:none" role="status"></p>
           </form>
 
-          <div class="admin-editor" style="margin-top:16px">
+          <div class="admin-editor" style="margin-top:18px">
             <label>Give subscription<select id="userGrantPlan"><option value="monthly">Monthly</option><option value="lifetime">Lifetime</option></select></label>
             <label>Days<input id="userGrantDays" type="number" min="1" max="3650" value="30"></label>
-            <div style="display:flex; gap:10px; flex-wrap:wrap">
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
               <button class="btn-primary" type="button" id="userGrantBtn">Give subscription</button>
             </div>
-            <p id="userGrantMsg" class="save-message" style="display:none"></p>
+            <p id="userGrantMsg" class="save-message" style="display:none" role="status"></p>
           </div>
-          <p class="no-license-text" id="userEditorInfo"></p>
+          <p class="no-license-text" id="userEditorInfo" style="margin-top:12px"></p>
         </div>
       </article>
     </section>
 
-    <!-- TAB: DISCOUNTS -->
+    <!-- ======================================================== DISCOUNTS -->
     <section class="admin-tabpage" id="tab-discounts" style="display:none">
       <article class="dash-card">
         <div class="admin-section-head">
           <div>
             <h2>Discount codes</h2>
-            <p class="no-license-text">Coupons that customers type on the Stripe checkout page. Stripe enforces the expiry and the usage limit, so a code can never be used more often than set here.</p>
+            <p class="no-license-text">Coupons customers type on the Stripe checkout page. Stripe enforces the expiry and the usage limit, so a code can never be used more often than set here.</p>
           </div>
           <button class="btn-primary" type="button" onclick="showAddDiscountForm()">+ New code</button>
         </div>
@@ -297,19 +280,19 @@
             <label>Value<input type="number" name="value" step="0.01" min="0.01" required placeholder="25"></label>
             <label>Max uses (0 = unlimited)<input type="number" name="max_uses" min="0" value="0"></label>
             <label>Expires (optional)<input name="expires_at" placeholder="2026-12-31"></label>
-            <div style="display:flex; gap:10px;">
+            <div style="display:flex;gap:10px">
               <button class="btn-primary" type="submit">Create code</button>
               <button class="btn-ghost" type="button" onclick="document.getElementById('addDiscountContainer').style.display='none'">Cancel</button>
             </div>
-            <p id="adminCreateDiscountMsg" class="save-message" style="display:none"></p>
+            <p id="adminCreateDiscountMsg" class="save-message" style="display:none" role="status"></p>
           </form>
         </div>
 
-        <div id="adminDiscounts" class="admin-table-wrap"><p class="no-license-text">Loading discount codes...</p></div>
+        <div id="adminDiscounts" class="admin-table-wrap"><p class="no-license-text">Loading discount codes…</p></div>
       </article>
     </section>
 
-    <!-- TAB: TEXTURE PACKS -->
+    <!-- ======================================================== TEXTURE PACKS -->
     <section class="admin-tabpage" id="tab-texture-packs" style="display:none">
       <article class="dash-card">
         <div class="admin-section-head">
@@ -324,45 +307,49 @@
           <h3>New texture pack</h3>
           <form id="createTexturePackForm" class="admin-editor">
             <label>Pack name<input name="name" required placeholder="e.g. Champ 16x Dark PvP"></label>
+            <label>Category<input name="category" value="PvP" required placeholder="e.g. PvP, Default, VIP Exclusive"></label>
             <label>Description<textarea name="description" required placeholder="Description of swords, GUI, particles..."></textarea></label>
             <label>Pack file (ZIP, max 32 MB)<input name="pack_file" id="packFile" type="file" accept=".zip,application/zip"></label>
-            <p class="no-license-text" style="margin-top:-8px">Upload the ZIP to host it here, or leave this empty and use an external download URL below.</p>
             <label>Download URL (only when not uploading)<input name="download_url" placeholder="https://... direct zip download or drive link"></label>
-            <label>Category<input name="category" value="PvP" required placeholder="e.g. PvP, Default, VIP Exclusive"></label>
-            <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
-              <input type="checkbox" name="is_customer_only" style="width:auto; margin:0;">
+            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:12.5px">
+              <input type="checkbox" name="is_customer_only">
               <span>Customers only (VIP pack — requires an active Lifetime or Monthly license)</span>
             </label>
             <label>Preview image (optional, max 3 MB)<input name="preview_image" id="packPreviewImage" type="file" accept="image/png,image/jpeg,image/webp,image/gif"></label>
             <label>or preview image URL<input name="image_url" placeholder="https://..."></label>
             <div id="packPreviewPreview" class="admin-media-preview"><span class="no-license-text">No preview yet</span></div>
             <label>Sort order<input type="number" name="sort_order" value="1"></label>
-            <div style="display:flex; gap:10px;">
+            <div style="display:flex;gap:10px">
               <button class="btn-primary" type="submit">Add texture pack</button>
               <button class="btn-ghost" type="button" onclick="document.getElementById('addTexturePackContainer').style.display='none'">Cancel</button>
             </div>
-            <p id="createPackMsg" class="save-message" style="display:none"></p>
+            <p id="createPackMsg" class="save-message" style="display:none" role="status"></p>
           </form>
         </div>
 
-        <div id="adminTexturePacksList" class="admin-table-wrap"><p class="no-license-text">Loading texture packs...</p></div>
+        <div id="adminTexturePacksList" class="admin-table-wrap"><p class="no-license-text">Loading texture packs…</p></div>
       </article>
     </section>
 
-    <!-- TAB: INJECTOR -->
+    <!-- ======================================================== INJECTOR -->
     <section class="admin-tabpage" id="tab-downloads" style="display:none">
       <article class="dash-card">
         <div class="admin-section-head">
           <div>
             <h2>Injector download</h2>
             <p class="no-license-text">Champ ships as one injector: <code>public/downloads/champ-client.exe</code>. The client, the agent and the logo live inside that single file, and it injects into the Minecraft the customer already has open &mdash; there is no jar and nothing goes into mods.</p>
-            <p class="no-license-text">A new release means rebuilding the injector (<code>./native/build.sh</code> for Windows, <code>./linux/build.sh</code> for Linux) and deploying the site. There is nothing to upload here: the file in the deployment <em>is</em> the download, and every customer gets it under a random name.</p>
           </div>
         </div>
+        <div class="admin-ribbon" style="margin-bottom:0">
+          <div class="ribbon-cell"><span>Windows</span><strong>champ-client.exe</strong></div>
+          <div class="ribbon-cell"><span>Linux</span><strong>champ-client.tar.gz</strong></div>
+          <div class="ribbon-cell"><span>Filename</span><strong>Random per download</strong></div>
+        </div>
+        <p class="no-license-text" style="margin-top:16px">A new release means rebuilding the injector (<code>./native/build.sh</code> for Windows, <code>./linux/build.sh</code> for Linux) and deploying the site. There is nothing to upload here: the file in the deployment <em>is</em> the download, and every customer receives it under a random name.</p>
       </article>
     </section>
 
-    <!-- TAB: CHANGELOG -->
+    <!-- ======================================================== CHANGELOG -->
     <section class="admin-tabpage" id="tab-changelog" style="display:none">
       <article class="dash-card">
         <div class="admin-section-head">
@@ -380,21 +367,21 @@
             <label>Title<input name="title" required placeholder="e.g. Combat update" maxlength="160"></label>
             <label>Release date<input type="date" name="released_at"></label>
             <label>Changes<textarea name="body" rows="6" placeholder="- Added a new module&#10;- Fixed a crash when opening the menu"></textarea></label>
-            <p class="no-license-text" style="margin-top:-8px">Start a line with <code>-</code> for a bullet. Leave an empty line between paragraphs. Use <code>*text*</code> for the purple highlight.</p>
-            <label style="display:flex; align-items:center; gap:10px; cursor:pointer;"><input type="checkbox" name="published" style="width:auto; margin:0;" checked><span>Publish immediately</span></label>
-            <div style="display:flex; gap:10px; flex-wrap:wrap">
+            <p class="no-license-text" style="margin:0">Start a line with <code>-</code> for a bullet. Leave an empty line between paragraphs. Use <code>*text*</code> for the purple highlight.</p>
+            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:12.5px"><input type="checkbox" name="published" checked><span>Publish immediately</span></label>
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
               <button class="btn-primary" type="submit">Add release</button>
               <button class="btn-ghost" type="button" onclick="document.getElementById('addChangelogContainer').style.display='none'">Cancel</button>
             </div>
-            <p id="createChangelogMsg" class="save-message" style="display:none"></p>
+            <p id="createChangelogMsg" class="save-message" style="display:none" role="status"></p>
           </form>
         </div>
 
-        <div id="adminChangelogList" class="admin-editor"><p class="no-license-text">Loading changelog...</p></div>
+        <div id="adminChangelogList" style="display:grid;gap:12px"><p class="no-license-text">Loading changelog…</p></div>
       </article>
     </section>
 
-    <!-- TAB: FEATURES & VIDEOS -->
+    <!-- ======================================================== FEATURES -->
     <section class="admin-tabpage" id="tab-features" style="display:none">
       <article class="dash-card">
         <div class="admin-section-head">
@@ -409,7 +396,6 @@
           <h3>New feature</h3>
           <form id="createFeatureForm" class="admin-editor">
             <label>Title<input name="title" required placeholder="e.g. Crystal PvP macros" maxlength="150"></label>
-            <label>Description<textarea name="description" rows="4" placeholder="What this feature does..."></textarea></label>
             <label>Category
               <select name="category">
                 <option value="combat">Combat</option>
@@ -423,22 +409,23 @@
                 <option value="">Other / no category</option>
               </select>
             </label>
-            <label>Screenshot (optional, max 3 MB)<input name="image_file" type="file" accept="image/png,image/jpeg,image/webp,image/gif"></label>
-            <label>Video embed URL<input name="video_url" placeholder="https://www.youtube.com/embed/... or https://.../clip.mp4"></label>
             <label>Sort order<input type="number" name="sort_order" value="0"></label>
-            <div style="display:flex; gap:10px; flex-wrap:wrap">
+            <label>Video embed URL<input name="video_url" placeholder="https://www.youtube.com/embed/... or https://.../clip.mp4"></label>
+            <label>Description<textarea name="description" rows="4" placeholder="What this feature does..."></textarea></label>
+            <label>Screenshot (optional, max 3 MB)<input name="image_file" type="file" accept="image/png,image/jpeg,image/webp,image/gif"></label>
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
               <button class="btn-primary" type="submit">Add feature</button>
               <button class="btn-ghost" type="button" onclick="document.getElementById('addFeatureContainer').style.display='none'">Cancel</button>
             </div>
-            <p id="createFeatureMsg" class="save-message" style="display:none"></p>
+            <p id="createFeatureMsg" class="save-message" style="display:none" role="status"></p>
           </form>
         </div>
 
-        <div id="adminFeatures" class="admin-editor"><p class="no-license-text">Loading features...</p></div>
+        <div id="adminFeatures" style="display:grid;gap:12px"><p class="no-license-text">Loading features…</p></div>
       </article>
     </section>
 
-    <!-- TAB: REVIEWS -->
+    <!-- ======================================================== REVIEWS -->
     <section class="admin-tabpage" id="tab-reviews" style="display:none">
       <article class="dash-card">
         <div class="admin-section-head">
@@ -454,21 +441,21 @@
           <form id="createReviewForm" class="admin-editor">
             <label>Author username<input name="author" required placeholder="e.g. VortexPvP"></label>
             <label>Star rating (1-5)<input type="number" name="rating" min="1" max="5" value="5" required></label>
-            <label>Review text<textarea name="text" required placeholder="Write the testimonial..."></textarea></label>
             <label>Badge / tag<input name="tag" value="Verified Buyer" required placeholder="e.g. Verified Buyer, Lifetime Member"></label>
-            <div style="display:flex; gap:10px;">
+            <label>Review text<textarea name="text" required placeholder="Write the testimonial..."></textarea></label>
+            <div style="display:flex;gap:10px">
               <button class="btn-primary" type="submit">Save review</button>
               <button class="btn-ghost" type="button" onclick="document.getElementById('addReviewContainer').style.display='none'">Cancel</button>
             </div>
-            <p id="createReviewMsg" class="save-message" style="display:none"></p>
+            <p id="createReviewMsg" class="save-message" style="display:none" role="status"></p>
           </form>
         </div>
 
-        <div id="adminReviewsList" class="admin-table-wrap"><p class="no-license-text">Loading reviews...</p></div>
+        <div id="adminReviewsList" class="admin-table-wrap"><p class="no-license-text">Loading reviews…</p></div>
       </article>
     </section>
 
-    <!-- TAB: AI KNOWLEDGE -->
+    <!-- ======================================================== AI KNOWLEDGE -->
     <section class="admin-tabpage" id="tab-ai-knowledge" style="display:none">
       <article class="dash-card">
         <div class="admin-section-head">
@@ -484,16 +471,19 @@
           <form id="createAIKnowledgeForm" class="admin-editor">
             <label>Title<input name="title" required maxlength="120"></label>
             <label>Verified answer facts<textarea name="body" required maxlength="8000" rows="6"></textarea></label>
-            <div style="display:flex;gap:10px"><button class="btn-primary" type="submit">Save knowledge</button><button class="btn-ghost" type="button" onclick="document.getElementById('addAIKnowledgeContainer').style.display='none'">Cancel</button></div>
-            <p id="createAIKnowledgeMsg" class="save-message" style="display:none"></p>
+            <div style="display:flex;gap:10px">
+              <button class="btn-primary" type="submit">Save knowledge</button>
+              <button class="btn-ghost" type="button" onclick="document.getElementById('addAIKnowledgeContainer').style.display='none'">Cancel</button>
+            </div>
+            <p id="createAIKnowledgeMsg" class="save-message" style="display:none" role="status"></p>
           </form>
         </div>
 
-        <div id="adminAIKnowledgeList" class="admin-table-wrap"><p class="no-license-text">Loading AI knowledge...</p></div>
+        <div id="adminAIKnowledgeList" class="admin-table-wrap"><p class="no-license-text">Loading AI knowledge…</p></div>
       </article>
     </section>
 
-    <!-- TAB: BASE FINDS -->
+    <!-- ======================================================== BASE FINDS -->
     <section class="admin-tabpage" id="tab-finds" style="display:none">
       <article class="dash-card">
         <div class="admin-section-head">
@@ -502,11 +492,11 @@
             <p class="no-license-text">Approved finds appear on the customer dashboard and on the public Base Finds page.</p>
           </div>
         </div>
-        <div id="adminFinds" class="admin-table-wrap"><p class="no-license-text">Loading finds...</p></div>
+        <div id="adminFinds" class="admin-table-wrap"><p class="no-license-text">Loading finds…</p></div>
       </article>
     </section>
 
-    <!-- TAB: REFERRALS -->
+    <!-- ======================================================== REFERRALS -->
     <section class="admin-tabpage" id="tab-referrals" style="display:none">
       <article class="dash-card">
         <div class="admin-section-head">
@@ -515,11 +505,11 @@
             <p class="no-license-text">Every referral code with credits earned and paid out.</p>
           </div>
         </div>
-        <div id="adminReferrals" class="admin-table-wrap"><p class="no-license-text">Loading referrals...</p></div>
+        <div id="adminReferrals" class="admin-table-wrap"><p class="no-license-text">Loading referrals…</p></div>
       </article>
     </section>
 
-    <!-- TAB: MY ACCOUNT -->
+    <!-- ======================================================== MY ACCOUNT -->
     <section class="admin-tabpage" id="tab-my-account" style="display:none">
       <article class="dash-card">
         <div class="admin-section-head">
@@ -528,8 +518,8 @@
             <p class="no-license-text">Signed in as <b id="adminMyName">…</b> <span id="adminMyEmail"></span>. These are your own licenses, separate from the shop-wide orders.</p>
           </div>
         </div>
-        <div id="adminMyKeys" class="admin-table-wrap"><p class="no-license-text">Loading your licenses...</p></div>
-        <p style="margin-top:20px"><a class="btn-primary" href="dashboard.html">Open my customer dashboard</a></p>
+        <div id="adminMyKeys" class="admin-table-wrap"><p class="no-license-text">Loading your licenses…</p></div>
+        <p style="margin:18px 0 0"><a class="btn-primary" href="dashboard.html">Open my customer dashboard</a></p>
       </article>
     </section>
   </main>
@@ -538,7 +528,7 @@
 <section id="adminDenied" class="admin-denied-wrap" style="display:none">
   <div class="dash-card">
     <p class="dash-eyebrow">Admins only</p>
-    <h1 class="dash-heading" style="font: 900 clamp(28px,4vw,36px) 'Playfair Display', serif; margin:0 0 10px">No admin access</h1>
+    <h1>No admin access</h1>
     <p class="no-license-text" id="adminDeniedText"></p>
     <p style="display:flex;gap:10px;flex-wrap:wrap;margin:0"><a class="btn-primary" href="dashboard.html">Open my dashboard</a><a class="btn-ghost" href="index.html">Back to the shop</a></p>
   </div>
