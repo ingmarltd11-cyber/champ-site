@@ -35,6 +35,7 @@
   <a class="nav-logo" href="index.html"><img src="assets/logo.png" alt="Champ Client logo"><span>Champ <em>Client</em></span></a>
   <div class="nav-actions">
     <span class="topbar-crumb">Member area</span>
+    <a class="btn-ghost" href="index.html">Back to site</a>
     <a class="btn-ghost" href="support.html">Help</a>
     <button id="logoutBtn" class="btn-ghost" type="button">Sign out</button>
   </div>
@@ -77,17 +78,42 @@
 
     <!-- ============================================================ OVERVIEW -->
     <section id="dash-section-overview" class="dashboard-section active">
-      <header class="dash-hero">
-        <img class="dash-hero-mark" src="assets/logo.png" alt="" aria-hidden="true">
-        <p class="dash-eyebrow">Member dashboard</p>
-        <h1>Welcome back,<br><em id="dash-username">User</em>.</h1>
-        <p class="dash-sub" id="dash-email">Loading account session…</p>
-        <div class="dash-trust">
-          <span class="trust-badge"><span class="trust-dot"></span>Fabric 1.21.11</span>
-          <span class="trust-badge"><span class="trust-dot"></span>Instant delivery</span>
-          <span class="trust-badge"><span class="trust-dot"></span>Secure Stripe checkout</span>
+      <div class="dash-hero dashboard-hero-split">
+        <div class="dash-hero-copy">
+          <p class="dash-eyebrow">Member dashboard</p>
+          <h1>Welcome back,<br><em id="dash-username">User</em>.</h1>
+          <p class="dash-sub" id="dash-email">Loading account session…</p>
+          <div class="dash-trust">
+            <span class="trust-badge"><span class="trust-dot"></span>Fabric 1.21.11</span>
+            <span class="trust-badge"><span class="trust-dot"></span>Instant delivery</span>
+            <span class="trust-badge"><span class="trust-dot"></span>Secure Stripe checkout</span>
+          </div>
         </div>
-      </header>
+
+        <div class="hero-actions">
+          <button class="hero-action" type="button" data-section-link="install">
+            <span class="quick-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-download"></use></svg></span>
+            <span class="hero-action-text"><b>Download &amp; install</b><small>Windows, Linux and the full setup</small></span>
+            <span class="quick-arrow">&rsaquo;</span>
+          </button>
+          <button class="hero-action" type="button" data-section-link="keys">
+            <span class="quick-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-key"></use></svg></span>
+            <span class="hero-action-text"><b>Your licenses</b><small>Keys, plans and expiry dates</small></span>
+            <span class="quick-arrow">&rsaquo;</span>
+          </button>
+          <button class="hero-action" type="button" data-section-link="security">
+            <span class="quick-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-shield"></use></svg></span>
+            <span class="hero-action-text"><b>Account security</b><small>Two-factor authentication</small></span>
+            <span class="quick-arrow">&rsaquo;</span>
+          </button>
+        </div>
+
+      </div>
+
+      <div class="dash-group">
+        <h2>Your access</h2>
+        <p>A key is what unlocks the client, the texture packs and the finds.</p>
+      </div>
 
       <div class="dashboard-grid">
         <article class="dash-card">
@@ -100,16 +126,26 @@
         </article>
       </div>
 
+      <div class="dash-group">
+        <h2>This device</h2>
+        <p>One PC and one network per key, with free resets when you move.</p>
+      </div>
+
       <article class="dash-card" id="device">
         <div class="card-title"><span class="title-icon" data-dash-icon="shield"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-shield"></use></svg></span>Device, HWID &amp; network</div>
         <div id="deviceContent"><p class="no-license-text">Loading your device…</p></div>
         <p id="deviceMessage" role="status"></p>
       </article>
 
+      <div class="dash-group">
+        <h2>Get started</h2>
+        <p>Redeem a key you bought elsewhere, or jump straight to a section.</p>
+      </div>
+
       <div class="overview-split">
         <article class="dash-card">
           <div class="card-title"><span class="title-icon" data-dash-icon="key"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-key"></use></svg></span>Activate a license key</div>
-          <p class="no-license-text">Bought a key from a reseller? Redeem it here to link it to this account and unlock the injector, texture packs and base finds.</p>
+          <p class="no-license-text">Bought a key from a reseller? Redeem it here to link it to this account and unlock the client, texture packs and base finds.</p>
           <form id="redeemForm" style="display:flex;gap:10px;flex-wrap:wrap">
             <input id="redeemKey" class="pay-input" style="flex:1;min-width:200px" placeholder="CHAMP-XXXX-XXXX-XXXX-XXXX" autocomplete="off" aria-label="License key">
             <button class="btn-primary" type="submit">Activate key</button>
@@ -122,17 +158,17 @@
           <div class="quick-list">
             <button class="quick-link" type="button" data-section-link="install">
               <span class="quick-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-download"></use></svg></span>
-              <span>Install the injector<small>Step-by-step setup</small></span>
+              <span>Install the client<small>Step-by-step setup</small></span>
               <span class="quick-arrow">&rsaquo;</span>
             </button>
-            <button class="quick-link" type="button" data-section-link="keys">
-              <span class="quick-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-key"></use></svg></span>
-              <span>Your licenses<small>Plans, expiry and keys</small></span>
+            <button class="quick-link" type="button" data-section-link="billing">
+              <span class="quick-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-card"></use></svg></span>
+              <span>Subscription<small>Payment details and cancellation</small></span>
               <span class="quick-arrow">&rsaquo;</span>
             </button>
-            <button class="quick-link" type="button" data-section-link="security">
-              <span class="quick-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-shield"></use></svg></span>
-              <span>Account security<small>Two-factor authentication</small></span>
+            <button class="quick-link" type="button" data-section-link="referrals">
+              <span class="quick-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-gift"></use></svg></span>
+              <span>Referral rewards<small>Earn credit for every sale</small></span>
               <span class="quick-arrow">&rsaquo;</span>
             </button>
             <button class="quick-link" type="button" data-section-link="help">
@@ -150,18 +186,32 @@
       <header class="page-head">
         <p class="dash-eyebrow">Setup</p>
         <h1>Install Champ <em>Client</em></h1>
-        <p>One file, no mods folder, no jar. Get it running in a few minutes.</p>
+        <p>One download, a few minutes, and you are in the game. No mods folder and no jar to find.</p>
       </header>
+
+      <div class="req-grid">
+        <div class="req-card"><b>Windows 10 / 11</b><span>Download the <code>.exe</code> and run it while the game is open.</span></div>
+        <div class="req-card"><b>Linux</b><span>A <code>.tar.gz</code> with the launcher, the client and the logo.</span></div>
+        <div class="req-card"><b>Java 21 (64-bit)</b><span>Needed on Linux: attaching to the running game uses the JDK tools.</span></div>
+        <div class="req-card"><b>Fabric 1.21.11</b><span>The profile you already play, with Fabric API installed.</span></div>
+      </div>
+
+      <div class="dash-group">
+        <h2>The steps</h2>
+        <p>Follow them in order — the game has to be running first.</p>
+      </div>
+
       <article class="dash-card">
         <ol class="dash-steps">
-          <li><b>Download the injector</b><p class="no-license-text">One file &mdash; the client sits inside it. The button picks <b>Windows (.exe)</b> or <b>Linux (.tar.gz)</b> for this device automatically; on a phone or when the browser is unsure you choose yourself. Nothing goes into your <b>mods</b> folder, and every download gets its own file name, so keep it somewhere you can find it.</p><a class="btn-ghost" href="downloads/champ-client.exe" data-champ-download download>Download Champ Injector</a></li>
-          <li><b>Linux: unpack, then run</b><p class="no-license-text">The Linux download is a <b>.tar.gz</b> containing the launcher, the client and the logo. Unpack it (<code>tar -xzf &lt;file&gt;.tar.gz -C ~/champ</code>), make the launcher executable (<code>chmod +x ~/champ/champ</code>) and run <code>~/champ/champ</code> with Minecraft open. It needs a 64-bit JDK 21, because attaching to the running game uses the JDK tools that a plain JRE does not ship.</p></li>
-          <li><b>Start Minecraft first</b><p class="no-license-text">Launch the Minecraft 1.21.11 profile you normally play (Fabric Loader + Fabric API) and stay in the main menu. The injector attaches to the game that is already running.</p></li>
-          <li><b>Run the injector</b><p class="no-license-text">While Minecraft is open, run the file you downloaded and sign in with your Champ account. The splash checks your license, this PC and your network, then injects. Windows may ask for permission &mdash; that is the injection. It closes itself once you see <b>Champ is running</b>.</p></li>
-          <li><b>Locked to another network?</b><p class="no-license-text">Free and unlimited: press <b>Reset IP</b> in the splash, or <b>Reset IP to this network</b> in <b>Device, HWID &amp; network</b> on the overview. A new router, a VPN or a move is never a lockout.</p></li>
+          <li><b>Download the client</b><p class="no-license-text">The button picks <b>Windows (.exe)</b> or <b>Linux (.tar.gz)</b> for this device automatically; on a phone or when the browser is unsure you choose yourself. Nothing goes into your <b>mods</b> folder, and every download gets its own file name, so keep it somewhere you can find it.</p><a class="btn-ghost" href="downloads/champ-client.exe" data-champ-download download>Download Champ Client</a></li>
+          <li><b>Linux: unpack, then run</b><p class="no-license-text">Unpack the archive (<code>tar -xzf &lt;file&gt;.tar.gz -C ~/champ</code>), make the launcher executable (<code>chmod +x ~/champ/champ</code>) and start <code>~/champ/champ</code> with Minecraft open.</p></li>
+          <li><b>Start Minecraft first</b><p class="no-license-text">Launch the Minecraft 1.21.11 profile you normally play and stay in the main menu. The client attaches to the game that is already running.</p></li>
+          <li><b>Run the file and sign in</b><p class="no-license-text">While Minecraft is open, run what you downloaded and sign in with your Champ account. The splash checks your license, this PC and your network, then starts. Windows may ask for permission — that is expected. It closes itself once you see <b>Champ is running</b>.</p></li>
+          <li><b>Locked to another network?</b><p class="no-license-text">Free and unlimited: press <b>Reset IP</b> in the splash, or <b>Reset IP to this network</b> under <b>This device</b> on the overview. A new router, a VPN or a move is never a lockout.</p></li>
           <li><b>Locked to another PC?</b><p class="no-license-text">One PC per key. Reset the device on the overview: the first reset is free, then one per week, after that &euro;5. Resetting is what moves your key to the new PC.</p></li>
-          <li><b>Starting again later</b><p class="no-license-text">Keep the file: start Minecraft, run it, done. The session is remembered, so it injects without typing anything. A newer release is a new download &mdash; the old one keeps working until you replace it.</p></li>
+          <li><b>Starting again later</b><p class="no-license-text">Keep the file: start Minecraft, run it, done. The session is remembered, so it starts without typing anything. A newer release is a new download — the old one keeps working until you replace it.</p></li>
         </ol>
+        <p class="dash-note">Something not working? The exact error text plus your key and HWID makes a fix much faster — see <b>Help</b>.</p>
       </article>
     </section>
 
@@ -182,7 +232,8 @@
         <h1>Base <em>finds</em></h1>
         <p>Private community finds for active Champ Client customers.</p>
       </header>
-      <article class="dash-card" style="margin-bottom:18px">
+
+      <article class="dash-card">
         <div class="card-title"><span class="title-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-pin"></use></svg></span>Share a find</div>
         <form id="findUploadForm" class="admin-editor">
           <label>Title<input id="findTitle" maxlength="80" required placeholder="Give this find a title"></label>
@@ -191,7 +242,14 @@
           <div><button class="btn-primary" type="submit">Submit for review</button></div>
           <p id="findUploadMessage" class="save-message" style="display:none" role="status"></p>
         </form>
+        <p class="dash-note">Every submission is reviewed before it appears in the grid below.</p>
       </article>
+
+      <div class="dash-group">
+        <h2>Approved finds</h2>
+        <p>Shared by customers, checked by the team.</p>
+      </div>
+
       <div id="dashboardFindsGrid" class="finds-grid"><p class="no-license-text">An active license is required to view customer finds.</p></div>
     </section>
 
@@ -202,6 +260,7 @@
         <h1>Keys &amp; <em>licenses</em></h1>
         <p>Everything that grants access to Champ Client on this account.</p>
       </header>
+
       <div class="dashboard-grid">
         <article class="dash-card">
           <div class="card-title">Monthly license <span class="status-badge status-none" id="badge-monthly-copy">Inactive</span></div>
@@ -212,9 +271,19 @@
           <div id="content-lifetime-copy"><p class="no-license-text">No lifetime license.</p></div>
         </article>
       </div>
+
+      <div class="dash-group">
+        <h2>How keys work</h2>
+        <p>Read once, then you never have to think about it again.</p>
+      </div>
+
       <article class="dash-card">
-        <div class="card-title"><span class="title-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-key"></use></svg></span>Redeem a key</div>
-        <p class="no-license-text">The activation form lives on the Overview tab. Copy the key from your purchase e-mail exactly as it was sent.</p>
+        <ul class="fact-list">
+          <li>One key links to <b>one account</b> and <b>one PC</b>, and it is yours until it expires.</li>
+          <li>A key from a reseller is activated on the overview — copy it exactly as it was sent.</li>
+          <li>A monthly plan renews through Stripe; a lifetime key never needs renewing.</li>
+          <li>Moving PC or network is a reset, not a new purchase: the first device reset is free.</li>
+        </ul>
         <button class="btn-ghost" type="button" data-section-link="overview">Go to activation</button>
       </article>
     </section>
@@ -226,9 +295,12 @@
         <h1>Your <em>subscription</em></h1>
         <p>Manage your recurring plan, payment details and cancellations in Stripe.</p>
       </header>
+
       <article class="dash-card">
+        <div class="card-title"><span class="title-icon" data-dash-icon="card"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-card"></use></svg></span>Plan &amp; payments</div>
         <div id="billingOverview"><p class="no-license-text">Loading subscription status…</p></div>
         <button id="manageBillingBtn" class="btn-primary" type="button" style="display:none">Manage subscription</button>
+        <p class="dash-note">Invoices, cards and cancellation all live in the Stripe portal — no e-mail needed. Lifetime keys are paid once and never renew.</p>
       </article>
     </section>
 
@@ -237,13 +309,15 @@
       <header class="page-head">
         <p class="dash-eyebrow">Account</p>
         <h1>Referral <em>rewards</em></h1>
-        <p>Share your personal link and track the credits it earns.</p>
+        <p>Share your personal link and track the credit it earns.</p>
       </header>
+
       <article class="dash-card">
         <div class="card-title"><span class="title-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-gift"></use></svg></span>Your link</div>
         <div class="license-box" id="refLink">Loading…</div>
         <button class="btn-ghost" id="refCopyBtn" type="button">Copy referral link</button>
         <p class="no-license-text" id="refStats" style="margin-top:14px"></p>
+        <p class="dash-note">Credit is counted when a sale through your link is paid, and paid out on request.</p>
       </article>
     </section>
 
@@ -254,6 +328,7 @@
         <h1>Discord <em>access</em></h1>
         <p>Link Discord to your customer account and pick up the Champ+ rank.</p>
       </header>
+
       <article class="dash-card">
         <div class="card-title"><span class="title-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-message"></use></svg></span>Account link</div>
         <p class="no-license-text" id="discordStatus">Connect your Discord account to get the Champ+ rank when you own a license.</p>
@@ -262,6 +337,7 @@
           <button class="btn-ghost" id="discordRoleBtn" type="button" style="display:none">Retry rank sync</button>
         </div>
         <p id="discordMessage" style="display:none;margin-top:12px;font-size:13px" role="status"></p>
+        <p class="dash-note">Join the server before syncing the rank — the role can only be assigned to a member.</p>
       </article>
     </section>
 
@@ -272,6 +348,7 @@
         <h1>Account <em>security</em></h1>
         <p>Protect your Champ Client account with two-factor authentication.</p>
       </header>
+
       <article class="dash-card">
         <div class="card-title"><span class="title-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-shield"></use></svg></span>Two-factor authentication</div>
         <p class="no-license-text" id="twofaStatus">Set up authenticator-based two-factor authentication.</p>
@@ -292,6 +369,7 @@
           </form>
         </div>
         <p id="twofaMessage" style="display:none;margin-top:12px;font-size:13px" role="status"></p>
+        <p class="dash-note">With 2FA on, every sign-in asks for a fresh code from your authenticator app.</p>
       </article>
     </section>
 
@@ -302,16 +380,21 @@
         <h1>Help &amp; <em>troubleshooting</em></h1>
         <p>Ask the assistant a question, or hand it straight to our support team.</p>
       </header>
-      <article class="dash-card">
-        <div class="card-title"><span class="title-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-help"></use></svg></span>Champ Assistant</div>
-        <p class="no-license-text">For personalized help, use the Champ Assistant on the homepage. If it cannot resolve your issue, the chat gives you the Discord support link and the details to include.</p>
-        <a href="index.html#aiChatWidget" class="btn-primary">Open Champ Assistant</a>
-      </article>
-      <article class="dash-card">
-        <div class="card-title"><span class="title-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-message"></use></svg></span>A person, please</div>
-        <p class="no-license-text">Our team answers in the Discord server. Have your key, HWID and the exact error text ready &mdash; it makes a fix much faster.</p>
-        <a href="https://discord.gg/6vyQnVjeX" target="_blank" rel="noopener" class="btn-ghost">Open Discord support</a>
-      </article>
+
+      <div class="dashboard-grid">
+        <article class="dash-card">
+          <div class="card-title"><span class="title-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-help"></use></svg></span>Champ Assistant</div>
+          <p class="no-license-text">For personalized help, use the Champ Assistant on the homepage. If it cannot resolve your issue, the chat gives you the Discord support link and the details to include.</p>
+          <a href="index.html#aiChatWidget" class="btn-primary">Open Champ Assistant</a>
+        </article>
+        <article class="dash-card">
+          <div class="card-title"><span class="title-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-message"></use></svg></span>A person, please</div>
+          <p class="no-license-text">Our team answers in the Discord server. Have your key, HWID and the exact error text ready — it makes a fix much faster.</p>
+          <a href="https://discord.gg/6vyQnVjeX" target="_blank" rel="noopener" class="btn-ghost">Open Discord support</a>
+        </article>
+      </div>
+
+      <p class="dash-note">Before you write: reload once, make sure Minecraft is already running, and check that the game profile is Fabric 1.21.11.</p>
     </section>
   </main>
 </div>
