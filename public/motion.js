@@ -58,8 +58,6 @@
     '.finds-grid > *', '.dashboard-list > *', '.feature-module-grid > *', '.admin-table tbody tr'
   ].join(', ');
   var BUTTONS = '.btn-primary, .btn-hero, .btn-ghost, .plan-cta, .btn-download, .btn-discord, .btn-purchase-direct';
-  var TILT = '.review-card, .find-card, .feature-module, .dash-card, .changelog-entry, .plan-card';
-
   /* ---------- scroll progress bar ---------- */
 
   function progressBar() {
@@ -193,33 +191,6 @@
       });
       el.addEventListener('pointerleave', function () {
         gsap.to(el, { scale: 1, duration: 0.35, ease: 'power2.out', overwrite: 'auto' });
-      });
-    });
-
-    var canHover = true;
-    try {
-      canHover = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
-    } catch (_) { /* keep the tilt off when unsure */ canHover = false; }
-    if (!canHover) return;
-
-    all(TILT).forEach(function (card) {
-      if (card.dataset.motionTilt === '1') return;
-      card.dataset.motionTilt = '1';
-      card.addEventListener('pointermove', function (event) {
-        var rect = card.getBoundingClientRect();
-        var x = (event.clientX - rect.left) / rect.width - 0.5;
-        var y = (event.clientY - rect.top) / rect.height - 0.5;
-        gsap.to(card, {
-          rotateY: x * 4, rotateX: -y * 4, transformPerspective: 900,
-          transformOrigin: 'center', duration: 0.5, ease: SOFT, overwrite: 'auto'
-        });
-      });
-      card.addEventListener('pointerleave', function () {
-        // Clearing the inline transform gives the CSS hover state (lift/shadow) back.
-        gsap.to(card, {
-          rotateX: 0, rotateY: 0, duration: 0.6, ease: 'power3.out', overwrite: 'auto',
-          onComplete: function () { gsap.set(card, { clearProps: 'transform' }); }
-        });
       });
     });
   }
