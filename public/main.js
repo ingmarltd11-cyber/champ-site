@@ -827,15 +827,36 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
 
   async function load() {
-    const res = await api('/api/dashboard/user-data');
-    if (!res.ok) {
+    let res;
+    try {
+      res = await api('/api/dashboard/user-data');
+    } catch (_) {
+      res = { ok: false, status: 0, data: {} };
+    }
+    if (res.status === 401) {
       window.location.href = 'login.html?next=dashboard.html';
       return null;
     }
+    if (!res.ok) {
+      // Only a real 401 means "not signed in". Bouncing on a 500 or a dropped connection turned
+      // one failed request into a login loop, which is what a blank dashboard looked like: say what
+      // happened instead and leave the shell in place.
+      const email = document.getElementById('dash-email');
+      if (email) email.textContent = 'We could not load your account.';
+      if (notice) {
+        notice.style.display = 'block';
+        notice.style.color = '#ff6b6b';
+        notice.textContent = res.status
+          ? `Your dashboard could not load right now (error ${res.status}). Reload the page to try again.`
+          : 'No connection to the Champ server. Check your internet and reload the page.';
+      }
+      return null;
+    }
     const d = res.data;
-    dashUsername.innerText = d.username;
+    dashUsername.innerText = d.username || 'there';
     window.dashboardHasActiveLicense = Object.values(d.licenses || {}).some(license => license && license.active);
-    document.getElementById('dash-email').innerText = d.email;
+    const dashEmail = document.getElementById('dash-email');
+    if (dashEmail) dashEmail.innerText = d.email || '';
     const sideName = document.getElementById('sidebar-username');
     const sideEmail = document.getElementById('sidebar-email');
     if (sideName) sideName.textContent = d.username;

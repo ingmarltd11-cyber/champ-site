@@ -1733,12 +1733,17 @@ def dashboard(user: dict = Depends(current_user)):
     ensure_admin_license(user)
     licenses = {plan: None for plan in PLANS}
     for row in db_list("licenses", {"email": eq(user["email"])}):
-        licenses[row["plan_type"]] = {
-            "key": row["license_key"],
+        plan = row.get("plan_type")
+        if plan not in licenses:
+            # A row with another label (an old plan, a reseller key) has no card here. Skipping it
+            # keeps one stray row from turning the whole dashboard into a 500.
+            continue
+        licenses[plan] = {
+            "key": row.get("license_key") or "",
             "active": license_active(row),
-            "status": row["status"],
-            "expires_at": row["expires_at"] if row["plan_type"] == "monthly" else None,
-            "can_manage": row["plan_type"] == "monthly" and bool(row.get("stripe_customer_id")),
+            "status": row.get("status") or "inactive",
+            "expires_at": row.get("expires_at") if plan == "monthly" else None,
+            "can_manage": plan == "monthly" and bool(row.get("stripe_customer_id")),
         }
     return {"email": user["email"], "username": user["username"], "licenses": licenses,
             "is_admin": bool(user.get("is_admin")),
