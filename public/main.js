@@ -834,6 +834,23 @@ document.addEventListener('DOMContentLoaded', async () => {
       res = { ok: false, status: 0, data: {} };
     }
     if (res.status === 401) {
+      // An admin can be signed in with an admin session and no customer session: the break-glass
+      // login (ADMIN_USERNAME) and an admin cookie that outlived the customer cookie both do this.
+      // Bouncing to login.html there is an endless loop, because the login page signs the admin
+      // straight back in and lands on this same 401. Say what is going on and keep the shell.
+      const admin = await api('/api/admin/me');
+      if (admin.ok) {
+        const email = document.getElementById('dash-email');
+        if (email) email.textContent = 'Signed in as admin, without a customer profile.';
+        if (notice) {
+          notice.style.display = 'block';
+          notice.style.color = '#fbbf24';
+          notice.innerHTML = 'This admin session has no customer licenses, so there is nothing to show '
+            + 'on the member dashboard. <a href="admin.html" style="color:#a78bfa">Open the admin panel</a>, '
+            + 'or <a href="login.html?switch=1" style="color:#a78bfa">sign in with a customer account</a>.';
+        }
+        return null;
+      }
       window.location.href = 'login.html?next=dashboard.html';
       return null;
     }

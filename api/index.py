@@ -1235,7 +1235,17 @@ def admin_logout(response: Response):
 
 
 @app.get("/api/admin/me")
-def admin_me(admin: dict = Depends(current_admin)):
+def admin_me(response: Response, admin: dict = Depends(current_admin)):
+    # An admin cookie is not a customer session. Whenever this admin also has a real account,
+    # refresh the customer cookie here, so dashboard.html opens instead of answering 401 and
+    # sending the browser back to a login page that immediately returns to the dashboard.
+    if admin.get("email"):
+        try:
+            user = db_get("users", {"email": eq(admin["email"])})
+            if user:
+                set_session(response, user)
+        except Exception as exc:
+            print("Admin session refresh failed:", type(exc).__name__)
     return admin
 
 
@@ -1532,6 +1542,14 @@ def login(p: LoginReq, response: Response):
     # without a customer profile. Admins with a normal account use the regular path below.
     if ADMIN_USERNAME and ADMIN_PASSWORD and raw == ADMIN_USERNAME and hmac.compare_digest(p.password, ADMIN_PASSWORD):
         set_admin_session(response, ADMIN_USERNAME, remember=p.remember)
+        # Break-glass login: when the same name is also a real admin account, sign that account in
+        # as a customer too. Otherwise the admin panel works and the member dashboard 401s forever.
+        try:
+            env_user = db_get("users", {"username_lower": eq(ADMIN_USERNAME.lower())})
+            if env_user and env_user.get("is_admin"):
+                set_session(response, env_user, remember=p.remember)
+        except Exception as exc:
+            print("Break-glass session link failed:", type(exc).__name__)
         return {"message": "Logged in.", "username": ADMIN_USERNAME, "is_admin": True}
 
     if not sessions_ready():
