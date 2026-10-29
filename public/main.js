@@ -1805,6 +1805,39 @@ async function loadAdminPanel() {
   loadAdminAIKnowledge();
   loadAdminChangelog();
   loadAdminFeatures();
+  loadAdminLoaderChannels();
+}
+
+// The loader jars are not on the shop: the beta is only offered here, and the stable jar shows up
+// once it is published. These are the same version files the loaders poll on launch, so this panel
+// shows exactly what a start would see.
+async function loadAdminLoaderChannels() {
+  const channel = async (versionPath, jarPath, downloadId, versionId, noteId, name) => {
+    const button = document.getElementById(downloadId);
+    const versionEl = document.getElementById(versionId);
+    const note = document.getElementById(noteId);
+    if (!button || !versionEl) return;
+    try {
+      const res = await fetch(`${versionPath}?t=${Date.now()}`, { cache: 'no-store' });
+      if (!res.ok) throw new Error(`http ${res.status}`);
+      const version = (await res.text()).trim();
+      versionEl.textContent = version || 'unknown';
+      button.href = jarPath;
+      button.style.display = '';
+      if (note) note.textContent = `${name} is live \u2014 this is the jar a launch would download.`;
+    } catch (_) {
+      versionEl.textContent = 'not published';
+      button.style.display = 'none';
+      if (note) note.textContent = `${name} has no published jar yet.`;
+    }
+  };
+
+  await Promise.all([
+    channel('downloads/beta/champ-beta.version', 'downloads/beta/champ-beta.jar',
+      'adminBetaDownload', 'adminBetaVersion', 'adminBetaNote', 'The beta channel'),
+    channel('downloads/champ-loader.version', 'downloads/champ-loader.jar',
+      'adminStableDownload', 'adminStableVersion', 'adminStableNote', 'The stable loader'),
+  ]);
 }
 
 if (document.getElementById('adminPanel')) loadAdminPanel();
