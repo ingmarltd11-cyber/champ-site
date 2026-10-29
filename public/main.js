@@ -1808,36 +1808,26 @@ async function loadAdminPanel() {
   loadAdminLoaderChannels();
 }
 
-// The loader jars are not on the shop: the beta is only offered here, and the stable jar shows up
-// once it is published. These are the same version files the loaders poll on launch, so this panel
-// shows exactly what a start would see.
+// The beta injector is only offered here. It reads the same manifest the exe fetches on start, so
+// the build shown is exactly the payload a beta launch would install.
 async function loadAdminLoaderChannels() {
-  const channel = async (versionPath, jarPath, downloadId, versionId, noteId, name) => {
-    const button = document.getElementById(downloadId);
-    const versionEl = document.getElementById(versionId);
-    const note = document.getElementById(noteId);
-    if (!button || !versionEl) return;
-    try {
-      const res = await fetch(`${versionPath}?t=${Date.now()}`, { cache: 'no-store' });
-      if (!res.ok) throw new Error(`http ${res.status}`);
-      const version = (await res.text()).trim();
-      versionEl.textContent = version || 'unknown';
-      button.href = jarPath;
-      button.style.display = '';
-      if (note) note.textContent = `${name} is live \u2014 this is the jar a launch would download.`;
-    } catch (_) {
-      versionEl.textContent = 'not published';
-      button.style.display = 'none';
-      if (note) note.textContent = `${name} has no published jar yet.`;
-    }
-  };
-
-  await Promise.all([
-    channel('downloads/beta/champ-beta.version', 'downloads/beta/champ-beta.jar',
-      'adminBetaDownload', 'adminBetaVersion', 'adminBetaNote', 'The beta channel'),
-    channel('downloads/champ-loader.version', 'downloads/champ-loader.jar',
-      'adminStableDownload', 'adminStableVersion', 'adminStableNote', 'The stable loader'),
-  ]);
+  const button = document.getElementById('adminBetaDownload');
+  const buildEl = document.getElementById('adminBetaVersion');
+  const note = document.getElementById('adminBetaNote');
+  if (!button || !buildEl) return;
+  try {
+    const res = await fetch(`downloads/beta/packages/manifest.json?t=${Date.now()}`, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`http ${res.status}`);
+    const info = await res.json();
+    buildEl.textContent = info.build || 'unknown';
+    button.href = 'downloads/beta/champ-client-beta.exe';
+    button.style.display = '';
+    if (note) note.textContent = `The beta package is live \u2014 build ${info.build || 'unknown'}.`;
+  } catch (_) {
+    buildEl.textContent = 'not published';
+    button.style.display = 'none';
+    if (note) note.textContent = 'The beta injector is not published yet.';
+  }
 }
 
 if (document.getElementById('adminPanel')) loadAdminPanel();
