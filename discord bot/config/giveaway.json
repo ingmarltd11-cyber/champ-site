@@ -1,0 +1,13 @@
+{
+  "defaultDurationMinutes": 60,
+  "defaultWinners": 1,
+  "defaultColor": "#FFC93C",
+  "emoji": "🎉",
+  "managerRoleIds": [],
+  "dmWinners": true,
+  "logChannelId": "",
+  "requirements": {
+    "defaultRoleId": "",
+    "minAccountAgeDays": 0
+  }
+}

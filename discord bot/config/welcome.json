@@ -1,0 +1,28 @@
+{
+  "enabled": true,
+  "channelId": "",
+  "goodbyeChannelId": "",
+  "rulesChannelId": "",
+  "siteUrl": "https://champ-site-psi.vercel.app",
+  "mention": true,
+  "mentionText": "{mention}",
+  "autoRoles": [],
+  "embed": {
+    "title": "Welcome to Champ, {username}!",
+    "description": "You are member **#{memberCount}** of **{server}**.\n\nRead {rules}, download the client at {site} and grab a role in the channels below.",
+    "color": "#FFC93C",
+    "footer": "Champ Client",
+    "thumbnail": true,
+    "image": ""
+  },
+  "dm": {
+    "enabled": false,
+    "message": "Welcome to **{server}**, {username}! Your download and dashboard are at {site}."
+  },
+  "goodbye": {
+    "enabled": true,
+    "title": "Goodbye, {username}",
+    "description": "{user} left **{server}**. We are now {memberCount} members.",
+    "color": "#FF4D5E"
+  }
+}
