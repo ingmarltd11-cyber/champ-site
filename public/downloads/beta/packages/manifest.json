@@ -1,5 +1,5 @@
 {
-  "build": "20261101-170556",
+  "build": "20261101-171522",
   "files": {
     "champ-agent-e07cea67.jar": {
       "size": 6783,
@@ -10,8 +10,8 @@
       "sha256": "551fd27f8ad728ab60b7d93a3337c5bc1ebb9d91091c8d78e82c62de4cd0f268"
     },
     "client.jar": {
-      "size": 11466768,
-      "sha256": "06f96a0fd9a73c6a21c3201a144fb4d9ce3ebab2fb897fe02bd37c539d650cfd"
+      "size": 11467611,
+      "sha256": "fda23893408e1bd70b497988ff794124cdf06a4b986a90ae2dfd4785659be1cf"
     },
     "logo.bmp": {
       "size": 102454,
