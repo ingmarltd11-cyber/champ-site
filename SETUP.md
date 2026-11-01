@@ -12,32 +12,35 @@ Mapstructuur: `public/` = de website (HTML, `main.js`, `style.css`, `assets/`), 
 1. Maak een project op supabase.com.
 2. **SQL Editor → New query** → plak de inhoud van `supabase/schema.sql` → **Run**.
    (Maakt de tabellen aan.)
-3. **Storage**: er is geen bucket met jars meer nodig. De enige download is `public/downloads/champ-client.exe`,
+2. **Storage**: er is geen bucket met jars meer nodig. De enige download is `public/downloads/champ-client.exe`,
    de injector met de client erin; die zit in de deployment zelf, dus uploaden naar Supabase hoeft niet.
    De bucket `downloads` mag je leeg laten of verwijderen.
-4. **Project Settings → API**: kopieer
+3. **Project Settings → API**: kopieer
    - Project URL → `SUPABASE_URL`
    - de **secret / service_role key** → `SUPABASE_SERVICE_KEY` (NOOIT de publieke/anon key, en nooit in je frontend zetten)
 
 ## 2. Stripe (betalingen)
-1. **Product catalog** → maak 2 producten:
-   - *Monthly*: **Recurring**, maandelijks, jouw prijs → kopieer Price ID (`price_...`) → `STRIPE_PRICE_MONTHLY_ID`
-   - *Lifetime*: **One-time**, jouw prijs → `STRIPE_PRICE_LIFETIME_ID`
-   Zorg dat de prijzen kloppen met wat op je site staat.
-2. **Developers → API keys** → secret key → `STRIPE_SECRET_KEY` (begin met `sk_test_...` om te testen).
-3. **Settings → Billing → Customer portal** → activeren en "Cancel subscriptions" aanzetten
+Het live product **Champ Client** en beide prijzen staan al in Stripe:
+
+- *Monthly* — €6.99, recurring per maand — `price_1UX6cT5Fx5xxUyLlVbbKmG9l` → `STRIPE_PRICE_MONTHLY_ID`
+- *Lifetime* — €9.99, one-time — `price_1UX6cT5Fx5xxUyLlZwvkbXiq` → `STRIPE_PRICE_LIFETIME_ID`
+
+Beide prijs-IDs en `SITE_URL` staan al in Vercel (production + preview). Wat nog ontbreekt:
+
+1. **Developers → API keys** → secret key → `STRIPE_SECRET_KEY` in Vercel (begin met `sk_test_...` om te testen).
+2. **Settings → Billing → Customer portal** → activeren en "Cancel subscriptions" aanzetten
    (anders werkt de knop *Manage subscription* niet).
-4. **Webhook** (doe dit NA de Vercel-deploy, je hebt je domein nodig):
+3. **Webhook** (doe dit NA de Vercel-deploy, je hebt je domein nodig):
    **Developers → Webhooks → Add endpoint**
    - URL: `https://JOUW-DOMEIN/api/stripe-webhook`
    - Events: `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
      `invoice.paid`, `customer.subscription.updated`, `customer.subscription.deleted`,
      `charge.refunded`, `charge.dispute.created`
    - Kopieer de *Signing secret* (`whsec_...`) → `STRIPE_WEBHOOK_SECRET`
-5. **Settings → Payment methods**: zet aan wat je wilt (kaart, iDEAL, Apple Pay...). Checkout toont
+4. **Settings → Payment methods**: zet aan wat je wilt (kaart, iDEAL, Apple Pay...). Checkout toont
    automatisch wat past bij land/valuta. Crypto en PayPal-knoppen zijn van de site gehaald: Stripe
    ondersteunt crypto niet in Checkout.
-6. LET OP: Stripe heeft een lijst met verboden bedrijfstypes en game-cheat software kan daar onder
+5. LET OP: Stripe heeft een lijst met verboden bedrijfstypes en game-cheat software kan daar onder
    vallen. Lees hun beleid, anders riskeer je een bevroren account met vastgehouden geld.
 
 ## 3. Resend (e-mail: verificatie, reset, betaallink, licentie)

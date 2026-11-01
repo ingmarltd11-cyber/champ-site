@@ -1190,6 +1190,11 @@ def health():
     # Deployment diagnostics without values: which transport can send mail and whether
     # this deployment can reach its database. "database": false means the Vercel
     # environment is missing SUPABASE_URL / SUPABASE_SERVICE_KEY.
+    # booleans only: never expose a key, a price id or a webhook secret.
+    stripe_secret = bool(os.getenv("STRIPE_SECRET_KEY"))
+    stripe_monthly = bool(os.getenv("STRIPE_PRICE_MONTHLY_ID"))
+    stripe_lifetime = bool(os.getenv("STRIPE_PRICE_LIFETIME_ID"))
+    stripe_webhook = bool(os.getenv("STRIPE_WEBHOOK_SECRET"))
     return {
         "ok": True,
         "email": email_transport(),
@@ -1202,6 +1207,15 @@ def health():
         "sessions": sessions_ready(),
         "ai": "llm" if any(provider_keys()) else "built-in",
         "vercel_env": os.getenv("VERCEL_ENV"),
+        # checkout needs a secret key and both prices; the webhook also needs its signing secret.
+        "stripe": {
+            "secret_key": stripe_secret,
+            "price_monthly": stripe_monthly,
+            "price_lifetime": stripe_lifetime,
+            "webhook_secret": stripe_webhook,
+            "checkout_ready": stripe_secret and stripe_monthly and stripe_lifetime,
+            "webhook_ready": stripe_webhook,
+        },
     }
 
 
