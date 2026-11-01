@@ -1,17 +1,17 @@
 {
-  "build": "20261101-075204",
+  "build": "20261101-075619",
   "files": {
-    "champ-agent-40612f59.jar": {
+    "champ-agent-6c5a3703.jar": {
       "size": 6783,
-      "sha256": "a7b8592640779a37fbd011032e0de701f5a774f9e66ecce5626c0e6fc8f8622b"
+      "sha256": "26bc87e6e977bea3657a0c142e950da7efb6204de0b29308f3c0329b8e3ecc7c"
     },
     "champ-agent.dll": {
       "size": 177664,
-      "sha256": "d4b25758079869228d5dac64781d07098289bc5e0f6accfd2a267ece8df22428"
+      "sha256": "edc5802e48a30cd0d9be788ea8d1608bed71dd413958da5e117d44eeb706c38f"
     },
     "client.jar": {
-      "size": 11472096,
-      "sha256": "274f652d6de328a8a40e319e7800c180100b37c2065b1f62ba964ae167f6f1d9"
+      "size": 11472185,
+      "sha256": "290da5ea788a999a94e0a5fb8cec42fab1fc3fe7d5086dedeb27269e543ed1b3"
     },
     "logo.bmp": {
       "size": 102454,
