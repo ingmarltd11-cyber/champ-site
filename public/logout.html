@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Signed Out — Champ Client</title>
+<link rel="icon" type="image/png" href="assets/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Sora:wght@200;300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+
+<nav>
+  <a class="nav-logo" href="index.html">
+    <img src="assets/logo.png" alt="Champ logo">
+    <span>Champ <em>Client</em></span>
+  </a>
+  <ul class="nav-links">
+    <li><a href="features.html">Features</a></li>
+    <li><a href="configs.html">Configs</a></li>
+    <li><a href="changelog.html">Changelog</a></li>
+    <li><a href="index.html#pricing">Pricing</a></li>
+    <li><a href="support.html">Support</a></li>
+  </ul>
+  <div class="nav-actions">
+    <a href="login.html" class="btn-ghost">Sign In</a>
+    <a href="signup.html" class="btn-primary">Get Started &rarr;</a>
+  </div>
+</nav>
+
+<main class="logout-shell">
+  <div class="logout-card">
+    <img class="logout-mark" src="assets/logo.png" alt="Champ">
+    <p class="eyebrow" style="justify-content:center;">Session closed</p>
+    <h1 style="margin-top:16px;">You're signed <em>out.</em></h1>
+    <p>Your license and downloads are untouched. Sign back in whenever you want to pick up where you left off.</p>
+    <div class="logout-actions">
+      <a class="btn-primary" href="login.html">Sign in again</a>
+      <a class="btn-ghost" href="index.html">Back to homepage</a>
+    </div>
+    <p class="logout-note" id="logoutNote">Signed out on this device. Other devices keep their own session.</p>
+  </div>
+</main>
+
+<script>
+(function () {
+  // Arriving here from the dashboard means the session cookie is already gone. If someone opens
+  // this page directly, close both sessions so the page never lies about the state.
+  Promise.all([
+    fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }).catch(function () {}),
+    fetch('/api/admin/logout', { method: 'POST', credentials: 'same-origin' }).catch(function () {})
+  ]).then(function () {
+    var note = document.getElementById('logoutNote');
+    if (note) note.textContent = 'Signed out on this device. Other devices keep their own session.';
+  });
+})();
+</script>
+<script src="motion.js"></script>
+</body>
+</html>

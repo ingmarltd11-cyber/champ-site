@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Champ Client — Base Finds</title>
+<title>Base Finds — Champ Client</title>
 <link rel="icon" type="image/png" href="assets/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Sora:wght@200;300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="site.css">
 </head>
 <body>
 
@@ -19,6 +19,7 @@
   </a>
   <ul class="nav-links">
     <li><a href="features.html">Features</a></li>
+    <li><a href="configs.html">Configs</a></li>
     <li><a href="changelog.html">Changelog</a></li>
     <li><a href="index.html#pricing">Pricing</a></li>
     <li><a href="support.html">Support</a></li>
@@ -26,9 +27,7 @@
   <div class="nav-actions">
     <a href="login.html" class="btn-ghost">Sign In</a>
     <a href="dashboard.html" class="btn-primary">Dashboard &rarr;</a>
-    <button class="hamburger" onclick="toggleMenu()" aria-label="Menu">
-      <span></span><span></span><span></span>
-    </button>
+    <button class="hamburger" onclick="toggleMenu()" aria-label="Menu"><span></span><span></span><span></span></button>
   </div>
 </nav>
 
@@ -41,10 +40,11 @@
   <a href="login.html" onclick="toggleMenu()">Sign In</a>
 </div>
 
-<main class="page-wrap">
+<main class="page-wrap" style="max-width:1180px;">
   <section class="page-hero">
-    <h1 class="page-title">Customer <em>Finds</em></h1>
-    <p class="page-sub">Sign in with an active Champ Client license to view and share community finds.</p>
+    <p class="hero-eyebrow">Customer intel</p>
+    <h1 class="page-title" style="margin-top:18px;">Base <em>finds.</em></h1>
+    <p class="page-sub">Real bases, stashes and loot runs shared by Champ customers and checked by the team. Sign in with an active license to browse and upload.</p>
     <div class="hero-trust">
       <span class="trust-badge"><span class="trust-dot"></span>Staff reviewed</span>
       <span class="trust-badge"><span class="trust-dot"></span>Fresh bases weekly</span>
@@ -52,44 +52,68 @@
     </div>
   </section>
 
-  <section class="dash-card find-share-card">
-    <div class="card-title">Share a find</div>
+  <section class="dash-card find-share-card" style="max-width:720px;margin:0 auto 36px;">
+    <div class="card-title">
+      <span class="title-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 5v14M5 12h14"/>
+        </svg>
+      </span>
+      Share a find
+    </div>
     <p class="no-license-text" id="findAuthHint">Customer access is required to browse or submit finds. <a href="login.html?next=finds.html">Sign in</a> or <a href="signup.html">create an account</a>.</p>
+
     <form id="findUploadForm" class="admin-editor" style="display:none">
       <label>Title<input id="findTitle" maxlength="80" required placeholder="Ancient city loot stash..."></label>
       <label>Description<textarea id="findDesc" maxlength="1000" placeholder="Where is it, what loot, which server..."></textarea></label>
       <label>Screenshot (PNG/JPG/WEBP, max 4 MB)<input id="findImage" type="file" accept="image/png,image/jpeg,image/webp"></label>
       <button class="btn-primary" type="submit">Upload find</button>
-      <p id="findUploadMessage" style="display:none;font-size:14px"></p>
+      <p id="findUploadMessage" class="save-message" style="display:none" role="status"></p>
     </form>
   </section>
 
   <div id="findsGrid" class="finds-grid">
-    <p class="no-license-text">Loading finds...</p>
+    <p class="no-license-text">Loading finds&hellip;</p>
   </div>
 
   <div class="finds-footer-note">
-    <p class="no-license-text">Every upload is reviewed by staff before it appears here. Coordinates and server details are shared at the finder's discretion.</p>
+    <p class="no-license-text" style="text-align:center;max-width:620px;margin:0 auto;">Every upload is reviewed by staff before it appears here. Coordinates and server details are shared at the finder's discretion.</p>
   </div>
 </main>
 
 <footer>
-  <div class="footer-logo">
-    <img src="assets/logo.png" alt="Champ">
-    Champ <em style="font-style:italic;color:var(--red-hi)">Client</em>
+  <div class="footer-brand">
+    <div class="footer-logo"><img src="assets/logo.png" alt="Champ">Champ <em>Client</em></div>
+    <p class="footer-blurb">One injector, every module. Built for Minecraft 1.21.11.</p>
   </div>
-  <div class="footer-links">
-    <a href="index.html">Homepage</a>
-    <a href="support.html">Support</a>
-    <a href="changelog.html">Changelog</a>
-    <a href="index.html#pricing">Pricing</a>
+  <div class="footer-col">
+    <h4>Product</h4>
+    <div class="footer-links">
+      <a href="features.html">Features</a>
+      <a href="configs.html">Configs</a>
+      <a href="changelog.html">Changelog</a>
+    </div>
   </div>
-  <p class="footer-copy">&copy; 2026 Champ Client. Not affiliated with Mojang or Microsoft.</p>
+  <div class="footer-col">
+    <h4>Account</h4>
+    <div class="footer-links">
+      <a href="login.html">Sign in</a>
+      <a href="dashboard.html">Dashboard</a>
+      <a href="index.html#pricing">Pricing</a>
+    </div>
+  </div>
+  <div class="footer-col">
+    <h4>Legal</h4>
+    <div class="footer-links">
+      <a href="privacy.html">Privacy policy</a>
+      <a href="terms.html">Terms of service</a>
+      <a href="support.html">Support</a>
+    </div>
+  </div>
+  <p class="footer-copy">&copy; 2026 <strong>Champ Client</strong>. Not affiliated with Mojang or Microsoft.</p>
 </footer>
 
 <script src="main.js"></script>
-<script src="vendor/gsap.min.js"></script>
-<script src="vendor/gsap-scrolltrigger.min.js"></script>
 <script src="motion.js"></script>
 </body>
 </html>

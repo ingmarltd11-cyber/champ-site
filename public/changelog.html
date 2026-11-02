@@ -1,14 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Changelog — Champ Client</title>
 <link rel="icon" type="image/png" href="assets/logo.png">
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Sora:wght@200;300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="site.css">
 </head>
 <body>
-<!-- ANNOUNCEMENT BANNER -->
+
 <div id="siteAnnouncementBanner" class="site-announcement-bar" style="display:none;">
   <span id="siteAnnouncementText"></span>
   <button onclick="dismissAnnouncement()" class="announcement-close" aria-label="Close announcement">&times;</button>
@@ -22,30 +25,74 @@
     <li><a href="changelog.html">Changelog</a></li>
     <li><a href="index.html#pricing">Pricing</a></li>
     <li><a href="support.html">Support</a></li>
-    <li><a href="index.html#faq">FAQ</a></li>
   </ul>
-  <div class="nav-actions"><a href="login.html" class="btn-ghost">Sign In</a><a href="signup.html" class="btn-primary">Get Started →</a><button class="hamburger" onclick="toggleMenu()" aria-label="Menu"><span></span><span></span><span></span></button></div>
+  <div class="nav-actions">
+    <a href="login.html" class="btn-ghost">Sign In</a>
+    <a href="signup.html" class="btn-primary">Get Started &rarr;</a>
+    <button class="hamburger" onclick="toggleMenu()" aria-label="Menu"><span></span><span></span><span></span></button>
+  </div>
 </nav>
-<div class="mobile-menu" id="mobileMenu"><a href="index.html" onclick="toggleMenu()">Homepage</a><a href="features.html" onclick="toggleMenu()">Features</a><a href="changelog.html" onclick="toggleMenu()">Changelog</a><a href="index.html#pricing" onclick="toggleMenu()">Pricing</a><a href="support.html" onclick="toggleMenu()">Support</a><a href="login.html" onclick="toggleMenu()">Sign In</a></div>
 
-<main class="features-page changelog-page">
+<div class="mobile-menu" id="mobileMenu">
+  <a href="index.html" onclick="toggleMenu()">Homepage</a>
+  <a href="features.html" onclick="toggleMenu()">Features</a>
+  <a href="configs.html" onclick="toggleMenu()">Configs</a>
+  <a href="changelog.html" onclick="toggleMenu()">Changelog</a>
+  <a href="index.html#pricing" onclick="toggleMenu()">Pricing</a>
+  <a href="support.html" onclick="toggleMenu()">Support</a>
+  <a href="login.html" onclick="toggleMenu()">Sign In</a>
+</div>
+
+<main class="features-page changelog-page" style="max-width:980px;">
   <section class="features-hero">
     <p class="hero-eyebrow">Release notes</p>
     <h1>What&rsquo;s <em>new.</em></h1>
-    <p class="hero-sub">Every Champ Client update, fix and module change. No account needed — check back after each release.</p>
+    <p class="hero-sub">Every Champ Client update, fix and module change. No account needed &mdash; check back after each release.</p>
+    <div class="feature-stats">
+      <div class="feature-stat"><b>1.21.11</b><span>current target</span></div>
+      <div class="feature-stat"><b>Every build</b><span>listed here</span></div>
+      <div class="feature-stat"><b>Instant</b><span>in your dashboard</span></div>
+    </div>
   </section>
+
   <section id="changelogList" class="changelog-list">
-    <p class="no-license-text">Loading releases…</p>
+    <p class="no-license-text">Loading releases&hellip;</p>
   </section>
 </main>
 
 <footer>
-  <div class="footer-logo"><img src="assets/logo.png" alt="Champ">Champ <em style="font-style:italic;color:var(--red-hi)">Client</em></div>
-  <div class="footer-links"><a href="features.html">Features</a><a href="configs.html">Configs</a><a href="changelog.html">Changelog</a><a href="privacy.html">Privacy Policy</a><a href="terms.html">Terms of Service</a></div>
-  <p class="footer-copy">© 2026 Champ Client. Not affiliated with Mojang or Microsoft.</p>
+  <div class="footer-brand">
+    <div class="footer-logo"><img src="assets/logo.png" alt="Champ">Champ <em>Client</em></div>
+    <p class="footer-blurb">One injector, every module. Built for Minecraft 1.21.11.</p>
+  </div>
+  <div class="footer-col">
+    <h4>Product</h4>
+    <div class="footer-links">
+      <a href="features.html">Features</a>
+      <a href="configs.html">Configs</a>
+      <a href="changelog.html">Changelog</a>
+    </div>
+  </div>
+  <div class="footer-col">
+    <h4>Account</h4>
+    <div class="footer-links">
+      <a href="login.html">Sign in</a>
+      <a href="dashboard.html">Dashboard</a>
+      <a href="index.html#pricing">Pricing</a>
+    </div>
+  </div>
+  <div class="footer-col">
+    <h4>Legal</h4>
+    <div class="footer-links">
+      <a href="privacy.html">Privacy policy</a>
+      <a href="terms.html">Terms of service</a>
+      <a href="support.html">Support</a>
+    </div>
+  </div>
+  <p class="footer-copy">&copy; 2026 <strong>Champ Client</strong>. Not affiliated with Mojang or Microsoft.</p>
 </footer>
+
 <script src="main.js"></script>
-<script src="vendor/gsap.min.js"></script>
-<script src="vendor/gsap-scrolltrigger.min.js"></script>
 <script src="motion.js"></script>
-</body></html>
+</body>
+</html>

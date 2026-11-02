@@ -137,7 +137,13 @@ function safeNext(value) {
 
 // ---- Mobile menu ----
 function toggleMenu() {
-  document.getElementById('mobileMenu')?.classList.toggle('open');
+  const menu = document.getElementById('mobileMenu');
+  if (!menu) return;
+  const open = menu.classList.toggle('open');
+  document.querySelectorAll('.hamburger').forEach(function (button) {
+    button.classList.toggle('is-open', open);
+    button.setAttribute('aria-expanded', String(open));
+  });
 }
 
 // ---- Modal helpers ----

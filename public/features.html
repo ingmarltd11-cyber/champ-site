@@ -1,13 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Features — Champ Client</title>
 <link rel="icon" type="image/png" href="assets/logo.png">
-<link rel="stylesheet" href="style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Sora:wght@200;300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="site.css">
 </head>
 <body>
-<!-- ANNOUNCEMENT BANNER -->
+
 <div id="siteAnnouncementBanner" class="site-announcement-bar" style="display:none;">
   <span id="siteAnnouncementText"></span>
   <button onclick="dismissAnnouncement()" class="announcement-close" aria-label="Close announcement">&times;</button>
@@ -20,14 +24,28 @@
     <li><a href="configs.html">Configs</a></li>
     <li><a href="changelog.html">Changelog</a></li>
     <li><a href="index.html#pricing">Pricing</a></li>
-    <li><a href="index.html#faq">FAQ</a></li>
+    <li><a href="support.html">Support</a></li>
   </ul>
-  <div class="nav-actions"><a href="login.html" class="btn-ghost">Sign In</a><a href="signup.html" class="btn-primary">Get Started →</a><button class="hamburger" onclick="toggleMenu()" aria-label="Menu"><span></span><span></span><span></span></button></div>
+  <div class="nav-actions">
+    <a href="login.html" class="btn-ghost">Sign In</a>
+    <a href="signup.html" class="btn-primary">Get Started &rarr;</a>
+    <button class="hamburger" onclick="toggleMenu()" aria-label="Menu"><span></span><span></span><span></span></button>
+  </div>
 </nav>
-<div class="mobile-menu" id="mobileMenu"><a href="features.html" onclick="toggleMenu()">Features</a><a href="configs.html" onclick="toggleMenu()">Configs</a><a href="changelog.html" onclick="toggleMenu()">Changelog</a><a href="index.html#pricing" onclick="toggleMenu()">Pricing</a><a href="index.html#faq" onclick="toggleMenu()">FAQ</a><a href="login.html" onclick="toggleMenu()">Sign In</a></div>
+
+<div class="mobile-menu" id="mobileMenu">
+  <a href="index.html" onclick="toggleMenu()">Homepage</a>
+  <a href="features.html" onclick="toggleMenu()">Features</a>
+  <a href="configs.html" onclick="toggleMenu()">Configs</a>
+  <a href="changelog.html" onclick="toggleMenu()">Changelog</a>
+  <a href="index.html#pricing" onclick="toggleMenu()">Pricing</a>
+  <a href="support.html" onclick="toggleMenu()">Support</a>
+  <a href="login.html" onclick="toggleMenu()">Sign In</a>
+</div>
+
 <main class="features-page">
   <section class="features-hero">
-    <p class="hero-eyebrow">Minecraft 1.21.11 Injector</p>
+    <p class="hero-eyebrow">Minecraft 1.21.11 injector</p>
     <h1 data-site-text="features_title">Explore the <em>Features.</em></h1>
     <p class="hero-sub" data-site-text="features_sub">Every module in Champ Client, grouped by category: combat, mace, spear, movement, misc, visuals and Donut SMP. Filter a category or browse them all, and open a card for screenshots and clips.</p>
     <div class="feature-stats">
@@ -37,22 +55,57 @@
       <div class="feature-stat"><b>Instant</b><span>delivery</span></div>
     </div>
   </section>
+
   <div class="feature-filters" id="featureFilters" role="tablist" aria-label="Feature categories"></div>
   <p class="feature-filter-note" id="featureFilterNote"></p>
-  <section id="featureGrid" class="feature-module-grid"><p class="no-license-text">Loading features…</p></section>
+
+  <section id="featureGrid" class="feature-module-grid">
+    <p class="no-license-text" style="text-align:center;padding:40px 0;">Loading features&hellip;</p>
+  </section>
 
   <section class="features-cta">
     <div>
       <h2>Every module, one license.</h2>
-      <p>Monthly or lifetime — combat, visuals, Donut SMP suites and texture packs all included.</p>
+      <p>Monthly or lifetime &mdash; combat, visuals, Donut SMP suites and texture packs all included.</p>
     </div>
-    <a class="btn-primary" href="index.html#pricing">See pricing →</a>
+    <a class="btn-primary" href="index.html#pricing">See pricing &rarr;</a>
   </section>
 </main>
-<footer><div class="footer-logo"><img src="assets/logo.png" alt="Champ">Champ <em style="font-style:italic;color:var(--red-hi)">Client</em></div><div class="footer-links"><a href="configs.html">Configs</a><a href="changelog.html">Changelog</a><a href="privacy.html">Privacy Policy</a><a href="terms.html">Terms of Service</a></div><p class="footer-copy">© 2026 Champ Client. Not affiliated with Mojang or Microsoft.</p></footer>
+
+<footer>
+  <div class="footer-brand">
+    <div class="footer-logo"><img src="assets/logo.png" alt="Champ">Champ <em>Client</em></div>
+    <p class="footer-blurb">One injector, every module. Built for Minecraft 1.21.11.</p>
+  </div>
+  <div class="footer-col">
+    <h4>Product</h4>
+    <div class="footer-links">
+      <a href="features.html">Features</a>
+      <a href="configs.html">Configs</a>
+      <a href="changelog.html">Changelog</a>
+    </div>
+  </div>
+  <div class="footer-col">
+    <h4>Account</h4>
+    <div class="footer-links">
+      <a href="login.html">Sign in</a>
+      <a href="dashboard.html">Dashboard</a>
+      <a href="index.html#pricing">Pricing</a>
+    </div>
+  </div>
+  <div class="footer-col">
+    <h4>Legal</h4>
+    <div class="footer-links">
+      <a href="privacy.html">Privacy policy</a>
+      <a href="terms.html">Terms of service</a>
+      <a href="support.html">Support</a>
+    </div>
+  </div>
+  <p class="footer-copy">&copy; 2026 <strong>Champ Client</strong>. Not affiliated with Mojang or Microsoft.</p>
+</footer>
+
 <script src="feature-catalog.js"></script>
 <script src="main.js"></script>
-<script src="vendor/gsap.min.js"></script>
-<script src="vendor/gsap-scrolltrigger.min.js"></script>
 <script src="motion.js"></script>
-</body></html>
+</body>
+</html>

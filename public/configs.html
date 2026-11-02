@@ -1,16 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Public configs — Champ Client</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Public Configs — Champ Client</title>
 <link rel="icon" type="image/png" href="assets/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Sora:wght@200;300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="site.css">
 </head>
 <body>
-<!-- ANNOUNCEMENT BANNER -->
+
 <div id="siteAnnouncementBanner" class="site-announcement-bar" style="display:none;">
   <span id="siteAnnouncementText"></span>
   <button onclick="dismissAnnouncement()" class="announcement-close" aria-label="Close announcement">&times;</button>
@@ -23,20 +24,22 @@
     <li><a href="configs.html">Configs</a></li>
     <li><a href="changelog.html">Changelog</a></li>
     <li><a href="index.html#pricing">Pricing</a></li>
-    <li><a href="index.html#faq">FAQ</a></li>
+    <li><a href="support.html">Support</a></li>
   </ul>
   <div class="nav-actions">
     <a href="login.html" class="btn-ghost">Sign In</a>
-    <a href="signup.html" class="btn-primary">Get Started →</a>
+    <a href="signup.html" class="btn-primary">Get Started &rarr;</a>
     <button class="hamburger" onclick="toggleMenu()" aria-label="Menu"><span></span><span></span><span></span></button>
   </div>
 </nav>
+
 <div class="mobile-menu" id="mobileMenu">
+  <a href="index.html" onclick="toggleMenu()">Homepage</a>
   <a href="features.html" onclick="toggleMenu()">Features</a>
   <a href="configs.html" onclick="toggleMenu()">Configs</a>
   <a href="changelog.html" onclick="toggleMenu()">Changelog</a>
   <a href="index.html#pricing" onclick="toggleMenu()">Pricing</a>
-  <a href="index.html#faq" onclick="toggleMenu()">FAQ</a>
+  <a href="support.html" onclick="toggleMenu()">Support</a>
   <a href="login.html" onclick="toggleMenu()">Sign In</a>
 </div>
 
@@ -56,11 +59,12 @@
   </section>
 
   <div class="configs-toolbar">
-    <input id="cfgSearch" class="configs-search" type="search" placeholder="Search by name, author or description…" autocomplete="off">
+    <input id="cfgSearch" class="configs-search" type="search" placeholder="Search by name, author or description&hellip;" autocomplete="off">
     <button id="cfgSubmit" class="btn-primary" type="button">Search</button>
   </div>
 
-  <section id="cfgGrid" class="configs-grid"><p class="no-license-text">Loading configs…</p></section>
+  <section id="cfgGrid" class="configs-grid"><p class="no-license-text">Loading configs&hellip;</p></section>
+
   <div class="configs-pager">
     <button id="cfgPrev" class="btn-ghost" type="button">&larr; Newer</button>
     <span id="cfgPage">Page 1</span>
@@ -72,13 +76,14 @@
       <h2>Want your setup listed?</h2>
       <p>In the client: Configs &rarr; Create config, set the visibility to Public, and it is on this page for everyone.</p>
     </div>
-    <a class="btn-primary" href="index.html#pricing">Get Champ →</a>
+    <a class="btn-primary" href="index.html#pricing">Get Champ &rarr;</a>
   </section>
 </main>
 
 <div id="cfgOverlay" class="configs-overlay" aria-hidden="true">
   <div class="configs-panel" role="dialog" aria-modal="true" aria-labelledby="cfgDetailName">
     <button class="configs-close" onclick="closeConfig()" aria-label="Close">&times;</button>
+    <p class="configs-sub" style="margin:0 0 8px;">Public config</p>
     <h2 id="cfgDetailName">Config</h2>
     <p id="cfgDetailMeta" class="configs-meta"></p>
     <p id="cfgDetailDesc" class="configs-desc"></p>
@@ -93,9 +98,35 @@
 </div>
 
 <footer>
-  <div class="footer-logo"><img src="assets/logo.png" alt="Champ">Champ <em style="font-style:italic;color:var(--red-hi)">Client</em></div>
-  <div class="footer-links"><a href="features.html">Features</a><a href="configs.html">Configs</a><a href="changelog.html">Changelog</a><a href="privacy.html">Privacy Policy</a><a href="terms.html">Terms of Service</a></div>
-  <p class="footer-copy">&copy; 2026 Champ Client. Not affiliated with Mojang or Microsoft.</p>
+  <div class="footer-brand">
+    <div class="footer-logo"><img src="assets/logo.png" alt="Champ">Champ <em>Client</em></div>
+    <p class="footer-blurb">One injector, every module. Built for Minecraft 1.21.11.</p>
+  </div>
+  <div class="footer-col">
+    <h4>Product</h4>
+    <div class="footer-links">
+      <a href="features.html">Features</a>
+      <a href="configs.html">Configs</a>
+      <a href="changelog.html">Changelog</a>
+    </div>
+  </div>
+  <div class="footer-col">
+    <h4>Account</h4>
+    <div class="footer-links">
+      <a href="login.html">Sign in</a>
+      <a href="dashboard.html">Dashboard</a>
+      <a href="index.html#pricing">Pricing</a>
+    </div>
+  </div>
+  <div class="footer-col">
+    <h4>Legal</h4>
+    <div class="footer-links">
+      <a href="privacy.html">Privacy policy</a>
+      <a href="terms.html">Terms of service</a>
+      <a href="support.html">Support</a>
+    </div>
+  </div>
+  <p class="footer-copy">&copy; 2026 <strong>Champ Client</strong>. Not affiliated with Mojang or Microsoft.</p>
 </footer>
 
 <script>
@@ -121,7 +152,7 @@
     var tags = (c.tags || []).slice(0, 4).map(function (t) { return '<span class="configs-tag">' + esc(t) + '</span>'; }).join('');
     return '<article class="config-card" data-id="' + c.id + '">' +
       '<h3>' + esc(c.name) + '</h3>' +
-      '<p class="configs-meta">by ' + esc(c.author) + (c.created_at ? ' · ' + esc(fmtDate(c.created_at)) : '') + '</p>' +
+      '<p class="configs-meta">by ' + esc(c.author) + (c.created_at ? ' &middot; ' + esc(fmtDate(c.created_at)) : '') + '</p>' +
       '<p class="configs-desc">' + esc(c.description || 'No description.') + '</p>' +
       '<div class="configs-tags">' + tags + '</div>' +
       '<div class="configs-foot"><span>' + (c.downloads || 0) + ' downloads</span>' +
@@ -131,7 +162,7 @@
 
   function render(list) {
     if (!list.length) {
-      grid.innerHTML = '<p class="no-license-text">' + (query ? 'No public configs match “' + esc(query) + '”.' : 'No public configs yet. Share the first one from the client.') + '</p>';
+      grid.innerHTML = '<p class="no-license-text">' + (query ? 'No public configs match &ldquo;' + esc(query) + '&rdquo;.' : 'No public configs yet. Share the first one from the client.') + '</p>';
       return;
     }
     grid.innerHTML = list.map(card).join('');
@@ -141,7 +172,7 @@
   }
 
   function load() {
-    grid.innerHTML = '<p class="no-license-text">Loading configs…</p>';
+    grid.innerHTML = '<p class="no-license-text">Loading configs&hellip;</p>';
     fetch('/api/configs?page=' + page + '&q=' + encodeURIComponent(query), { cache: 'no-store' })
       .then(function (r) { return r.json(); })
       .then(function (data) {
@@ -153,7 +184,6 @@
         document.getElementById('cfgNext').disabled = !data.has_more;
         var counter = document.getElementById('cfgCount');
         if (counter) counter.textContent = page === 0 && !query ? (list.length + (data.has_more ? '+' : '')) : counter.textContent;
-        if (window.ScrollTrigger) window.ScrollTrigger.refresh();
       })
       .catch(function () {
         grid.innerHTML = '<p class="no-license-text">The config list could not be loaded. Try again in a moment.</p>';
@@ -167,7 +197,7 @@
         current = c;
         document.getElementById('cfgDetailName').textContent = c.name || 'Config';
         document.getElementById('cfgDetailMeta').textContent = 'by ' + (c.author || 'Champ user') +
-          (c.created_at ? ' · ' + fmtDate(c.created_at) : '') + ' · ' + (c.downloads || 0) + ' downloads';
+          (c.created_at ? ' &middot; ' + fmtDate(c.created_at) : '') + ' &middot; ' + (c.downloads || 0) + ' downloads';
         document.getElementById('cfgDetailDesc').textContent = c.description || 'No description.';
         document.getElementById('cfgDetailTags').innerHTML = (c.tags || [])
           .map(function (t) { return '<span class="configs-tag">' + esc(t) + '</span>'; }).join('');
@@ -191,7 +221,7 @@
       if (!node || typeof node !== 'object') return;
       Object.keys(node).forEach(function (key) {
         var value = node[key];
-        var label = prefix ? prefix + ' › ' + key : key;
+        var label = prefix ? prefix + ' &rsaquo; ' + key : key;
         if (value && typeof value === 'object' && !Array.isArray(value) && modules.length < 400) walk(value, label);
         else if (modules.length < 400) modules.push(label + ': ' + JSON.stringify(value));
       });
@@ -200,7 +230,7 @@
     rows.push('<li>' + modules.length + ' settings in this config</li>');
     if (c.seed) rows.push('<li>World seed: ' + esc(c.seed) + '</li>');
     modules.slice(0, 12).forEach(function (line) { rows.push('<li>' + esc(line) + '</li>'); });
-    if (modules.length > 12) rows.push('<li>…and ' + (modules.length - 12) + ' more</li>');
+    if (modules.length > 12) rows.push('<li>&hellip;and ' + (modules.length - 12) + ' more</li>');
     return rows.join('');
   }
 
@@ -229,7 +259,6 @@
 })();
 </script>
 <script src="main.js"></script>
-<script src="vendor/gsap.min.js"></script>
-<script src="vendor/gsap-scrolltrigger.min.js"></script>
 <script src="motion.js"></script>
-</body></html>
+</body>
+</html>
