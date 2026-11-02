@@ -3930,7 +3930,7 @@ Product: Champ Client is a Windows injector that injects the client into a Minec
 
 Install: customers download one .exe from their dashboard, never a jar. The order matters: start Minecraft first (the 1.21.11 Fabric profile, waiting in the main menu), then run the downloaded file. The launcher shows a splash while it unpacks the client on that PC, attaches to the running game and loads the client; it closes itself once it says "Champ is running". Minecraft does not have to be restarted afterwards, and nothing is ever placed in the mods folder. If the game is not running yet the splash says so and offers a Retry button. Every download gets a random file name, so never tell a customer a fixed file name; the file can be kept and reused, and a newer release is simply a new download.
 
-Scope: the website advertises 136 modules, custom Dear ImGui render overlays, crystal macros and DonutSMP base raiding suites. The full module list lives on the features page. Never invent module names or describe a specific module that is not listed on the site.
+Scope: the website advertises 247 modules, custom Dear ImGui render overlays, crystal macros and DonutSMP base raiding suites. The full module list lives on the features page. Never invent module names or describe a specific module that is not listed on the site.
 
 Plans and delivery: Monthly costs EUR 6.99 and can be cancelled anytime from the dashboard. Lifetime costs EUR 9.99 as a one-time payment and includes future 1.21.x updates. Checkout uses Stripe, which supports credit cards, debit cards, iDEAL and country-specific local payment methods. After successful payment the product is available in the customer's dashboard immediately, and a licence e-mail with the key is sent. Downloads require an active license. PayPal, crypto and other payment providers are not available in this shop; never suggest them.
 
@@ -3956,7 +3956,7 @@ Do not invent features, testimonials, downloads, compatibility promises, refunds
 # The assistant treats every other domain as non-existent, exactly like the Discord bot.
 OFFICIAL_SITE = (os.getenv("SITE_URL") or "https://champ-site-psi.vercel.app").rstrip("/")
 HIDDEN_HOSTS = [h.strip().replace("www.", "").lower() for h in (os.getenv("AI_HIDDEN_HOSTS") or "champclient.com").split(",") if h.strip()]
-FEATURES_REPLY = "\U0001F4C4 **Features and modules**\n136 modules, custom Dear ImGui overlays, crystal macros and DonutSMP base raiding suites. The full list is here: {url}\nAsk here if you want to know more about one of them."
+FEATURES_REPLY = "\U0001F4C4 **Features and modules**\n247 modules, custom Dear ImGui overlays, crystal macros and DonutSMP base raiding suites. The full list is here: {url}\nAsk here if you want to know more about one of them."
 REFUSAL = "I can't help with that: I don't share code and I won't explain how to get it. A staff member can help you further."
 FEATURES_PATTERN = re.compile(
     r"\b(modules?|features?|functies?|functionaliteit\w*|capabilit\w*|what\s+can\s+(it|this|the\s+(mod|client|cheat|menu))\s+do|what\s+does\s+(it|the\s+(mod|client))\s+(do|include|have)|what(?:'s|\s+is)\s+included|wat\s+kan\s+(het|deze|de\s+(mod|client))|wat\s+zit\s+er\s+in|welke\s+(modules?|features?|functies?))\b",
@@ -4144,7 +4144,7 @@ def _answer_what_is_it() -> str:
     return (
         "Champ Client is a Windows injector for Minecraft Java 1.21.11: start the game, run the launcher, and the "
         "client opens inside it - nothing goes into the mods folder. It is built to run next to Sodium, Lithium, "
-        "FerriteCore and Iris. The site lists 136 modules, custom "
+        "FerriteCore and Iris. The site lists 247 modules, custom "
         "Dear ImGui overlays, crystal macros and DonutSMP base raiding suites.\n\n"
         f"Features and modules: {SITE_LINKS['features']}\nPlans and pricing: {SITE_LINKS['pricing']}"
     )
