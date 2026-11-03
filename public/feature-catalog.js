@@ -68,7 +68,7 @@ window.CHAMP_FEATURES = {
     { slug: "auto-drain", category: "combat", title: "Auto Drain", description: "Automatically collects water/lava with a bucket" },
     { slug: "auto-elytra", category: "combat", title: "Auto Elytra", description: "Automatically puts on an elytra (and rockets)" },
     { slug: "auto-hit-crystal", category: "combat", title: "Auto Hit Crystal", description: "Automatically hit crystals and attempts to d-tap them by syncing with enemy damage ticks" },
-    { slug: "auto-obby-crystal", category: "combat", title: "Auto Obby Crystal", description: "Full auto-crystal with real damage predictions, silent aim, and safe break modes" },
+    { slug: "auto-obby-crystal", category: "combat", title: "Crystal Aura", description: "Full auto-crystal with real damage predictions, silent aim, and safe break modes" },
     { slug: "auto-safe-cart", category: "combat", title: "Auto Safe Cart", description: "Automatically covers threatening minecarts with blocks" },
     { slug: "auto-shield", category: "combat", title: "Auto Shield", description: "Automatically blocks with your shield in combat" },
     { slug: "auto-shield-breaker", category: "combat", title: "Auto Shield Breaker", description: "Automatically breaks shields by silently attacking them" },
