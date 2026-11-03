@@ -199,6 +199,7 @@
       <li><strong>Look and use travel together.</strong> An item-use packet carries the direction the item goes in. Before it leaves, the client makes sure the server's last known rotation is the same angle, so a wind charge and the movement packet that follows cannot disagree.</li>
       <li><strong>No swings while eating.</strong> A swing sent while you are using an item releases the food first. That swing is held back until the use ends.</li>
       <li><strong>No double clicks.</strong> A rotation that has already been sent is not sent again, and a hit is only accepted with an angle the server has actually received.</li>
+      <li><strong>One movement packet per tick.</strong> A silent aim is folded into the movement packet the game already built, and a NoFall ground spoof rides on that same packet. Adding a second one doubled the movement rate from 20 to 40 per second, and a server reads that as your game running faster than normal.</li>
       <li><strong>Your own hooks stay out of it.</strong> The modules that emit their own clicks and rotations run against the same guard, so a silent aim and a pearl catch cannot overwrite each other's angle mid-throw.</li>
     </ul>
   </section>
