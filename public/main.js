@@ -852,8 +852,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           notice.style.display = 'block';
           notice.style.color = '#fbbf24';
           notice.innerHTML = 'This admin session has no customer licenses, so there is nothing to show '
-            + 'on the member dashboard. <a href="admin.html" style="color:#a78bfa">Open the admin panel</a>, '
-            + 'or <a href="login.html?switch=1" style="color:#a78bfa">sign in with a customer account</a>.';
+            + 'on the member dashboard. <a href="admin.html" style="color:#37c9bb">Open the admin panel</a>, '
+            + 'or <a href="login.html?switch=1" style="color:#37c9bb">sign in with a customer account</a>.';
         }
         return null;
       }
@@ -1665,8 +1665,8 @@ async function handleAIChatSubmit(e) {
 async function loadFindsPage() {
   const grid = document.getElementById('findsGrid');
   if (!grid) return;
-  const loginHint = '<p class="no-license-text">Base Finds are reserved for active Champ Client customers. <a href="login.html?next=finds.html" style="color:#a78bfa">Sign in</a> to continue.</p>';
-  const licenseHint = '<p class="no-license-text">An active Champ Client license is required to browse Base Finds. <a href="index.html#pricing" style="color:#a78bfa">View plans</a>.</p>';
+  const loginHint = '<p class="no-license-text">Base Finds are reserved for active Champ Client customers. <a href="login.html?next=finds.html" style="color:#37c9bb">Sign in</a> to continue.</p>';
+  const licenseHint = '<p class="no-license-text">An active Champ Client license is required to browse Base Finds. <a href="index.html#pricing" style="color:#37c9bb">View plans</a>.</p>';
   const me = await api('/api/auth/me');
   if (!me.ok) {
     grid.innerHTML = loginHint;
@@ -2693,7 +2693,7 @@ async function loadAdminTexturePacks() {
           <td><b>${escapeHtml(p.name)}</b></td>
           <td>${escapeHtml(p.category)}</td>
           <td>${p.is_customer_only ? '<span class="badge-vip">VIP Customers</span>' : '<span style="color:#4ade80">Public Free</span>'}</td>
-          <td>${p.download_url ? `<a href="${escapeAttr(p.download_url)}" target="_blank" style="color:#38bdf8">Link</a>` : '<span style="color:#a78bfa">Hosted file</span>'}</td>
+          <td>${p.download_url ? `<a href="${escapeAttr(p.download_url)}" target="_blank" style="color:#38bdf8">Link</a>` : '<span style="color:#37c9bb">Hosted file</span>'}</td>
           <td><button class="btn-ghost" onclick="deleteAdminTexturePack(${p.id})" style="padding:4px 8px;font-size:12px;">Delete</button></td>
         </tr>
       `).join('') + `</tbody></table>`;

@@ -4,10 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Champ Client — Minecraft 1.21.11 Client</title>
-<link rel="icon" type="image/png" href="assets/logo.png">
+<link rel="icon" type="image/png" href="assets/logo-teal.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Sora:wght@200;300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="site.css">
 </head>
 <body>
@@ -21,7 +21,7 @@
 <!-- NAV -->
 <nav>
   <a class="nav-logo" href="index.html">
-    <img src="assets/logo.png" alt="Champ crab logo">
+    <img src="assets/logo-teal.png" alt="Champ crab logo">
     <span>Champ <em>Client</em></span>
   </a>
   <ul class="nav-links">
@@ -79,7 +79,7 @@
   <div class="hero-visual" aria-hidden="true">
     <div class="client-preview">
       <div class="preview-top">
-        <img src="assets/logo.png" alt="">
+        <img src="assets/logo-teal.png" alt="">
         <div>
           <b>Champ Client</b>
           <small>v0.9.9 &middot; Fabric 1.21.11</small>
@@ -163,38 +163,53 @@
   </div>
 </div>
 
-<!-- PILLARS -->
-<section class="pillars" id="features">
-  <article class="pillar" data-reveal>
-    <div class="pillar-icon">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M14.5 4.5l5 5L7 22H2v-5L14.5 4.5z"/><path d="M12 7l5 5"/>
-      </svg>
+<!-- FEATURE PANEL -->
+<section class="undetectable-section" id="features">
+  <div class="undetectable-head" data-reveal>
+    <p class="eyebrow">Undetectable modules</p>
+    <h2>Ghost modules, <em>real fights.</em></h2>
+    <p>Built for practice servers. One injector, every module, no jar to install.</p>
+  </div>
+
+  <article class="feature-box" data-reveal>
+    <div class="feature-box-copy">
+      <div class="pillar-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14.5 4.5l5 5L7 22H2v-5L14.5 4.5z"/><path d="M12 7l5 5"/>
+        </svg>
+      </div>
+      <h3>Combat that lands.</h3>
+      <p>Silent Aim, Kill Aura, Auto Mace and Crystal Aura share one prediction engine. Swaps, stun slams and triggerbot timing are handled server-side safe, with no camera jitter.</p>
+      <span class="pillar-tag">Combat &middot; Mace &middot; Crystal</span>
+      <a href="features.html" class="btn-primary feature-box-cta">Explore all features &rarr;</a>
     </div>
-    <h3>Combat that lands</h3>
-    <p>Silent Aim, Kill Aura, Auto Mace and Crystal Aura share one prediction engine. Swaps, stun slams and triggerbot timing are handled server-side safe, with no camera jitter.</p>
-    <span class="pillar-tag">Combat &middot; Mace &middot; Crystal</span>
-  </article>
-  <article class="pillar" data-reveal style="--reveal-delay:80ms">
-    <div class="pillar-icon">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>
-      </svg>
+    <div class="feature-box-art" aria-hidden="true">
+      <img src="assets/logo-teal.png" alt="">
     </div>
-    <h3>See everything first</h3>
-    <p>ESP, NameTags, StorageESP, Tracers and Chunk Finder built for 1.21.11 rendering. Smooth boxes, off-screen arrows and a Freecam that keeps your body exactly where it was.</p>
-    <span class="pillar-tag">Visuals &middot; ESP &middot; World</span>
   </article>
-  <article class="pillar" data-reveal style="--reveal-delay:160ms">
-    <div class="pillar-icon">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 12l9 4 9-4"/><path d="M3 17l9 4 9-4"/>
-      </svg>
-    </div>
-    <h3>Built for Donut SMP</h3>
-    <p>Base finding, stash scanning, Auto Buy, Auto Sell and a schematic builder that places blocks for you. One suite for raiding, trading and rebuilding &mdash; no extra setup.</p>
-    <span class="pillar-tag">Donut SMP &middot; Raid &middot; AutoBuild</span>
-  </article>
+
+  <div class="pillars is-pair">
+    <article class="pillar" data-reveal style="--reveal-delay:80ms">
+      <div class="pillar-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>
+        </svg>
+      </div>
+      <h3>See everything first.</h3>
+      <p>ESP, NameTags, StorageESP, Tracers and Chunk Finder built for 1.21.11 rendering. Smooth boxes, off-screen arrows and a Freecam that keeps your body exactly where it was.</p>
+      <span class="pillar-tag">Visuals &middot; ESP &middot; World</span>
+    </article>
+    <article class="pillar" data-reveal style="--reveal-delay:160ms">
+      <div class="pillar-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 12l9 4 9-4"/><path d="M3 17l9 4 9-4"/>
+        </svg>
+      </div>
+      <h3>Built for Donut SMP.</h3>
+      <p>Base finding, stash scanning, Auto Buy, Auto Sell and a schematic builder that places blocks for you. One suite for raiding, trading and rebuilding &mdash; no extra setup.</p>
+      <span class="pillar-tag">Donut SMP &middot; Raid &middot; AutoBuild</span>
+    </article>
+  </div>
 </section>
 
 <!-- SHOWCASE -->
@@ -375,7 +390,7 @@
 <footer>
   <div class="footer-brand">
     <div class="footer-logo">
-      <img src="assets/logo.png" alt="Champ">
+      <img src="assets/logo-teal.png" alt="Champ">
       Champ <em>Client</em>
     </div>
     <p class="footer-blurb">An injector for Minecraft 1.21.11. Built for players who want every module, without touching their mods folder.</p>
