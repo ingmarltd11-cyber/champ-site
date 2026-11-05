@@ -1,5 +1,5 @@
 {
-  "build": "20261103-173337",
+  "build": "20261105-180739",
   "files": {
     "champ-agent-dae0c1a3.jar": {
       "size": 7016,
@@ -11,7 +11,7 @@
     },
     "client.jar": {
       "size": 11810872,
-      "sha256": "9e9feba410a1144d48d51b3f990bb738469a393b6a2ee2fe61a3ece7cd5a0de9"
+      "sha256": "80f28504c4aaa185346aa88cb0a48ae5e84ece2af724def0ee0f5face4b9ae09"
     },
     "logo.bmp": {
       "size": 102454,
