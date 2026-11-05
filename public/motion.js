@@ -315,3 +315,22 @@
     media.addEventListener('change', function (event) { setMotion(!event.matches); });
   }
 })();
+
+/* ============================================================
+   Champ Run's download channels
+
+   Loaded on demand: dashboard.html paints the second download and
+   admin.html paints the version card from run-channels.js, so the
+   two injector feeds stay in one file instead of a script tag on
+   every page.
+   ============================================================ */
+(function () {
+  'use strict';
+
+  if (!document.querySelector('a[data-champ-download], #adminBetaDownload')) return;
+
+  var script = document.createElement('script');
+  script.src = 'run-channels.js';
+  script.async = true;
+  document.head.appendChild(script);
+})();
