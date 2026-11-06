@@ -99,13 +99,13 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
 GRACE_HOURS = 24  # extra access after a subscription period ends (renewal lag)
 
 PLANS = ("monthly", "lifetime")
-# The only download there is: the injector. One executable with the client, the agent and the logo
-# inside, injected into the game the customer already has open. No jar, no per-plan file, nothing to
-# upload; the plan only decides whether the license is active.
-DIST_CLIENT_FILE = "champ-client.exe"
-# Bumped whenever public/downloads/champ-client.exe is replaced, so the dashboard can show which
-# release a customer has and an older injector can notice it is behind. One commit, no admin visit.
-PUBLIC_CLIENT_BUILD = "2026-11-03T19:08:22Z"
+# The only Windows download there is: champ.exe, with champ.bat next to it as the start script. The
+# exe carries the client, the agent and the logo, and injects into the game the customer already has
+# open. No jar, no runner, no per-plan file; the plan only decides whether the license is active.
+DIST_CLIENT_FILE = "champ.exe"
+# Bumped whenever public/downloads/champ.exe is replaced, so the dashboard can show which release a
+# customer has and an older injector can notice it is behind. One commit, no admin visit.
+PUBLIC_CLIENT_BUILD = "2026-11-06T15:26:17Z"
 # A challenge is signed by the PC's Ed25519 key and must come back quickly.
 DEVICE_CHALLENGE_SECONDS = 120
 PLAN_PRICES = {
@@ -3928,7 +3928,7 @@ CHAMP CLIENT PRODUCT FACTS
 
 Product: Champ Client is a Windows injector that injects the client into a Minecraft Java 1.21.11 game that is already running. It is not a mod: nothing is placed in the mods folder and there is no jar. It is built to work alongside Sodium, Lithium, FerriteCore and Iris shaders on 1.21.11.
 
-Install: customers download one .exe from their dashboard, never a jar. The order matters: start Minecraft first (the 1.21.11 Fabric profile, waiting in the main menu), then run the downloaded file. The launcher shows a splash while it unpacks the client on that PC, attaches to the running game and loads the client; it closes itself once it says "Champ is running". Minecraft does not have to be restarted afterwards, and nothing is ever placed in the mods folder. If the game is not running yet the splash says so and offers a Retry button. Every download gets a random file name, so never tell a customer a fixed file name; the file can be kept and reused, and a newer release is simply a new download.
+Install: customers download two Windows files from their dashboard, champ.bat and champ.exe, never a jar. champ.bat only starts champ.exe, so both belong in the same folder; champ.exe can also be started on its own. The order matters: start Minecraft first (the 1.21.11 Fabric profile, waiting in the main menu), then run champ.bat or champ.exe. The launcher shows a splash while it unpacks the client on that PC, attaches to the running game and loads the client; it closes itself once it says "Champ is running". Minecraft does not have to be restarted afterwards, and nothing is ever placed in the mods folder. If the game is not running yet the splash says so and offers a Retry button. The files can be kept and reused, and a newer release is simply a new download.
 
 Scope: the website advertises 247 modules, custom Dear ImGui render overlays, crystal macros and DonutSMP base raiding suites. The full module list lives on the features page. Never invent module names or describe a specific module that is not listed on the site.
 
@@ -4048,10 +4048,11 @@ def _answer_billing_change() -> str:
 
 def _answer_install() -> str:
     return (
-        "Champ Client is one .exe from your dashboard, and it installs nothing: the client sits inside that "
-        "file and is injected into the game you already have open. Nothing goes into your mods folder.\n\n"
-        "Start Minecraft 1.21.11 with Fabric Loader 0.16 or newer and stay in the main menu. Then run the file "
-        "you downloaded. A small splash shows the steps - it attaches to the game, loads the client and closes "
+        "Champ Client is two files from your dashboard, champ.bat and champ.exe, and it installs nothing: "
+        "the client sits inside champ.exe and is injected into the game you already have open. Keep both in "
+        "the same folder; champ.bat only starts champ.exe. Nothing goes into your mods folder.\n\n"
+        "Start Minecraft 1.21.11 with Fabric Loader 0.16 or newer and stay in the main menu. Then run champ.bat "
+        "(or champ.exe). A small splash shows the steps - it attaches to the game, loads the client and closes "
         "itself when it says Champ is running. You do not restart Minecraft afterwards. If the game was not "
         "open yet, the splash says so and offers Retry.\n\n"
         "It is built to run alongside Sodium, Lithium, FerriteCore and Iris shaders on 1.21.11. Forge and "
@@ -4065,8 +4066,8 @@ def _answer_download() -> str:
         "Downloads and your licence key live in your dashboard, and downloading needs an active licence. "
         "After a successful payment they appear there immediately, and the key is also e-mailed to the address "
         "on the order - check spam if it is missing.\n\n"
-        "There is one download, an .exe with the client inside it - no jar and no loader to install. Every "
-        "download gets its own random file name, so keep the file somewhere you can find it again.\n\n"
+        "There are two Windows files, champ.bat and champ.exe, with the client inside the exe - no jar "
+        "and no loader to install. Keep both in the same folder: champ.bat only starts champ.exe.\n\n"
         f"Dashboard: {SITE_LINKS['dashboard']}"
     )
 
@@ -4085,7 +4086,8 @@ def _answer_account() -> str:
 def _answer_requirements() -> str:
     return (
         "Champ Client is a Windows injector for Minecraft Java 1.21.11 with Fabric Loader 0.16 or newer. "
-        "The download is one .exe with the client inside it; you start Minecraft first and then run the file. "
+        "The download is champ.bat plus champ.exe, with the client inside the exe; you start Minecraft first "
+        "and then run either file. "
         "There is no Forge or OptiFine build, no macOS or Linux launcher, and no support for Minecraft versions "
         "outside the 1.21.x line.\n\n"
         f"Features and modules: {SITE_LINKS['features']}"
@@ -4213,8 +4215,8 @@ def _answer_troubleshooting() -> str:
     return (
         "Sorry it is not working. These checks solve most cases:\n"
         "- Confirm Minecraft 1.21.11 with Fabric Loader 0.16 or newer, and keep Forge or OptiFine out of the same mods folder.\n"
-        "- Re-download the injector from your dashboard, close Minecraft fully, then start it again and run "
-        "the injector; the client travels inside that one file.\n"
+        "- Re-download champ.bat and champ.exe from your dashboard, close Minecraft fully, then start it "
+        "again and run the exe; the client travels inside it.\n"
         "- Remove other mods one by one to find a conflict; Sodium, Lithium, FerriteCore and Iris are the tested companions.\n"
         "- Check the crash report for the line that names the failing mod.\n"
         "Still stuck? Post the crash report text on Discord - never your password or licence key.\n\n"

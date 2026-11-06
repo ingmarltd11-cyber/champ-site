@@ -36,12 +36,13 @@ function showMessage(id, text, isError) {
 }
 
 // ---- Downloads ----
-// Two injectors ship: one .exe for Windows and one .tar.gz for Linux. The page asks the browser
+// Windows ships as champ.bat next to champ.exe, Linux as one .tar.gz. The page asks the browser
 // which system it is on, and when that answer is not certain (a phone, an unknown platform) the
-// customer picks instead of being handed a file that cannot run. Every download also gets a random
-// file name, so two copies never collide and a name says nothing about the build.
+// customer picks instead of being handed a file that cannot run. The Windows pair keeps its real
+// names because champ.bat starts champ.exe from its own folder; only the Linux archive gets a
+// random name, so two copies never collide.
 const DOWNLOAD_FLAVOURS = {
-  windows: { file: 'downloads/champ-client.exe', label: 'Windows', hint: 'Windows 10 or 11 — .exe' },
+  windows: { file: 'downloads/champ.exe', label: 'Windows', hint: 'Windows 10 or 11 — champ.bat + champ.exe' },
   linux: { file: 'downloads/champ-client-linux.tar.gz', label: 'Linux', hint: '64-bit Linux met Java 21 — .tar.gz' },
 };
 
@@ -62,6 +63,8 @@ function randomDownloadName() {
 }
 
 function downloadNameFor(os) {
+  // The bat looks for champ.exe in its own folder, so the exe is never renamed.
+  if (os === 'windows') return 'champ.exe';
   const extension = DOWNLOAD_FLAVOURS[os].file.split('/').pop().replace(/^[^.]+/, '');
   return `${randomDownloadName()}${extension}`;
 }
@@ -99,7 +102,7 @@ function openDownloadChooser() {
         <h2 id="downloadChooserTitle" style="font: 900 clamp(24px,3vw,30px) 'Playfair Display', serif; margin:0 0 10px">Which system is your PC?</h2>
         <p class="no-license-text" style="margin-bottom:20px">Champ runs on Windows and Linux. We could not tell which one this device is, so pick the file you need. On a phone or tablet neither runs &mdash; open this page on the PC you play on.</p>
         <div style="display:flex;flex-direction:column;gap:10px">
-          <button class="btn-primary" type="button" data-download-os="windows">Download for Windows (.exe)</button>
+          <button class="btn-primary" type="button" data-download-os="windows">Download for Windows (champ.exe)</button>
           <button class="btn-ghost" type="button" data-download-os="linux">Download for Linux (.tar.gz)</button>
         </div>
       </div>`;
@@ -783,7 +786,10 @@ function renderLicense(kind, lic) {
   const state = { text: 'Active', className: 'status-badge status-active' };
   let html = `<div class="license-box">${escapeHtml(lic.key)}</div>`;
   if (kind === 'monthly' && lic.expires_at) html += `<p class="no-license-text" style="margin-bottom:12px">Renews / ends around ${fmtDate(lic.expires_at)}</p>`;
-  html += `<a href="downloads/champ-client.exe" class="btn-download" data-champ-download download>Download Champ Client</a>`;
+  html += `<a href="downloads/champ.exe" class="btn-download" data-champ-download download>Download champ.exe</a>`;
+  // The only companion file: champ.bat starts champ.exe. Nothing else ships on Windows.
+  html += ` <a href="downloads/champ.bat" class="btn-ghost" download>Download champ.bat</a>`;
+  html += `<p class="no-license-text" style="margin-top:10px">Keep <b>champ.bat</b> next to <b>champ.exe</b> &mdash; the bat simply starts the exe. Start Minecraft 1.21.11 first.</p>`;
   paint(state, html);
 
   if (kind === 'monthly' && lic.can_manage) {
@@ -1826,7 +1832,7 @@ async function loadAdminLoaderChannels() {
     if (!res.ok) throw new Error(`http ${res.status}`);
     const info = await res.json();
     buildEl.textContent = info.build || 'unknown';
-    button.href = 'downloads/beta/champ-client-beta.exe';
+    button.href = 'downloads/beta/champ.exe';
     button.style.display = '';
     if (note) note.textContent = `The beta package is live \u2014 build ${info.build || 'unknown'}.`;
   } catch (_) {

@@ -338,34 +338,35 @@
         <div class="admin-section-head">
           <div>
             <h2>Injector download</h2>
-            <p class="no-license-text">Champ ships as one injector: <code>public/downloads/champ-client.exe</code>. The client, the agent and the logo live inside that single file, and it injects into the Minecraft the customer already has open &mdash; there is no jar and nothing goes into mods.</p>
+            <p class="no-license-text">Champ ships as two files: <code>public/downloads/champ.bat</code> and <code>public/downloads/champ.exe</code>. The bat only starts the exe; the exe is the injector and puts the client into the Minecraft the customer already has open. There is no jar and nothing goes into mods.</p>
           </div>
         </div>
         <div class="admin-ribbon" style="margin-bottom:0">
-          <div class="ribbon-cell"><span>Windows</span><strong>champ-client.exe</strong></div>
+          <div class="ribbon-cell"><span>Windows</span><strong>champ.bat + champ.exe</strong></div>
           <div class="ribbon-cell"><span>Linux</span><strong>champ-client.tar.gz</strong></div>
-          <div class="ribbon-cell"><span>Filename</span><strong>Random per download</strong></div>
-        </div>
-        <p class="no-license-text" style="margin-top:16px">A new release means rebuilding the injector (<code>./native/build.sh</code> for Windows, <code>./linux/build.sh</code> for Linux) and deploying the site. There is nothing to upload here: the file in the deployment <em>is</em> the download, and every customer receives it under a random name.</p>
+          <div class="ribbon-cell"><span>File names</span><strong>champ.bat + champ.exe</strong></div>
+        </div>          <p class="no-license-text" style="margin-top:16px">A new release means rebuilding the injector (<code>./native/build.sh</code> for Windows, <code>./linux/build.sh</code> for Linux) and deploying the site. There is nothing to upload here: the files in the deployment <em>are</em> the download, and every customer receives the same <code>champ.bat</code> and <code>champ.exe</code>.</p>
       </article>
 
       <article class="dash-card" style="margin-top:18px">
         <div class="admin-section-head">
           <div>
             <h2>Champ Beta (injector)</h2>
-            <p class="no-license-text">The same injector as the normal client, pointed at the beta package: start Minecraft, run this file, and it injects the beta client. Only this panel links it; the shop never offers it.</p>
+            <p class="no-license-text">The same pair as the normal client, pointed at the beta package: start Minecraft, run <code>champ.bat</code> (or <code>champ.exe</code>), and it injects the beta client. Only this panel links it; the shop never offers it.</p>
           </div>
         </div>
         <div class="admin-ribbon" style="margin-bottom:0">
           <div class="ribbon-cell"><span>Channel</span><strong>Beta</strong></div>
-          <div class="ribbon-cell"><span>File</span><strong>champ-client-beta.exe</strong></div>
+          <div class="ribbon-cell"><span>Files</span><strong>champ.bat + champ.exe</strong></div>
           <div class="ribbon-cell"><span>Build</span><strong id="adminBetaVersion">&mdash;</strong></div>
         </div>
         <p style="margin-top:16px;display:flex;gap:12px;flex-wrap:wrap;align-items:center">
-          <a class="btn-primary" id="adminBetaDownload" href="downloads/beta/champ-client-beta.exe" download style="display:none">Download beta injector</a>
+          <a class="btn-primary" id="adminBetaDownload" href="downloads/beta/champ.exe" download style="display:none">Download beta injector</a>
+          <a class="btn-ghost" href="downloads/beta/champ.bat" download>Download beta champ.bat</a>
           <span class="no-license-text" id="adminBetaNote" style="margin:0">Checking the beta channel&hellip;</span>
         </p>
       </article>
+
     </section>
 
     <!-- ======================================================== CHANGELOG -->

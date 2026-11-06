@@ -12,9 +12,10 @@ Mapstructuur: `public/` = de website (HTML, `main.js`, `style.css`, `assets/`), 
 1. Maak een project op supabase.com.
 2. **SQL Editor → New query** → plak de inhoud van `supabase/schema.sql` → **Run**.
    (Maakt de tabellen aan.)
-2. **Storage**: er is geen bucket met jars meer nodig. De enige download is `public/downloads/champ-client.exe`,
-   de injector met de client erin; die zit in de deployment zelf, dus uploaden naar Supabase hoeft niet.
-   De bucket `downloads` mag je leeg laten of verwijderen.
+2. **Storage**: er is geen bucket met jars meer nodig. De enige Windows-download is
+   `public/downloads/champ.bat` + `public/downloads/champ.exe`, de injector met de client erin; die
+   zitten in de deployment zelf, dus uploaden naar Supabase hoeft niet. De bucket `downloads` mag je
+   leeg laten of verwijderen.
 3. **Project Settings → API**: kopieer
    - Project URL → `SUPABASE_URL`
    - de **secret / service_role key** → `SUPABASE_SERVICE_KEY` (NOOIT de publieke/anon key, en nooit in je frontend zetten)
@@ -145,4 +146,5 @@ Run the complete `supabase/schema.sql` again. It now also creates/seeds the `fea
 It also repairs the `plan_type` check on `pending_payments` and `licenses`. Run it once on your
 existing project (it is safe to run repeatedly, unless your database still contains `inject`
 licenses — delete or migrate those rows first, otherwise the tightened check fails). There is
-nothing to upload: the injector (`public/downloads/champ-client.exe`) ships with the deployment.
+nothing to upload: the Windows pair (`public/downloads/champ.bat` + `public/downloads/champ.exe`)
+ships with the deployment.
