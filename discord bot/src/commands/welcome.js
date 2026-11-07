@@ -6,7 +6,7 @@ const {
 } = require('discord.js');
 const { getWelcomeConfig, updateWelcomeConfig, resetWelcomeConfig } = require('../utils/welcomeSettings');
 const { buildWelcomeMessage, buildGoodbyeMessage, PLACEHOLDERS } = require('../utils/welcome');
-const { toEmbed } = require('../handlers/welcomeEvents');
+const { toEmbed, linkRow } = require('../handlers/welcomeEvents');
 const { getGiveawayConfig } = require('../config/loadConfig');
 
 function canManage(member) {
@@ -154,9 +154,11 @@ async function execute(interaction) {
     const welcome = buildWelcomeMessage(interaction.member, config, {
       memberCount: interaction.guild.memberCount,
     });
+    const row = linkRow(welcome.links);
     return interaction.reply({
       content: 'Preview — this is what a new member sees:',
       embeds: welcome.embeds.map(toEmbed),
+      components: row ? [row] : [],
       ephemeral: true,
     });
   }
@@ -166,9 +168,11 @@ async function execute(interaction) {
     const welcome = buildWelcomeMessage(interaction.member, config, {
       memberCount: interaction.guild.memberCount,
     });
+    const row = linkRow(welcome.links);
     const message = await channel.send({
       content: welcome.content || undefined,
       embeds: welcome.embeds.map(toEmbed),
+      components: row ? [row] : [],
       allowedMentions: { users: [interaction.user.id] },
     });
     return interaction.reply({ content: `✅ Test welcome sent: ${message.url}`, ephemeral: true });

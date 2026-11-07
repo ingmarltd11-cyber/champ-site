@@ -35,6 +35,8 @@ const TICKET_DEFAULTS = {
     defaultSupportRoleName: 'Support',
     naming: '{emoji}-{username}',
     logChannelId: '',
+    transcriptChannelId: '',
+    staffRoleIds: [],
     deleteDelaySeconds: 5,
     sendTranscriptDm: true,
     transcriptFormat: 'both',
@@ -79,6 +81,10 @@ const WELCOME_DEFAULTS = {
     message:
       'Welcome to **{server}**, {username}! Your download and dashboard are at {site}.',
   },
+  links: [
+    { label: 'Download Champ', url: '{site}' },
+    { label: 'Join the Discord', url: 'https://discord.gg/6vyQnVjeX' },
+  ],
   goodbye: {
     enabled: true,
     title: 'Goodbye, {username}',

@@ -206,6 +206,8 @@ const SHOWCASE_MEDIA = [];
   const grid = document.getElementById('showcaseGrid');
   if (!grid) return;
   if (SHOWCASE_MEDIA.length === 0) {
+    // De launch-video's staan vast in de HTML; die niet overschrijven.
+    if (grid.children.length > 0) return;
     // Nog geen media: geen "see it in action" beloven die je niet laat zien.
     const title = document.getElementById('showcaseTitle');
     const sub = document.getElementById('showcaseSub');
@@ -2915,6 +2917,35 @@ document.getElementById('createReviewForm')?.addEventListener('submit', async fu
   }
   btn.disabled = false;
 });
+
+// De launch-film start zodra hij in beeld is en pauzeert weer daarbuiten.
+// Muted autoplay mag van elke browser; reduced-motion bezoekers houden het bij de poster.
+(function autoplayLaunchFilm() {
+  const videos = document.querySelectorAll('video[data-autoplay]');
+  if (!videos.length) return;
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+  const start = (video) => {
+    const attempt = video.play();
+    if (attempt && typeof attempt.catch === 'function') attempt.catch(() => {});
+  };
+
+  if (!('IntersectionObserver' in window)) {
+    videos.forEach(start);
+    return;
+  }
+
+  const observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) start(entry.target);
+        else entry.target.pause();
+      });
+    },
+    { threshold: 0.35 }
+  );
+  videos.forEach((video) => observer.observe(video));
+})();
 
 loadFeaturesPage();
 loadChangelogPage();

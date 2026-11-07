@@ -74,10 +74,11 @@ async function refreshMessage(client, giveaway, { ended = false } = {}) {
 async function dmWinners(client, giveaway, winnerIds) {
   const config = getGiveawayConfig();
   if (!config.dmWinners) return;
+  const guildName = client.guilds?.cache?.get(giveaway.guildId)?.name || 'the server';
   for (const id of winnerIds) {
     try {
       const user = await client.users.fetch(id);
-      await user.send(`🎉 You won **${giveaway.prize}** in **${giveaway.guildId ? 'Champ' : 'the server'}**!`);
+      await user.send(`🎉 You won **${giveaway.prize}** in **${guildName}**!`);
     } catch {
       /* DMs closed: the channel announcement is the source of truth. */
     }
@@ -102,7 +103,7 @@ async function endGiveaway(client, giveaway, { endedBy = null } = {}) {
       const channel = await client.channels.fetch(updated.channelId);
       if (channel?.isTextBased()) {
         const line = winners.length
-          ? `🏆 ${winners.map((id) => `<@${id}>`).join(', ')} won **${updated.prize}**!`
+          ? `🏆 ${winners.map((id) => `<@${id}>`).join(', ')} won **${updated.prize}** with ${updated.entries.length} ${updated.entries.length === 1 ? 'entry' : 'entries'}!`
           : `😔 **${updated.prize}** ended without any entries.`;
         await channel.send(line);
       }
@@ -159,13 +160,17 @@ async function handleGiveawayButton(interaction) {
     await interaction.reply({ content: 'This giveaway no longer exists.', ephemeral: true });
     return true;
   }
+  if (giveaway.guildId && interaction.guildId && giveaway.guildId !== interaction.guildId) {
+    await interaction.reply({ content: 'This giveaway belongs to another server.', ephemeral: true });
+    return true;
+  }
 
   if (action === 'enter') {
     if (giveaway.ended) {
       await interaction.reply({ content: 'This giveaway has already ended.', ephemeral: true });
       return true;
     }
-    if (giveaway.requiredRoleId && !interaction.member.roles?.cache?.has(giveaway.requiredRoleId)) {
+    if (giveaway.requiredRoleId && !interaction.member?.roles?.cache?.has(giveaway.requiredRoleId)) {
       await interaction.reply({
         content: `You need <@&${giveaway.requiredRoleId}> to enter this giveaway.`,
         ephemeral: true,

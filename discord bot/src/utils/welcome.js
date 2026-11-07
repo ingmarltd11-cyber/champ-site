@@ -1,3 +1,5 @@
+const { isHttpUrl } = require('./format');
+
 // Welcome/goodbye message building, kept free of Discord objects so it can be tested.
 // Supported placeholders: {user} {mention} {username} {tag} {server} {memberCount}
 // {accountAgeDays} {createdAt} {site} {rules}
@@ -45,6 +47,19 @@ function colour(value, fallback = '#FFC93C') {
   return /^#[0-9a-f]{6}$/i.test(candidate) ? candidate : fallback;
 }
 
+// Configurable link buttons under the welcome embed. Discord allows five per row and only
+// accepts http(s) URLs; anything invalid is dropped instead of failing the join handler.
+function buildLinks(config, vars) {
+  const configured = Array.isArray(config?.links) ? config.links : [];
+  return configured
+    .map((link) => ({
+      label: renderTemplate(link?.label || '', vars).trim().slice(0, 80),
+      url: renderTemplate(link?.url || '', vars).trim(),
+    }))
+    .filter((link) => link.label && isHttpUrl(link.url))
+    .slice(0, 5);
+}
+
 // Returns { content, embeds: [plain object], dm }. The handler converts embeds through
 // EmbedBuilder and sends it.
 function buildWelcomeMessage(member, config = {}, options = {}) {
@@ -77,6 +92,7 @@ function buildWelcomeMessage(member, config = {}, options = {}) {
       config.dm?.enabled && config.dm?.message
         ? renderTemplate(config.dm.message, vars)
         : null,
+    links: buildLinks(config, vars),
   };
 }
 
@@ -105,6 +121,7 @@ module.exports = {
   PLACEHOLDERS,
   renderTemplate,
   memberVars,
+  buildLinks,
   buildWelcomeMessage,
   buildGoodbyeMessage,
 };

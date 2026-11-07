@@ -28,7 +28,10 @@ async function execute(interaction) {
         name: 'Average rating',
         value: stats.avgRating ? `${stats.avgRating.toFixed(1)} ⭐ (${stats.ratingsTotal} ratings)` : 'none yet',
         inline: true,
-      }
+      },
+      { name: 'Opened / closed (24h)', value: `${stats.openedLast24h} / ${stats.closedLast24h}`, inline: true },
+      { name: 'Storage', value: ticketStore.isSupabaseActive() ? 'Supabase' : 'JSON volume', inline: true },
+      { name: 'Total tickets', value: String(stats.total), inline: true }
     );
 
   const openLines = Object.entries(stats.openByType).map(([id, n]) => `${typeName(id)}: **${n}**`);

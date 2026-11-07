@@ -1,12 +1,19 @@
 const { getTicketConfig } = require('../config/loadConfig');
 const ticketStore = require('../utils/ticketStore');
 const { closeTicketChannel } = require('../handlers/ticketInteractions');
+const { log } = require('../utils/logger');
 
-// Sluit inactieve tickets automatisch:
-// - eerst een waarschuwing in het kanaal (warningHours vóór sluiten),
-// - daarna sluiten met transcript + DM (reden: autoClose.reason).
-function startAutoClose(client) {
-  setInterval(async () => {
+// Closes inactive tickets:
+// - a warning in the channel `warningHours` before the deadline,
+// - then a close with transcript + DM (reason: autoClose.reason).
+// Any member message clears the warning (ticketStore.touchTicket), so an active ticket is never
+// closed because of an old warning.
+function startAutoClose(client, { intervalMs = 15 * 60 * 1000 } = {}) {
+  let running = false;
+
+  async function tick() {
+    if (running) return;
+    running = true;
     try {
       const config = getTicketConfig();
       const auto = config.settings.autoClose;
@@ -29,16 +36,27 @@ function startAutoClose(client) {
 
         if (idle >= inactiveMs) {
           await channel.send('🔒 This ticket is being closed automatically due to inactivity.').catch(() => {});
-          await closeTicketChannel(channel, config, { closerTag: 'auto-close', reason: auto.reason || null });
+          const result = await closeTicketChannel(channel, config, {
+            closerTag: 'auto-close',
+            reason: auto.reason || 'Closed automatically due to inactivity.',
+          });
+          if (result) log.info('auto-close', `closed #${channel.name} after ${Math.round(idle / 3600000)}h of inactivity`);
         } else if (!ticket.warned && idle >= inactiveMs - warnMs) {
           await channel.send(auto.warningMessage || '⚠️ This ticket is inactive and will be closed automatically soon.').catch(() => {});
           await ticketStore.setWarned(ticket.channelId);
         }
       }
     } catch (err) {
-      console.error('Auto-close job failed:', err.message);
+      log.error('auto-close', err);
+    } finally {
+      running = false;
     }
-  }, 15 * 60 * 1000);
+  }
+
+  const timer = setInterval(tick, intervalMs);
+  timer.unref?.();
+  tick();
+  return () => clearInterval(timer);
 }
 
 module.exports = { startAutoClose };

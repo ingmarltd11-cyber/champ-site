@@ -1,6 +1,21 @@
-const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  EmbedBuilder,
+  PermissionFlagsBits,
+} = require('discord.js');
 const { getWelcomeConfig } = require('../utils/welcomeSettings');
 const { buildWelcomeMessage, buildGoodbyeMessage } = require('../utils/welcome');
+
+function linkRow(links = []) {
+  if (!links.length) return null;
+  return new ActionRowBuilder().addComponents(
+    links.map((link) =>
+      new ButtonBuilder().setLabel(link.label).setURL(link.url).setStyle(ButtonStyle.Link)
+    )
+  );
+}
 
 function toEmbed(data) {
   const embed = new EmbedBuilder()
@@ -48,11 +63,13 @@ async function onGuildMemberAdd(member) {
     memberCount: member.guild.memberCount,
   });
   const channel = await resolveChannel(member.guild, config.channelId);
+  const row = linkRow(payload.links);
   if (channel) {
     await channel
       .send({
         content: payload.content || undefined,
         embeds: payload.embeds.map(toEmbed),
+        components: row ? [row] : [],
         allowedMentions: { users: [member.id] },
       })
       .catch((err) => console.error('[welcome] could not post the welcome message:', err.message));
@@ -82,4 +99,4 @@ async function onGuildMemberRemove(member) {
     .catch((err) => console.error('[welcome] could not post the goodbye message:', err.message));
 }
 
-module.exports = { onGuildMemberAdd, onGuildMemberRemove, toEmbed };
+module.exports = { onGuildMemberAdd, onGuildMemberRemove, toEmbed, linkRow };

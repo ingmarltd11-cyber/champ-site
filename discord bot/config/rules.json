@@ -1,0 +1,41 @@
+{
+  "title": "Champ Client · server rules",
+  "intro": "By staying in this server you agree to the rules below. They apply in every channel, in DMs between members, and in voice.",
+  "color": "#2EC4B6",
+  "footer": "Breaking a rule can lead to a mute, kick or ban without warning. Appeals go through a ticket.",
+  "showTermsButton": true,
+  "sections": [
+    {
+      "title": "01 · Respect everyone",
+      "body": "No harassment, hate speech, threats, doxxing or personal attacks. Disagreements about a client or a fight stay about the game."
+    },
+    {
+      "title": "02 · No scams or fake downloads",
+      "body": "Never post cracked builds, reuploads, license keys or \"free\" download links. Champ is only distributed through the official site and this server."
+    },
+    {
+      "title": "03 · Keep private things private",
+      "body": "Do not share DMs, tickets, logs, order details or any personal information without permission from everyone involved."
+    },
+    {
+      "title": "04 · Support goes through tickets",
+      "body": "Open a ticket for bugs, billing and license issues so staff can actually find it. Do not DM staff for support unless they ask you to."
+    },
+    {
+      "title": "05 · No advertising or DM spam",
+      "body": "Invites, other clients, shops and services need staff approval first. Mass DMs, mention spam and copy-paste ads are not allowed."
+    },
+    {
+      "title": "06 · No chargebacks",
+      "body": "If something is wrong with an order, open a ticket first. A chargeback without contact ends the license and the account."
+    },
+    {
+      "title": "07 · One account, no ban evasion",
+      "body": "Do not use alt accounts to get around a mute, kick or ban. Appeals are handled in a ticket, not with a new account."
+    },
+    {
+      "title": "08 · Keep it legal and clean",
+      "body": "No NSFW, gore, piracy or illegal content. English or Dutch in public channels so staff can moderate."
+    }
+  ]
+}

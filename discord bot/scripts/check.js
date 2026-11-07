@@ -14,9 +14,16 @@ const { getWelcomeConfig, updateWelcomeConfig, resetWelcomeConfig } = require('.
 const { pickWinners, giveawayEmbedData, isTooNew } = require('../src/utils/giveaway');
 const giveawayStore = require('../src/utils/giveawayStore');
 const ticketStore = require('../src/utils/ticketStore');
-const { renderTemplate, buildWelcomeMessage, buildGoodbyeMessage } = require('../src/utils/welcome');
-const { escapeHtml } = require('../src/utils/transcript');
+const { renderTemplate, buildWelcomeMessage, buildGoodbyeMessage, buildLinks } = require('../src/utils/welcome');
+const { escapeHtml, renderTranscriptHtml } = require('../src/utils/transcript');
+const { saveTranscript } = require('../src/utils/transcriptStore');
 const { endGiveaway, rerollGiveaway } = require('../src/handlers/giveawayInteractions');
+const { checkEnv, validateTicketConfig } = require('../src/utils/preflight');
+const { buildPayload } = require('../src/health');
+const { formatUptime } = require('../src/utils/format');
+const { parseDuration, formatDuration } = require('../src/utils/moderation');
+const { loadRules } = require('../src/commands/rules');
+const { collectCommands } = require('../src/deploy-commands');
 
 let fails = 0;
 function check(ok, label) {
@@ -45,8 +52,76 @@ const fakeMember = {
   const tickets = getTicketConfig();
   check(tickets.types.length >= 5, 'ticket categories load from config/tickets.json');
   check(typeof tickets.panel.description === 'string', 'ticket panel copy is present');
+  check(validateTicketConfig(tickets).errors.length === 0, 'the shipped ticket config validates');
+  const duplicate = JSON.parse(JSON.stringify(tickets));
+  duplicate.types.push({ ...duplicate.types[0] });
+  check(
+    validateTicketConfig(duplicate).errors.some((error) => error.includes('Duplicate')),
+    'duplicate ticket ids are rejected at boot'
+  );
+  const missingQuestions = JSON.parse(JSON.stringify(tickets));
+  missingQuestions.types[0].questions = new Array(6).fill({ id: 'q', label: 'Q' });
+  check(
+    validateTicketConfig(missingQuestions).errors.some((error) => error.includes('5')),
+    'more than five modal questions are rejected'
+  );
   const giveawayConfig = getGiveawayConfig();
   check(giveawayConfig.defaultWinners === 1, 'giveaway defaults load');
+
+  console.log('\nenvironment');
+  const cleanEnv = checkEnv({
+    DISCORD_TOKEN: 'token',
+    CLIENT_ID: '1',
+    GUILD_ID: '2',
+    SITE_URL: 'https://champ-site-psi.vercel.app',
+  });
+  check(cleanEnv.errors.length === 0, 'a complete environment passes');
+  const emptyEnv = checkEnv({});
+  check(
+    emptyEnv.errors.some((error) => error.includes('DISCORD_TOKEN')),
+    'a missing token is a hard error'
+  );
+  check(
+    checkEnv({ DISCORD_TOKEN: 'token', SUPABASE_URL: 'https://x.supabase.co' }).warnings.some((w) => w.includes('both')),
+    'a half-configured Supabase is warned about'
+  );
+  check(formatUptime(90061000) === '1d 1h 1m', 'uptime formatting is stable');
+
+  console.log('\nmoderation');
+  check(parseDuration('10m') === 600000, 'a 10m timeout parses');
+  check(parseDuration('2h') === 7200000 && parseDuration('1d') === 86400000, 'hours and days parse');
+  check(parseDuration('45s') === 45000, 'seconds parse');
+  check(parseDuration('15') === 900000, 'a bare number means minutes');
+  check(parseDuration('0m') === null && parseDuration('abc') === null, 'invalid durations are rejected');
+  check(parseDuration('29d') === null, 'timeouts longer than 28 days are rejected');
+  check(formatDuration(600000) === '10m' && formatDuration(86400000) === '1d', 'durations format compactly');
+  const rules = loadRules();
+  check(rules.sections.length >= 8, 'the shipped rules have at least eight sections');
+  check(
+    rules.sections.every((section) => section.title && section.body.length <= 1024),
+    'every rule has a title and fits a Discord field'
+  );
+  check(typeof rules.showTermsButton === 'boolean', 'the rules term-button switch is explicit');
+
+  console.log('\ncommands');
+  const commands = collectCommands();
+  const names = commands.map((command) => command.name);
+  for (const required of ['announce', 'rules', 'mod', 'ticket-panel', 'giveaway', 'welcome', 'status', 'help']) {
+    check(names.includes(required), `/${required} is registered`);
+  }
+  check(new Set(names).size === names.length, 'no command name is registered twice');
+  check(
+    commands.every((command) => {
+      const json = command.toJSON();
+      return Boolean(json.name) && Boolean(json.description);
+    }),
+    'command builders serialize cleanly'
+  );
+  const modJson = commands.find((command) => command.name === 'mod').toJSON();
+  check(
+    modJson.options.length === 5 && modJson.options.every((option) => option.type === 1),
+    '/mod exposes five subcommands'
+  );
 
   console.log('\ngiveaway drawing');
   const entries = ['a', 'b', 'c', 'd', 'e', 'f'];
@@ -143,6 +218,8 @@ const fakeMember = {
   check(welcome.embeds[0].title.includes('tester'), 'the welcome title greets the member');
   check(welcome.embeds[0].description.includes('42'), 'the welcome text includes the member count');
   check(welcome.embeds[0].thumbnail?.includes('cdn.discordapp.com'), 'the avatar is used as the thumbnail');
+  check(welcome.links.length >= 2 && welcome.links[0].url.startsWith('https://'), 'welcome link buttons are rendered');
+  check(buildLinks({ links: [{ label: 'x', url: 'javascript:alert(1)' }] }, {}).length === 0, 'unsafe welcome links are dropped');
   const goodbye = buildGoodbyeMessage(fakeMember, getWelcomeConfig(), { memberCount: 41 });
   check(goodbye.embeds[0].title.includes('tester'), 'the goodbye title names the member');
 
@@ -153,6 +230,8 @@ const fakeMember = {
   check(reset.channelId === '', 'reset clears the overrides');
 
   console.log('\ntickets');
+  const storage = await ticketStore.init();
+  check(storage.mode === 'json' && !ticketStore.isSupabaseActive(), 'without Supabase the JSON store is used');
   await ticketStore.addTicket('chan-1', { guildId: 'guild', userId: 'user-1', typeId: 'support', answers: { issue: 'test' } });
   check((await ticketStore.countOpenByUser('user-1')) === 1, 'an open ticket is counted per user');
   await ticketStore.claimTicket('chan-1', 'staff-1');
@@ -160,6 +239,29 @@ const fakeMember = {
   await ticketStore.setRating('chan-1', 5, 'great');
   const stats = await ticketStore.getStats();
   check(stats.openTotal === 1 && stats.avgRating === 5, 'ticket stats include open count and rating');
+  check(stats.openedLast24h === 1 && stats.total === 1, 'ticket stats count the last 24 hours');
+  await ticketStore.setWarned('chan-1');
+  check((await ticketStore.getTicket('chan-1')).warned === true, 'an inactivity warning is stored');
+  await ticketStore.touchTicket('chan-1');
+  check((await ticketStore.getTicket('chan-1')).warned === false, 'activity clears the warning');
+
+  console.log('\nhealth');
+  const health = await buildPayload({
+    client: {
+      isReady: () => true,
+      user: { tag: 'bot#0001', id: '1' },
+      ws: { ping: 42 },
+      guilds: { cache: { size: 2 } },
+    },
+    startedAt: Date.now() - 61000,
+  });
+  check(health.status === 'ok' && health.ready === true, 'the health payload is ok when connected');
+  check(health.guilds === 2 && health.pingMs === 42, 'health reports guilds and ping');
+  check(health.tickets.openTickets === 1, 'health includes the open ticket count');
+  check(health.storage === 'json', 'health reports the storage mode');
+  const starting = await buildPayload({ client: { isReady: () => false, guilds: { cache: { size: 0 } } } });
+  check(starting.status === 'ok' && starting.ready === false, 'the health endpoint answers before the gateway is ready');
+
   await ticketStore.closeTicket('chan-1', { transcript: 'hello' });
   const closed = await ticketStore.getTicket('chan-1');
   check(closed.status === 'closed' && closed.transcript === 'hello', 'a ticket closes with its transcript');
@@ -167,6 +269,24 @@ const fakeMember = {
 
   console.log('\ntranscripts');
   check(escapeHtml('<script>&') === '&lt;script&gt;&amp;', 'transcript HTML escapes markup');
+  const transcriptHtml = renderTranscriptHtml({
+    channel: { name: 'ticket-test', guild: { name: 'Champ' } },
+    messages: [
+      {
+        createdAt: new Date(),
+        author: { tag: 'tester#0001', displayAvatarURL: () => 'https://cdn.discordapp.com/embed/avatars/0.png' },
+        content: '<script>alert(1)</script>',
+        embeds: [{ title: 'Order', description: 'paid' }],
+        attachments: new Map(),
+      },
+    ],
+    meta: { closedBy: 'staff#0001', reason: 'done' },
+  });
+  check(transcriptHtml.includes('&lt;script&gt;') && !transcriptHtml.includes('<script>alert'), 'transcript content is escaped');
+  check(transcriptHtml.includes('staff#0001') && transcriptHtml.includes('Order'), 'transcript keeps the metadata and embeds');
+  const saved = await saveTranscript({ name: 'ticket-test' }, transcriptHtml);
+  check(Boolean(saved) && saved.endsWith('.html'), 'the transcript is saved to disk');
+  check(saved && fs.existsSync(saved), 'the saved transcript exists');
 
   fs.rmSync(tmp, { recursive: true, force: true });
   console.log(fails === 0 ? '\nBOT CHECK OK' : `\nBOT CHECK FAILED (${fails})`);

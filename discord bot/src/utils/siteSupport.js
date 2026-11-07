@@ -1,48 +1,69 @@
-const fetch = global.fetch;
-const DISCORD_INVITE = 'https://discord.gg/6vyQnVjeX';
+const { inviteUrl, siteUrl } = require('./format');
+const { log } = require('./logger');
+
+// AI support is a first line, never the final word: every answer points at a human when the
+// assistant is unsure or the member asks something account-specific.
+const cooldowns = new Map();
+const COOLDOWN_MS = 8 * 1000;
 
 function apiUrl() {
-  const base = process.env.SUPPORT_API_URL || process.env.SITE_URL;
-  return base ? `${base.replace(/\/$/, '')}/api/ai/chat` : null;
+  const base = process.env.SUPPORT_API_URL || siteUrl();
+  return base ? `${base.replace(/\/+$/, '')}/api/ai/chat` : null;
 }
 
 async function handleSupportMessage(message, ticket) {
-  if (!ticket || !message.mentions.has(message.client.user)) return;
+  if (!message.mentions.has(message.client.user)) return;
+
+  const now = Date.now();
+  for (const [id, at] of cooldowns) if (now - at > 60000) cooldowns.delete(id);
+  if (cooldowns.has(message.author.id) && now - cooldowns.get(message.author.id) < COOLDOWN_MS) {
+    return;
+  }
+  cooldowns.set(message.author.id, now);
 
   const endpoint = apiUrl();
   if (!endpoint) {
-    await message.reply(`Shared AI support is not configured yet. Please open a ticket with our team: ${DISCORD_INVITE}`);
+    await message.reply(`Shared support is not configured yet. Open a ticket with the team: ${inviteUrl()}`);
     return;
   }
 
   const question = message.content.replace(/<@!?\d+>/g, '').trim();
   if (!question) {
-    await message.reply('Please mention me with a description of the issue and what you have already tried.');
+    await message.reply(
+      'Mention me with a description of the issue and what you have already tried, or open a ticket.'
+    );
     return;
   }
 
-  await message.channel.sendTyping();
-  const sessionId = message.channel.id;
+  try {
+    await message.channel.sendTyping();
+  } catch {
+    /* Typing is cosmetic. */
+  }
 
   try {
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: question.slice(0, 2000), channel: 'discord', session_id: sessionId }),
+      body: JSON.stringify({
+        message: question.slice(0, 2000),
+        channel: 'discord',
+        // The website requires a real Discord snowflake for this channel.
+        session_id: message.channel.id,
+      }),
       signal: AbortSignal.timeout(22000),
     });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok || !data.reply) throw new Error(`Support endpoint returned ${response.status}`);
+    if (!response.ok || !data.reply) throw new Error(`support endpoint returned ${response.status}`);
 
     const reply = String(data.reply).slice(0, 1800);
-    if (data.needs_escalation) {
-      await message.reply(`${reply}\n\nA teammate can take over here: ${DISCORD_INVITE}`);
-    } else {
-      await message.reply(reply);
-    }
+    const suffix = `\n\n-# Need a human? ${ticket ? 'A teammate can take over in this ticket.' : `Open a ticket or ask in ${inviteUrl()}`}`;
+    await message.reply(data.needs_escalation ? `${reply}${suffix}` : reply);
   } catch (error) {
-    console.error('Shared support AI request failed:', error.message);
-    await message.reply(`I couldn't reach the support assistant just now. Please try again or open a ticket with the team: ${DISCORD_INVITE}`);
+    log.warn('support', `AI request failed: ${error.message}`);
+    await message.reply(
+      `I couldn't reach the support assistant just now. Please try again, or open a ticket with the team: ${inviteUrl()}`
+    );
   }
 }
 

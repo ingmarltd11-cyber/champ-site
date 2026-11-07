@@ -1,3 +1,6 @@
 
 __pycache__/
 *.pyc
+
+# Local render workspace: film sources, screenshots and scratch output.
+.freebuff/

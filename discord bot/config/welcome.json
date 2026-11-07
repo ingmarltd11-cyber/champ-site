@@ -19,6 +19,11 @@
     "enabled": false,
     "message": "Welcome to **{server}**, {username}! Your download and dashboard are at {site}."
   },
+  "links": [
+    { "label": "Download Champ", "url": "{site}" },
+    { "label": "Dashboard", "url": "{site}/dashboard.html" },
+    { "label": "Join the Discord", "url": "https://discord.gg/6vyQnVjeX" }
+  ],
   "goodbye": {
     "enabled": true,
     "title": "Goodbye, {username}",

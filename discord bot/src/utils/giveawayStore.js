@@ -14,8 +14,8 @@ function normalise(record) {
     ...record,
     winners: Math.max(1, Number(record.winners) || 1),
     minAccountAgeDays: Math.max(0, Number(record.minAccountAgeDays) || 0),
-    entries: Array.isArray(record.entries) ? record.entries : [],
-    entriesCount: Array.isArray(record.entries) ? record.entries.length : 0,
+    entries: Array.isArray(record.entries) ? [...new Set(record.entries)] : [],
+    entriesCount: Array.isArray(record.entries) ? new Set(record.entries).size : 0,
     winnerIds: Array.isArray(record.winnerIds) ? record.winnerIds : [],
     ended: Boolean(record.ended),
   };
@@ -73,7 +73,10 @@ async function listGiveaways({ guildId = null, activeOnly = false } = {}) {
 
 async function listDue(now = Date.now()) {
   const all = jsonStore.readJson(FILE, []).map(normalise);
-  return all.filter((g) => !g.ended && new Date(g.endsAt).getTime() <= now);
+  return all.filter((g) => {
+    const endsAt = new Date(g.endsAt).getTime();
+    return !g.ended && Number.isFinite(endsAt) && endsAt <= now;
+  });
 }
 
 // Returns { added, giveaway, total }. `added: false` means the user was already in.

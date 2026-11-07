@@ -215,18 +215,55 @@
 <!-- SHOWCASE -->
 <section class="showcase-section" id="showcase">
   <div class="section-head">
-    <p class="eyebrow">Clips</p>
+    <p class="eyebrow">Launch film</p>
     <h2 class="showcase-title" id="showcaseTitle">Watch it <em>work.</em></h2>
-    <p class="showcase-sub" id="showcaseSub">Short clips, recorded in game on 1.21.11.</p>
+    <p class="showcase-sub" id="showcaseSub">Nineteen seconds of the real menu on 1.21.11. No mockups.</p>
   </div>
 
-  <div id="heroVideoEmbedWrap" style="display:none; max-width:860px; margin:0 auto 36px; border-radius:18px; overflow:hidden; border:1px solid var(--line); box-shadow:0 30px 70px -30px #000;">
-    <div style="position:relative; padding-bottom:56.25%; height:0;">
-      <iframe id="heroVideoIframe" src="" style="position:absolute; top:0; left:0; width:100%; height:100%; border:0;" allowfullscreen></iframe>
+  <div class="film-grid" id="showcaseGrid">
+    <figure class="film-card" data-reveal>
+      <div class="film-frame">
+        <video
+          class="film-main"
+          data-autoplay
+          poster="assets/champ-launch-poster.jpg"
+          width="1920" height="1080"
+          controls muted loop playsinline preload="metadata"
+          aria-label="Champ launch film, 19 seconds">
+          <source src="assets/champ-launch.mp4" type="video/mp4">
+          Your browser does not support the video tag. <a href="assets/champ-launch.mp4">Download the film</a>.
+        </video>
+      </div>
+      <figcaption>
+        <b>Launch cut &middot; 1080p</b>
+        <span>Menu, modules and the real HUD.</span>
+      </figcaption>
+    </figure>
+
+    <figure class="film-card film-card-reel" data-reveal style="--reveal-delay:90ms">
+      <div class="reel-frame">
+        <video
+          poster="assets/champ-launch-poster-vertical.jpg"
+          width="1080" height="1920"
+          controls muted loop playsinline preload="none"
+          aria-label="Champ vertical launch film">
+          <source src="assets/champ-launch-vertical.mp4" type="video/mp4">
+          Your browser does not support the video tag.
+        </video>
+      </div>
+      <figcaption>
+        <b>Vertical &middot; 9:16</b>
+        <span>For Shorts and Reels.</span>
+      </figcaption>
+    </figure>
+  </div>
+
+  <!-- Admin YouTube override; hidden until SITE settings provide a video URL. -->
+  <div id="heroVideoEmbedWrap" class="film-embed" style="display:none;">
+    <div class="film-embed-ratio">
+      <iframe id="heroVideoIframe" src="" title="Champ Client video" allowfullscreen></iframe>
     </div>
   </div>
-
-  <div class="showcase-grid" id="showcaseGrid"></div>
 
   <div class="proof-strip">
     <div class="proof-item">

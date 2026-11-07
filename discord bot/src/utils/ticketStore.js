@@ -1,11 +1,20 @@
 const jsonStore = require('./jsonStore');
+const { log } = require('./logger');
 
-// Ticket data has two homes. With Supabase configured every ticket is a row, so the website
-// and the bot see the same history. Without it the bot keeps the same records in data/tickets.json.
-const SUPABASE_URL = (process.env.SUPABASE_URL || '').replace(/\/$/, '');
+// Ticket data has two homes. With Supabase configured (and the table reachable) every ticket is a
+// row, so the website and the bot see the same history. Otherwise the same records live in
+// data/tickets.json. A missing/unreachable table falls back to JSON instead of breaking tickets.
+const SUPABASE_URL = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || '';
-const USE_SUPABASE = Boolean(SUPABASE_URL && SUPABASE_KEY);
+const CONFIGURED = Boolean(SUPABASE_URL && SUPABASE_KEY);
 const FILE = 'tickets.json';
+
+let active = CONFIGURED;
+let mode = CONFIGURED ? 'supabase' : 'json';
+
+function isSupabaseActive() {
+  return active;
+}
 
 function fromRow(row) {
   if (!row) return null;
@@ -63,6 +72,29 @@ async function sb(pathname, { method = 'GET', body, prefer } = {}) {
   return text ? JSON.parse(text) : null;
 }
 
+// Called once at boot. A configured but unreachable table is a common launch mistake, so the bot
+// logs exactly what is wrong and keeps working on the JSON store.
+async function init() {
+  if (!CONFIGURED) {
+    active = false;
+    mode = 'json';
+    log.info('tickets', 'storage: data/tickets.json (Supabase is not configured)');
+    return { mode };
+  }
+  try {
+    await sb('tickets?select=channel_id&limit=1');
+    active = true;
+    mode = 'supabase';
+    log.info('tickets', 'storage: Supabase (public.tickets)');
+  } catch (err) {
+    active = false;
+    mode = 'json';
+    log.error('tickets', `Supabase tickets unavailable, falling back to data/tickets.json: ${err.message}`);
+    log.error('tickets', 'Apply website/discord bot/supabase/schema.sql in the Supabase SQL editor to enable it.');
+  }
+  return { mode };
+}
+
 async function addTicket(channelId, ticket) {
   const record = {
     channelId,
@@ -75,7 +107,7 @@ async function addTicket(channelId, ticket) {
     lastActivityAt: new Date().toISOString(),
     ...ticket,
   };
-  if (USE_SUPABASE) {
+  if (active) {
     const rows = await sb('tickets?on_conflict=channel_id', {
       method: 'POST',
       body: toRow(record),
@@ -90,7 +122,7 @@ async function addTicket(channelId, ticket) {
 }
 
 async function getTicket(channelId) {
-  if (USE_SUPABASE) {
+  if (active) {
     const rows = await sb(`tickets?channel_id=eq.${encodeURIComponent(channelId)}&select=*&limit=1`);
     return fromRow(rows?.[0]);
   }
@@ -99,11 +131,8 @@ async function getTicket(channelId) {
 }
 
 async function patchTicket(channelId, patch) {
-  const fields = {
-    ...patch,
-    last_activity_at: new Date().toISOString(),
-  };
-  if (USE_SUPABASE) {
+  const now = new Date().toISOString();
+  if (active) {
     const columnMap = {
       claimedBy: 'claimed_by',
       ratingComment: 'rating_comment',
@@ -112,7 +141,7 @@ async function patchTicket(channelId, patch) {
     };
     const body = {};
     for (const [key, value] of Object.entries(patch)) body[columnMap[key] || key] = value;
-    if (!('last_activity_at' in body)) body.last_activity_at = fields.last_activity_at;
+    if (!('last_activity_at' in body)) body.last_activity_at = now;
     const rows = await sb(`tickets?channel_id=eq.${encodeURIComponent(channelId)}`, {
       method: 'PATCH',
       body,
@@ -123,7 +152,7 @@ async function patchTicket(channelId, patch) {
   let updated = null;
   await jsonStore.updateJson(FILE, {}, (all) => {
     if (!all[channelId]) return;
-    all[channelId] = { ...all[channelId], ...patch, lastActivityAt: fields.last_activity_at };
+    all[channelId] = { ...all[channelId], ...patch, lastActivityAt: now };
     updated = all[channelId];
   });
   return updated;
@@ -132,8 +161,9 @@ async function patchTicket(channelId, patch) {
 const claimTicket = (channelId, staffId) => patchTicket(channelId, { claimedBy: staffId });
 const setWarned = (channelId) => patchTicket(channelId, { warned: true });
 
-// A message in the ticket counts as activity; the auto-close job reads lastActivityAt.
-const touchTicket = (channelId) => patchTicket(channelId, {});
+// A message in the ticket counts as activity. It also clears the inactivity warning, so a member
+// who replies gets a fresh window instead of being closed straight after the first warning.
+const touchTicket = (channelId) => patchTicket(channelId, { warned: false });
 const setRating = (channelId, rating, ratingComment) => patchTicket(channelId, { rating, ratingComment });
 
 async function closeTicket(channelId, { transcript } = {}) {
@@ -145,7 +175,7 @@ async function closeTicket(channelId, { transcript } = {}) {
 }
 
 async function allTickets() {
-  if (USE_SUPABASE) {
+  if (active) {
     const rows = await sb('tickets?select=*');
     return (rows || []).map(fromRow);
   }
@@ -153,7 +183,7 @@ async function allTickets() {
 }
 
 async function countOpenByUser(userId) {
-  if (USE_SUPABASE) {
+  if (active) {
     const rows = await sb(
       `tickets?user_id=eq.${encodeURIComponent(userId)}&status=eq.open&select=channel_id`
     );
@@ -169,7 +199,12 @@ async function listOpenTickets() {
   return tickets.filter((t) => t.status === 'open').map((t) => ({ ...t, channelId: t.channelId }));
 }
 
-async function getStats() {
+function withinDay(value, now) {
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) && now - time <= 86400000;
+}
+
+async function getStats(now = Date.now()) {
   const tickets = await allTickets();
   const open = tickets.filter((t) => t.status === 'open');
   const closed = tickets.filter((t) => t.status === 'closed');
@@ -178,15 +213,17 @@ async function getStats() {
   for (const t of open) openByType[t.typeId] = (openByType[t.typeId] || 0) + 1;
   const claims = {};
   for (const t of tickets) if (t.claimedBy) claims[t.claimedBy] = (claims[t.claimedBy] || 0) + 1;
+  const average = rated.length
+    ? rated.reduce((sum, t) => sum + Number(t.rating), 0) / rated.length
+    : null;
   return {
+    total: tickets.length,
     openTotal: open.length,
     closedTotal: closed.length,
-    averageRating: rated.length
-      ? rated.reduce((sum, t) => sum + Number(t.rating), 0) / rated.length
-      : null,
-    avgRating: rated.length
-      ? rated.reduce((sum, t) => sum + Number(t.rating), 0) / rated.length
-      : null,
+    openedLast24h: tickets.filter((t) => withinDay(t.createdAt, now)).length,
+    closedLast24h: tickets.filter((t) => withinDay(t.closedAt, now)).length,
+    averageRating: average,
+    avgRating: average,
     ratingsTotal: rated.length,
     openByType,
     topStaff: Object.entries(claims)
@@ -196,7 +233,8 @@ async function getStats() {
 }
 
 module.exports = {
-  USE_SUPABASE,
+  init,
+  isSupabaseActive,
   addTicket,
   getTicket,
   claimTicket,

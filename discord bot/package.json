@@ -1,8 +1,8 @@
 {
   "name": "champ-discord-bot",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
-  "description": "Champ Client Discord bot: tickets, giveaways and welcome automation",
+  "description": "Champ Client Discord bot: tickets, transcripts, giveaways, welcome automation and status",
   "main": "src/index.js",
   "engines": {
     "node": ">=20"
@@ -10,7 +10,9 @@
   "scripts": {
     "start": "node src/index.js",
     "deploy": "node src/deploy-commands.js",
-    "check": "node scripts/check.js"
+    "check": "node scripts/check.js",
+    "test": "node scripts/check.js",
+    "verify": "node scripts/verify.js"
   },
   "dependencies": {
     "discord.js": "^14.16.3",
