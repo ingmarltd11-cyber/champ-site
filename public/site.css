@@ -2998,3 +2998,319 @@ html.motion-settled * {
   .guide-toc { justify-content: flex-start; margin-bottom: 32px; }
   .guide-card { padding: 18px 16px 16px; }
 }
+
+/* ==========================================================================
+   Polish layer — depth, light and small motion on top of the foundation.
+   Visual only: no layout, copy or behaviour changes.
+   ========================================================================== */
+:root {
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --lift-shadow: 0 30px 70px -38px rgba(0, 0, 0, 0.95);
+}
+
+/* -------- type: balance the big headings, soften the paragraphs -------- */
+.hero-title,
+.section-head h2,
+.showcase-title,
+.reviews-title,
+.pricing-title,
+.faq-title,
+.undetectable-head h2 { text-wrap: balance; }
+
+.section-head p,
+.showcase-sub,
+.reviews-sub,
+.pricing-sub { color: #97929a; }
+
+/* -------- nav: a hairline of light and a quiet underline -------- */
+nav::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(46, 196, 182, 0.28), transparent);
+  opacity: 0;
+  transition: opacity 0.35s var(--ease);
+  pointer-events: none;
+}
+nav.is-scrolled::after { opacity: 1; }
+
+.nav-logo img { transition: transform 0.35s var(--ease); filter: drop-shadow(0 0 14px rgba(46, 196, 182, 0.18)); }
+.nav-logo:hover img { transform: translateY(-1px) rotate(-4deg); }
+
+.nav-links a::before {
+  content: '';
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 5px;
+  height: 1px;
+  background: var(--violet-hi);
+  transform: scaleX(0);
+  transform-origin: left;
+  opacity: 0.7;
+  transition: transform 0.28s var(--ease);
+}
+.nav-links a:hover::before { transform: scaleX(1); }
+
+/* -------- hero: a slow aurora behind the copy -------- */
+.hero { isolation: isolate; }
+
+.hero::after {
+  content: '';
+  position: absolute;
+  inset: -20% -10%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(42% 48% at 22% 34%, rgba(55, 201, 187, 0.20), transparent 70%),
+    radial-gradient(38% 44% at 76% 68%, rgba(0, 126, 124, 0.26), transparent 72%),
+    radial-gradient(30% 36% at 54% 8%, rgba(94, 234, 212, 0.10), transparent 70%);
+  filter: blur(28px);
+  opacity: 0.9;
+  animation: hero-aurora 20s ease-in-out infinite alternate;
+}
+
+.hero-copy, .hero-visual { z-index: 2; }
+
+.hero-title { text-shadow: 0 20px 60px rgba(0, 0, 0, 0.35); }
+
+.hero-title em {
+  background: linear-gradient(94deg, #b6fff4 0%, #5eead4 46%, #37c9bb 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 12px 30px rgba(46, 196, 182, 0.22));
+}
+
+.hero-sub { color: #d4d0d5; }
+
+.hero-eyebrow { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06); }
+
+@keyframes hero-aurora {
+  0%   { transform: translate3d(-1.5%, 0, 0) scale(1.02); }
+  50%  { transform: translate3d(1.5%, -2%, 0) scale(1.06); }
+  100% { transform: translate3d(-0.5%, 1.5%, 0) scale(1.03); }
+}
+
+/* -------- capability bar: each item answers the cursor -------- */
+.feature-item { transition: color 0.22s var(--ease), transform 0.22s var(--ease); }
+.feature-item:hover { color: #fff; transform: translateY(-1px); }
+.feature-icon { transition: filter 0.22s var(--ease), opacity 0.22s var(--ease); }
+.feature-item:hover .feature-icon { opacity: 1; filter: drop-shadow(0 0 8px rgba(46, 196, 182, 0.55)); }
+
+/* -------- cards: lift on a shared curve, glow on the accent edge -------- */
+.pillar,
+.review-card,
+.plan-card,
+.showcase-card,
+.feature-module-card,
+.discord-card {
+  transition: transform 0.3s var(--ease), border-color 0.3s var(--ease),
+              box-shadow 0.3s var(--ease), background 0.3s var(--ease);
+}
+
+.pillar:hover,
+.review-card:hover,
+.plan-card:hover,
+.showcase-card:hover,
+.feature-module-card:hover,
+.discord-card:hover {
+  border-color: rgba(46, 196, 182, 0.34);
+  box-shadow: var(--lift-shadow), 0 0 0 1px rgba(46, 196, 182, 0.05);
+}
+
+.showcase-card:hover,
+.review-card:hover { transform: translateY(-4px); }
+
+.plan-card.featured {
+  box-shadow: 0 40px 100px -46px rgba(0, 100, 102, 0.7), 0 0 0 1px rgba(94, 234, 212, 0.08);
+}
+.plan-card.featured:hover {
+  box-shadow: 0 46px 110px -42px rgba(0, 100, 102, 0.85), 0 0 0 1px rgba(94, 234, 212, 0.22);
+}
+
+.plan-card .plan-amount { text-shadow: 0 14px 40px rgba(0, 0, 0, 0.35); }
+
+/* quote mark, watermark only */
+.review-card { position: relative; overflow: hidden; }
+.review-card::before {
+  content: '\201C';
+  position: absolute;
+  top: -6px;
+  right: 14px;
+  font-size: 92px;
+  line-height: 1;
+  font-weight: 700;
+  color: rgba(46, 196, 182, 0.09);
+  pointer-events: none;
+}
+.review-card:hover::before { color: rgba(46, 196, 182, 0.16); }
+
+/* proof strip: numbers get the accent, cells get a breath */
+.proof-item { transition: background 0.3s var(--ease); }
+.proof-item:hover { background: rgba(46, 196, 182, 0.04); }
+.proof-num {
+  background: linear-gradient(180deg, #ffffff 10%, #c9f3ee 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* -------- FAQ: the plus gets a real control -------- */
+.faq-item summary::after {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: rgba(0, 100, 102, 0.10);
+  font-size: 15px;
+  transition: border-color 0.25s var(--ease), background 0.25s var(--ease),
+              transform 0.25s var(--ease);
+}
+.faq-item:hover summary::after { border-color: var(--violet-line); background: rgba(0, 100, 102, 0.2); }
+.faq-item[open] summary::after { background: rgba(46, 196, 182, 0.16); border-color: rgba(46, 196, 182, 0.45); }
+
+/* -------- Discord row: a little presence -------- */
+.discord-card:hover .discord-icon-wrap { border-color: rgba(94, 234, 212, 0.45); }
+.discord-icon-wrap { transition: border-color 0.3s var(--ease), transform 0.35s var(--ease); }
+.discord-card:hover .discord-icon-wrap { transform: translateY(-2px) rotate(-3deg); }
+
+/* -------- footer: a lit edge instead of a hard cut -------- */
+footer { position: relative; }
+footer::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(46, 196, 182, 0.22), transparent);
+  pointer-events: none;
+}
+
+/* -------- motion safety and small screens -------- */
+@media (hover: none) {
+  .pillar:hover, .review-card:hover, .plan-card:hover,
+  .showcase-card:hover, .feature-module-card:hover, .discord-card:hover { transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero::after { animation: none; }
+  .btn-primary, .btn-hero, .plan-cta, .btn-discord { transition: none; }
+}
+
+@media (max-width: 700px) {
+  .hero::after { filter: blur(22px); opacity: 0.6; }
+  .review-card::before { font-size: 74px; }
+}
+
+/* ==========================================================================
+   Second polish pass: keep the base fills, put the light on top of them.
+   ========================================================================== */
+
+/* The old sweep replaced the button's background-image, which flattened the
+   hero CTA to a single dark teal. The fill now lives on the button and the
+   sweep runs on a pseudo-element, so both survive. */
+.btn-primary,
+.btn-hero,
+.plan-cta {
+  overflow: hidden;
+  background-color: #006466;
+  background-image: linear-gradient(135deg, #0e928c 0%, #006466 58%, #01585b 100%);
+  background-size: 100% 100%;
+  background-position: 0 0;
+  background-repeat: no-repeat;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18),
+              0 14px 34px -18px rgba(46, 196, 182, 0.55);
+  transition: transform 0.24s var(--ease), border-color 0.24s var(--ease),
+              box-shadow 0.24s var(--ease), filter 0.24s var(--ease);
+}
+
+.btn-primary:hover,
+.btn-hero:hover,
+.plan-cta:hover {
+  background-color: #0a7c7e;
+  background-image: linear-gradient(135deg, #17a8a0 0%, #0a7c7e 58%, #04686b 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22),
+              0 18px 38px -16px rgba(46, 196, 182, 0.62);
+  filter: saturate(1.04);
+}
+
+.btn-primary::after,
+.btn-hero::after,
+.plan-cta::after {
+  content: '';
+  position: absolute;
+  inset: -30% -70%;
+  pointer-events: none;
+  background: linear-gradient(105deg,
+      transparent 40%,
+      rgba(255, 255, 255, 0.24) 50%,
+      transparent 60%);
+  transform: translateX(-115%) rotate(3deg);
+  transition: transform 0.75s var(--ease);
+}
+
+.btn-primary:hover::after,
+.btn-hero:hover::after,
+.plan-cta:hover::after { transform: translateX(115%) rotate(3deg); }
+
+/* A hairline before each section label reads as a designed chapter marker
+   instead of a floating word. */
+.section-head .eyebrow::before,
+.undetectable-head .eyebrow::before {
+  display: block;
+  content: '';
+  width: 26px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, currentColor);
+  opacity: 0.65;
+}
+
+/* The accent word in the hero drifts through its own light, slowly enough
+   that it never competes with the headline. */
+.hero-title em {
+  background-size: 190% 100%;
+  animation: hero-shimmer 11s ease-in-out infinite;
+}
+
+@keyframes hero-shimmer {
+  0%, 100% { background-position: 0% 0; }
+  50%      { background-position: 100% 0; }
+}
+
+/* Cards catch a thin top light on hover, matching the menu's glass edges. */
+.pillar:hover,
+.review-card:hover,
+.plan-card:hover,
+.showcase-card:hover,
+.feature-module-card:hover,
+.discord-card:hover {
+  box-shadow: var(--lift-shadow),
+              inset 0 1px 0 rgba(94, 234, 212, 0.14),
+              0 0 0 1px rgba(46, 196, 182, 0.05);
+}
+
+/* The client preview gets a slow, weightless hover; the glow behind it stays
+   put so the movement reads as the panel floating, not the whole hero. */
+.client-preview {
+  animation: preview-float 9s ease-in-out infinite;
+}
+
+@keyframes preview-float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-4px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-title em,
+  .client-preview { animation: none; }
+  .btn-primary::after,
+  .btn-hero::after,
+  .plan-cta::after { display: none; }
+}
