@@ -1100,6 +1100,58 @@ nav.is-scrolled {
   margin: 0 auto;
 }
 
+.pricing-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+@media (max-width: 1100px) {
+  .pricing-grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 860px) {
+  .pricing-grid-3 { grid-template-columns: 1fr; }
+}
+
+.pricing-promo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  max-width: 760px;
+  margin: -8px auto 30px;
+  padding: 12px 20px;
+  border: 1px solid rgba(251, 191, 36, 0.26);
+  border-radius: var(--r-pill);
+  background: rgba(251, 191, 36, 0.055);
+  color: #f5e6c8;
+  font-size: 13px;
+  text-align: center;
+}
+
+.pricing-promo-tag {
+  flex: 0 0 auto;
+  padding: 4px 9px;
+  border: 1px solid rgba(251, 191, 36, 0.38);
+  border-radius: var(--r-pill);
+  background: rgba(251, 191, 36, 0.12);
+  color: #fde68a;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+}
+
+.pricing-footnote {
+  max-width: 760px;
+  margin: 22px auto 0;
+  color: var(--dim);
+  font-size: 11.5px;
+  text-align: center;
+}
+
 .plan-card {
   position: relative;
   display: flex;
@@ -1131,6 +1183,16 @@ nav.is-scrolled {
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   pointer-events: none;
+}
+
+.plan-badge-cheap {
+  border-color: rgba(251, 191, 36, 0.42);
+  background: rgba(251, 191, 36, 0.12);
+  color: #fde68a;
+}
+
+.plan-card.weekly {
+  border-color: rgba(251, 191, 36, 0.22);
 }
 
 .plan-badge {
@@ -2758,6 +2820,8 @@ html.motion-settled * {
   .proof-item { border-right: 0; border-bottom: 1px solid var(--line-soft); }
   .proof-item:last-child { border-bottom: 0; }
   .pricing-grid-2 { grid-template-columns: 1fr; }
+  .pricing-grid-3 { grid-template-columns: 1fr; }
+  .pricing-promo { border-radius: 18px; flex-wrap: wrap; }
   .hero-title { font-size: clamp(42px, 10vw, 62px); }
   .floating-badge { display: none; }
   .showcase-section, .reviews-section, .pricing-section, .faq-section, .discord-section { padding: 74px 22px; }

@@ -170,11 +170,15 @@
     "badge-lifetime-copy",
     "badge-monthly",
     "badge-monthly-copy",
+    "badge-weekly",
+    "badge-weekly-copy",
     "billingOverview",
     "content-lifetime",
     "content-lifetime-copy",
     "content-monthly",
     "content-monthly-copy",
+    "content-weekly",
+    "content-weekly-copy",
     "dash-email",
     "dash-notice",
     "dash-section-base-finds",
@@ -271,6 +275,24 @@
    "apis": [],
    "forms": 1
   },
+  "guide.html": {
+   "ids": [
+    "aim-modes",
+    "backtrack",
+    "combat",
+    "fixes",
+    "mace",
+    "mobileMenu",
+    "packets",
+    "silent-aim",
+    "silent-swap",
+    "siteAnnouncementBanner",
+    "siteAnnouncementText",
+    "totems"
+   ],
+   "apis": [],
+   "forms": 0
+  },
   "index.html": {
    "ids": [
     "aiChatForm",
@@ -281,6 +303,7 @@
     "aiWidgetToggle",
     "discordLinkCta",
     "faq",
+    "features",
     "heroEyebrow",
     "heroSub",
     "heroVideoEmbedWrap",
@@ -312,6 +335,16 @@
    "apis": [],
    "forms": 1
   },
+  "logout.html": {
+   "ids": [
+    "logoutNote"
+   ],
+   "apis": [
+    "/api/admin/logout",
+    "/api/auth/logout"
+   ],
+   "forms": 0
+  },
   "payment.html": {
    "ids": [
     "activeCheckoutForm",
@@ -336,6 +369,7 @@
   "reset.html": {
    "ids": [
     "formMessage",
+    "mobileMenu",
     "newPassword",
     "resetEmail",
     "resetPasswordForm",
@@ -581,6 +615,7 @@
    ".feature-module-card",
    ".feature-module-media",
    ".feature-video",
+   ".hamburger",
    ".mobile-menu",
    ".nav-links",
    ".overlay",
@@ -610,7 +645,8 @@
    "button",
    "button[data-find]",
    "nav",
-   "use"
+   "use",
+   "video[data-autoplay]"
   ],
   "apis": [
    "/api/...",

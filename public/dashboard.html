@@ -115,7 +115,11 @@
         <p>A key is what unlocks the client, the texture packs and the finds.</p>
       </div>
 
-      <div class="dashboard-grid">
+      <div class="dashboard-grid dashboard-grid-3">
+        <article class="dash-card">
+          <div class="card-title"><span class="title-icon" data-dash-icon="zap"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-zap"></use></svg></span>Weekly pass <span class="status-badge status-none" id="badge-weekly">Inactive</span></div>
+          <div id="content-weekly"><p class="no-license-text">No active weekly pass on this account.</p><a href="index.html#pricing" class="btn-purchase-direct">Get a week</a></div>
+        </article>
         <article class="dash-card">
           <div class="card-title"><span class="title-icon" data-dash-icon="card"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-card"></use></svg></span>Monthly subscription <span class="status-badge status-none" id="badge-monthly">Inactive</span></div>
           <div id="content-monthly"><p class="no-license-text">No active monthly subscription on this account.</p><a href="index.html#pricing" class="btn-purchase-direct">Browse plans</a></div>
@@ -261,7 +265,11 @@
         <p>Everything that grants access to Champ Client on this account.</p>
       </header>
 
-      <div class="dashboard-grid">
+      <div class="dashboard-grid dashboard-grid-3">
+        <article class="dash-card">
+          <div class="card-title">Weekly license <span class="status-badge status-none" id="badge-weekly-copy">Inactive</span></div>
+          <div id="content-weekly-copy"><p class="no-license-text">No weekly license.</p></div>
+        </article>
         <article class="dash-card">
           <div class="card-title">Monthly license <span class="status-badge status-none" id="badge-monthly-copy">Inactive</span></div>
           <div id="content-monthly-copy"><p class="no-license-text">No monthly license.</p></div>
@@ -281,7 +289,7 @@
         <ul class="fact-list">
           <li>One key links to <b>one account</b> and <b>one PC</b>, and it is yours until it expires.</li>
           <li>A key from a reseller is activated on the overview — copy it exactly as it was sent.</li>
-          <li>A monthly plan renews through Stripe; a lifetime key never needs renewing.</li>
+          <li>A weekly pass is a one-time 7-day key and does not renew; a monthly plan renews through Stripe; a lifetime key never needs renewing.</li>
           <li>Moving PC or network is a reset, not a new purchase: the first device reset is free.</li>
         </ul>
         <button class="btn-ghost" type="button" data-section-link="overview">Go to activation</button>
@@ -300,7 +308,7 @@
         <div class="card-title"><span class="title-icon" data-dash-icon="card"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-card"></use></svg></span>Plan &amp; payments</div>
         <div id="billingOverview"><p class="no-license-text">Loading subscription status…</p></div>
         <button id="manageBillingBtn" class="btn-primary" type="button" style="display:none">Manage subscription</button>
-        <p class="dash-note">Invoices, cards and cancellation all live in the Stripe portal — no e-mail needed. Lifetime keys are paid once and never renew.</p>
+        <p class="dash-note">Invoices, cards and cancellation all live in the Stripe portal — no e-mail needed. Weekly passes are paid once for 7 days; lifetime keys are paid once and never renew.</p>
       </article>
     </section>
 

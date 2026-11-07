@@ -2,7 +2,7 @@
 
 Hier komt de Champ Client-website:
 
-- Prijzen: **$9,99 lifetime** en **$4,99 per maand**
+- Prijzen: **€2,99 weekly (7 dagen)**, **€6,99 per maand** en **€9,99 lifetime**
 - Afrekenen via **Stripe** (eenmalig + abonnement)
 - Licentiesleutels in **Supabase** (tabel `licenses`, zie `../discord bot/supabase/schema.sql`)
 - **AI-chatbot** voor module-vragen met strikte guardrails:

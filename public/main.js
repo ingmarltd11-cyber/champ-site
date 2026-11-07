@@ -187,7 +187,7 @@ window.addEventListener('scroll', function () {
 let selectedPlanTier = 'monthly';
 
 function openPurchase(plan) {
-  if (!['monthly','lifetime'].includes(plan)) return;
+  if (!['weekly','monthly','lifetime'].includes(plan)) return;
   selectedPlanTier = plan;
   window.location.href = `signup.html?plan=${encodeURIComponent(plan)}`;
 }
@@ -774,12 +774,12 @@ function renderLicense(kind, lic) {
     if (copyContent) copyContent.innerHTML = html;
   };
   if (!lic) {
-    const planName = kind === 'monthly' ? 'Monthly' : 'Lifetime';
+    const planName = ({weekly:'Weekly', monthly:'Monthly', lifetime:'Lifetime'})[kind] || kind;
     paint({ text: 'No license', className: 'status-badge status-none' }, `<p class="no-license-text">No ${planName.toLowerCase()} license is linked to your account yet.</p><a href="index.html#pricing" class="btn-purchase-direct">Browse plans</a>`);
     return;
   }
 
-  const label = ({monthly:'Monthly', lifetime:'Lifetime'})[kind] || kind;
+  const label = ({weekly:'Weekly', monthly:'Monthly', lifetime:'Lifetime'})[kind] || kind;
   if (!lic.active) {
     paint({ text: 'Expired', className: 'status-badge status-none' }, `<p class="no-license-text">Your ${label.toLowerCase()} license is no longer active.</p><a href="index.html#pricing" class="btn-purchase-direct">Renew ${label}</a>`);
     return;
@@ -787,7 +787,7 @@ function renderLicense(kind, lic) {
 
   const state = { text: 'Active', className: 'status-badge status-active' };
   let html = `<div class="license-box">${escapeHtml(lic.key)}</div>`;
-  if (kind === 'monthly' && lic.expires_at) html += `<p class="no-license-text" style="margin-bottom:12px">Renews / ends around ${fmtDate(lic.expires_at)}</p>`;
+  if ((kind === 'weekly' || kind === 'monthly') && lic.expires_at) html += `<p class="no-license-text" style="margin-bottom:12px">${kind === 'weekly' ? 'Ends' : 'Renews / ends'} around ${fmtDate(lic.expires_at)}</p>`;
   html += `<a href="downloads/champ.exe" class="btn-download" data-champ-download download>Download champ.exe</a>`;
   // The only companion file: champ.bat starts champ.exe. Nothing else ships on Windows.
   html += ` <a href="downloads/champ.bat" class="btn-ghost" download>Download champ.bat</a>`;
@@ -903,6 +903,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         aside.insertBefore(link, aside.querySelector('.sidebar-account'));
       }
     }
+    renderLicense('weekly', d.licenses.weekly);
     renderLicense('monthly', d.licenses.monthly);
     renderLicense('lifetime', d.licenses.lifetime);
     if (!window.dashboardExtrasInitialized) {
@@ -2069,10 +2070,15 @@ document.getElementById('adminUserEditForm')?.addEventListener('submit', async f
   loadAdminUsers(document.getElementById('adminUserSearch')?.value.trim() || '');
 });
 
+document.getElementById('userGrantPlan')?.addEventListener('change', function () {
+  const days = document.getElementById('userGrantDays');
+  if (days) days.value = this.value === 'weekly' ? 7 : 30;
+});
+
 document.getElementById('userGrantBtn')?.addEventListener('click', async () => {
   if (userEditorId === null) return;
   const plan = document.getElementById('userGrantPlan').value;
-  const days = Number(document.getElementById('userGrantDays').value) || 30;
+  const days = Number(document.getElementById('userGrantDays').value) || (plan === 'weekly' ? 7 : 30);
   const res = await api(`/api/admin/users/${userEditorId}/grant`, {
     method: 'POST', body: JSON.stringify({ plan_type: plan, days }),
   });

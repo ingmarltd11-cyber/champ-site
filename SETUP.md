@@ -21,8 +21,9 @@ Mapstructuur: `public/` = de website (HTML, `main.js`, `style.css`, `assets/`), 
    - de **secret / service_role key** → `SUPABASE_SERVICE_KEY` (NOOIT de publieke/anon key, en nooit in je frontend zetten)
 
 ## 2. Stripe (betalingen)
-Het live product **Champ Client** en beide prijzen staan al in Stripe:
+Het live product **Champ Client** en de drie prijzen staan al in Stripe:
 
+- *Weekly* — €2.99, one-time voor 7 dagen — `price_1UZD6c5Fx5xxUyLlLjRADgyo` → `STRIPE_PRICE_WEEKLY_ID`
 - *Monthly* — €6.99, recurring per maand — `price_1UX6cT5Fx5xxUyLlVbbKmG9l` → `STRIPE_PRICE_MONTHLY_ID`
 - *Lifetime* — €9.99, one-time — `price_1UX6cT5Fx5xxUyLlZwvkbXiq` → `STRIPE_PRICE_LIFETIME_ID`
 
@@ -78,6 +79,7 @@ Beide prijs-IDs en `SITE_URL` staan al in Vercel (production + preview). Wat nog
 ## Hoe het werkt
 - Betalen → Stripe stuurt een webhook → licentie wordt aangemaakt → mail met sleutel → dashboard toont download.
 - Downloads gaan via een **signed URL die 60 seconden geldig is**, alleen voor ingelogde gebruikers met een actieve licentie.
+- Weekly: eenmalige betaling voor 7 dagen; daarna stopt de toegang, zonder automatische verlenging.
 - Monthly: toegang loopt door tot het einde van de betaalde periode (+24 uur marge). Opzeggen of niet betalen = toegang stopt.
 - Lifetime: bij volledige terugbetaling of dispute wordt de licentie automatisch ingetrokken.
   Bij monthly-refunds: zeg het abonnement zelf op in Stripe.
@@ -133,6 +135,7 @@ For YouTube, use an embed URL such as `https://www.youtube.com/embed/VIDEO_ID`.
 ### Stripe plans
 The site sells exactly two products:
 
+- `weekly` — €2.99 one-time, 7 days — `STRIPE_PRICE_WEEKLY_ID`
 - `monthly` — €6.99 recurring — `STRIPE_PRICE_MONTHLY_ID`
 - `lifetime` — €9.99 one-time — `STRIPE_PRICE_LIFETIME_ID`
 

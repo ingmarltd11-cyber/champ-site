@@ -152,7 +152,7 @@
     <svg class="feature-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
     </svg>
-    &euro;9.99 lifetime &middot; &euro;6.99 monthly
+    &euro;2.99 weekly &middot; &euro;6.99 monthly &middot; &euro;9.99 lifetime
   </div>
   <div class="feature-item">
     <svg class="feature-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -311,12 +311,31 @@
 <section class="pricing-section" id="pricing">
   <div class="section-head">
     <p class="eyebrow">Simple pricing</p>
-    <h2 class="pricing-title" data-site-text="pricing_title">Two plans, <em>same client.</em></h2>
-    <p class="pricing-sub" data-site-text="pricing_sub">Monthly or lifetime. Stripe handles the payment, the license lands in your dashboard as soon as it clears.</p>
+    <h2 class="pricing-title" data-site-text="pricing_title">Three plans, <em>same client.</em></h2>
+    <p class="pricing-sub" data-site-text="pricing_sub">Weekly, monthly or lifetime. Stripe handles the payment, the license lands in your dashboard as soon as it clears.</p>
   </div>
 
-  <div class="pricing-cards pricing-grid-2">
-    <div class="plan-card" data-reveal>
+  <div class="pricing-promo" data-reveal>
+    <span class="pricing-promo-tag">NEW</span>
+    <span><b>Weekly is live.</b> 7 days for &euro;2.99 &mdash; the lowest entry price, with every module included.</span>
+  </div>
+
+  <div class="pricing-cards pricing-grid-3">
+    <div class="plan-card weekly" data-reveal>
+      <div class="plan-badge plan-badge-cheap">Lowest entry price</div>
+      <div class="plan-name">Champ Weekly</div>
+      <div class="plan-price"><span class="plan-amount">&euro;2.99</span><span class="plan-period">/week</span></div>
+      <p class="plan-note">7 days of full access. One payment, no subscription.</p>
+      <ul class="plan-features">
+        <li>Every module &amp; full access</li>
+        <li>Minecraft 1.21.11 (Fabric Loader)</li>
+        <li>Instant dashboard &amp; download</li>
+        <li>Free texture packs included</li>
+        <li>7 days &mdash; no auto-renewal</li>
+      </ul>
+      <button class="plan-cta" onclick="openPurchase('weekly')">Get Weekly (&euro;2.99)</button>
+    </div>
+    <div class="plan-card" data-reveal style="--reveal-delay:80ms">
       <div class="plan-name">Champ Monthly</div>
       <div class="plan-price"><span class="plan-amount">&euro;6.99</span><span class="plan-period">/month</span></div>
       <p class="plan-note">Billed monthly. Cancel from the dashboard whenever.</p>
@@ -329,8 +348,8 @@
       </ul>
       <button class="plan-cta" onclick="openPurchase('monthly')">Get Monthly (&euro;6.99)</button>
     </div>
-    <div class="plan-card featured" data-reveal style="--reveal-delay:100ms">
-      <div class="plan-badge">Most popular</div>
+    <div class="plan-card featured" data-reveal style="--reveal-delay:160ms">
+      <div class="plan-badge">Best value</div>
       <div class="plan-name">Champ Lifetime</div>
       <div class="plan-price"><span class="plan-amount">&euro;9.99</span><span class="plan-period">one-time</span></div>
       <p class="plan-note">One payment. Every 1.21.x update after it is included.</p>
@@ -344,6 +363,7 @@
       <button class="plan-cta" onclick="openPurchase('lifetime')">Get Lifetime (&euro;9.99)</button>
     </div>
   </div>
+  <p class="pricing-footnote">All plans include the same client and every module. Prices in EUR &middot; one PC per key &middot; secure Stripe checkout.</p>
 </section>
 
 <!-- FAQ -->
@@ -362,6 +382,11 @@
     <details class="faq-item">
       <summary><h3 class="faq-question">How quickly do I get access after paying?</h3></summary>
       <p class="faq-answer">Straight away. Stripe confirms the payment, the license appears in your dashboard, and the same details go to your email. If the dashboard looks empty, reload it once; it reads the license on load.</p>
+    </details>
+
+    <details class="faq-item">
+      <summary><h3 class="faq-question">How does the weekly plan work?</h3></summary>
+      <p class="faq-answer">&euro;2.99 buys 7 days of full access. It is a one-time payment, so it does not renew. When it ends, you can buy another week or move to monthly or lifetime. The same every-module access applies.</p>
     </details>
 
     <details class="faq-item">

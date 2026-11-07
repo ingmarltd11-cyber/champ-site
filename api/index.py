@@ -98,7 +98,7 @@ ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
 GRACE_HOURS = 24  # extra access after a subscription period ends (renewal lag)
 
-PLANS = ("monthly", "lifetime")
+PLANS = ("weekly", "monthly", "lifetime")
 # The only Windows download there is: champ.exe, with champ.bat next to it as the start script. The
 # exe carries the client, the agent and the logo, and injects into the game the customer already has
 # open. No jar, no runner, no per-plan file; the plan only decides whether the license is active.
@@ -109,6 +109,7 @@ PUBLIC_CLIENT_BUILD = "2026-11-06T15:26:17Z"
 # A challenge is signed by the PC's Ed25519 key and must come back quickly.
 DEVICE_CHALLENGE_SECONDS = 120
 PLAN_PRICES = {
+    "weekly": "STRIPE_PRICE_WEEKLY_ID",
     "monthly": "STRIPE_PRICE_MONTHLY_ID",
     "lifetime": "STRIPE_PRICE_LIFETIME_ID",
 }
@@ -539,7 +540,7 @@ def public_site() -> str:
 def public_client_url() -> str:
     """The Champ injector deployed with the site.
 
-    One file for both plans: the injector puts the client into the game the customer already has
+    One file for every plan: the injector puts the client into the game the customer already has
     open, so there is no jar and nothing to install. The build stamp lets an older injector notice a
     newer release.
     """
@@ -762,6 +763,9 @@ def on_checkout_completed(session: dict) -> None:
         sub = stripe_request("GET", f"subscriptions/{subscription}")
         end = period_end(sub)
         expires = end + timedelta(hours=GRACE_HOURS) if end else None
+    elif plan == "weekly":
+        # Weekly is a one-time 7-day pass; there is no subscription to renew.
+        expires = now() + timedelta(days=7)
     lic = grant_license(email, plan, expires, session.get("customer"), subscription, session.get("payment_intent"))
 
     uid = session.get("client_reference_id")
@@ -970,7 +974,7 @@ class AdminUserUpdateReq(BaseModel):
 
 class AdminUserGrantReq(BaseModel):
     plan_type: str = "monthly"
-    days: int = 30
+    days: int = 0
 
 
 class AdminExtendReq(BaseModel):
@@ -1192,6 +1196,7 @@ def health():
     # environment is missing SUPABASE_URL / SUPABASE_SERVICE_KEY.
     # booleans only: never expose a key, a price id or a webhook secret.
     stripe_secret = bool(os.getenv("STRIPE_SECRET_KEY"))
+    stripe_weekly = bool(os.getenv("STRIPE_PRICE_WEEKLY_ID"))
     stripe_monthly = bool(os.getenv("STRIPE_PRICE_MONTHLY_ID"))
     stripe_lifetime = bool(os.getenv("STRIPE_PRICE_LIFETIME_ID"))
     stripe_webhook = bool(os.getenv("STRIPE_WEBHOOK_SECRET"))
@@ -1207,13 +1212,14 @@ def health():
         "sessions": sessions_ready(),
         "ai": "llm" if any(provider_keys()) else "built-in",
         "vercel_env": os.getenv("VERCEL_ENV"),
-        # checkout needs a secret key and both prices; the webhook also needs its signing secret.
+        # checkout needs a secret key and all three prices; the webhook also needs its signing secret.
         "stripe": {
             "secret_key": stripe_secret,
+            "price_weekly": stripe_weekly,
             "price_monthly": stripe_monthly,
             "price_lifetime": stripe_lifetime,
             "webhook_secret": stripe_webhook,
-            "checkout_ready": stripe_secret and stripe_monthly and stripe_lifetime,
+            "checkout_ready": stripe_secret and stripe_weekly and stripe_monthly and stripe_lifetime,
             "webhook_ready": stripe_webhook,
         },
     }
@@ -1774,7 +1780,7 @@ def dashboard(user: dict = Depends(current_user)):
             "key": row.get("license_key") or "",
             "active": license_active(row),
             "status": row.get("status") or "inactive",
-            "expires_at": row.get("expires_at") if plan == "monthly" else None,
+            "expires_at": row.get("expires_at") if plan in ("weekly", "monthly") else None,
             "can_manage": plan == "monthly" and bool(row.get("stripe_customer_id")),
         }
     return {"email": user["email"], "username": user["username"], "licenses": licenses,
@@ -1797,7 +1803,7 @@ def latest_client():
 def download(plan: str, user: dict = Depends(current_user)):
     """Sends a licensed customer to the injector.
 
-    Both plans get the same executable, because the injector carries the client and puts it into the
+    Every plan gets the same executable, because the injector carries the client and puts it into the
     running game; the plan only decides whether this account may use it.
     """
     if plan not in PLANS:
@@ -2188,7 +2194,7 @@ def license_heartbeat(p: HeartbeatReq):
 # --------------------------------------------------------------------------
 def account_license(user: dict) -> Optional[dict]:
     """The active license of a signed-in customer, lifetime first."""
-    for plan in ("lifetime", "monthly"):
+    for plan in ("lifetime", "monthly", "weekly"):
         lic = db_get("licenses", {"email": eq(user["email"]), "plan_type": eq(plan)})
         if license_active(lic):
             return lic
@@ -2785,7 +2791,7 @@ def twofa_disable(p: TwoFADisableReq, user: dict = Depends(current_user)):
 # --------------------------------------------------------------------------
 # Referrals: personal link, 10% credit per sale
 # --------------------------------------------------------------------------
-PLAN_PRICE_CENTS = {"monthly": 699, "lifetime": 999}
+PLAN_PRICE_CENTS = {"weekly": 299, "monthly": 699, "lifetime": 999}
 REFERRAL_RATE = 0.10
 
 
@@ -3114,19 +3120,22 @@ def admin_create_license(p: AdminLicenseCreateReq, admin: dict = Depends(current
     """Hand out a key without Stripe: unclaimed, or already tied to a customer."""
     plan = (p.plan_type or "").strip().lower()
     if plan not in PLANS:
-        raise HTTPException(400, "Plan must be monthly or lifetime.")
+        raise HTTPException(400, "Plan must be weekly, monthly or lifetime.")
     status = (p.status or "active").strip().lower()
     if status not in LICENSE_STATUSES:
         raise HTTPException(400, "Status must be active, inactive or revoked.")
     key = (p.license_key or "").strip().upper() or new_license_key()
     if len(key) < 6:
         raise HTTPException(400, "A key needs at least 6 characters.")
+    expires_at = admin_expiry(p.expires_at)
+    if plan == "weekly" and not expires_at:
+        expires_at = iso(now() + timedelta(days=7))
     row = {
         "email": admin_email(p.email, key),
         "plan_type": plan,
         "license_key": key,
         "status": status,
-        "expires_at": admin_expiry(p.expires_at),
+        "expires_at": expires_at,
     }
     try:
         saved = db_insert("licenses", row)
@@ -3156,8 +3165,12 @@ def admin_update_license(lic_id: int, p: AdminLicenseUpdateReq, admin: dict = De
     if p.plan_type is not None:
         plan = p.plan_type.strip().lower()
         if plan not in PLANS:
-            raise HTTPException(400, "Plan must be monthly or lifetime.")
+            raise HTTPException(400, "Plan must be weekly, monthly or lifetime.")
         values["plan_type"] = plan
+        if plan == "weekly" and p.expires_at is None and (
+            plan != (lic.get("plan_type") or "").lower() or not lic.get("expires_at")
+        ):
+            values["expires_at"] = iso(now() + timedelta(days=7))
     if p.expires_at is not None:
         values["expires_at"] = admin_expiry(p.expires_at)
     if p.license_key is not None:
@@ -3357,14 +3370,15 @@ def admin_grant_user(user_id: int, p: AdminUserGrantReq, admin: dict = Depends(c
         raise HTTPException(404, "Account not found.")
     plan = (p.plan_type or "").strip().lower()
     if plan not in PLANS:
-        raise HTTPException(400, "Plan must be monthly or lifetime.")
-    days = max(1, min(int(p.days or 0), 3650))
+        raise HTTPException(400, "Plan must be weekly, monthly or lifetime.")
+    default_days = 7 if plan == "weekly" else 30
+    days = max(1, min(int(p.days or default_days), 3650))
     email = str(user.get("email") or "")
 
     lic = db_get("licenses", {"email": eq(email), "plan_type": eq(plan)})
     if lic:
         values = {"status": "active", "updated_at": iso(now())}
-        if plan == "monthly" or lic.get("expires_at"):
+        if plan != "lifetime" or lic.get("expires_at"):
             values["expires_at"] = admin_extend_expiry(lic.get("expires_at"), days)
         try:
             rows = db_update("licenses", {"id": eq(lic["id"])}, values)
@@ -3429,7 +3443,7 @@ def admin_extend_all(p: AdminExtendReq, admin: dict = Depends(current_admin)):
     days = max(1, min(int(p.days or 0), 3650))
     plan = (p.plan_type or "").strip().lower()
     if plan and plan not in PLANS:
-        raise HTTPException(400, "Plan must be monthly or lifetime.")
+        raise HTTPException(400, "Plan must be weekly, monthly or lifetime.")
     try:
         rows = db_list("licenses", {}, limit=1000)
     except DBError as exc:
@@ -3605,15 +3619,15 @@ def get_site_settings():
         print("Site settings unavailable:", type(exc).__name__)
         rows = []
     settings = {
-        "announcement_text": "🔥 Champ Client 0.9.9.1 is out for Minecraft 1.21.11 Fabric Loader! Get Lifetime for €9.99 or Monthly for €6.99.",
+        "announcement_text": "🔥 Champ Client 0.9.9.1 is out for Minecraft 1.21.11 Fabric Loader! Weekly €2.99, Monthly €6.99 or Lifetime €9.99.",
         "announcement_enabled": "true",
         "discord_link": "https://discord.gg/6vyQnVjeX",
         "youtube_video_url": "",
         "hero_tagline": "Minecraft 1.21.11 · Windows & Linux injector",
         "hero_title": "Every module.|*One injector.*",
         "hero_sub": "Champ runs inside the Minecraft 1.21.11 you already have open. Start the game, run champ.bat, and the menu is there. No jar goes into your mods folder, and you don't have to restart the game afterwards.",
-        "pricing_title": "Two plans, *same client.*",
-        "pricing_sub": "Monthly or lifetime. Stripe handles the payment, the license lands in your dashboard as soon as it clears.",
+        "pricing_title": "Three plans, *same client.*",
+        "pricing_sub": "Weekly, monthly or lifetime. Stripe handles the payment, the license lands in your dashboard as soon as it clears.",
         "features_title": "Every module, *listed.*",
         "features_sub": "The full list, grouped by category: combat, mace, spear, movement, misc, visuals and Donut SMP. Filter one group or scroll the lot, then open a card for its settings and a clip.",
         "support_title": "Need *help?*",
@@ -4021,8 +4035,11 @@ SITE_LINKS = {
 
 def _answer_pricing() -> str:
     return (
-        "Champ Client has two plans: Monthly is EUR 6.99 and you can cancel it any time from your dashboard. "
-        "Lifetime is EUR 9.99 as a one-time payment and includes future 1.21.x updates.\n\n"
+        "Champ Client has three plans: Weekly is EUR 2.99 for 7 days as a one-time payment, Monthly is "
+        "EUR 6.99 and you can cancel it any time from your dashboard, and Lifetime is EUR 9.99 as a "
+        "one-time payment and includes future 1.21.x updates.\n\n"
+        "Every plan includes the same modules and texture packs; only how long access lasts changes. "
+        "The weekly pass does not renew automatically.\n\n"
         "Checkout runs through Stripe, which accepts credit cards, debit cards, iDEAL and several local "
         "payment methods. Your download and licence appear in your dashboard right after payment.\n\n"
         f"Plans and pricing: {SITE_LINKS['pricing']}"
@@ -4039,9 +4056,9 @@ def _answer_payment_methods() -> str:
 
 def _answer_billing_change() -> str:
     return (
-        "A Monthly plan can be cancelled any time from your dashboard; access stays active until the paid period ends. "
-        "Refunds are not something I can confirm here, so for a billing question a staff member should look at your "
-        "order with you.\n\n"
+        "A Weekly pass simply ends after its 7 days and does not renew. A Monthly plan can be cancelled any "
+        "time from your dashboard; access stays active until the paid period ends. Refunds are not something "
+        "I can confirm here, so for a billing question a staff member should look at your order with you.\n\n"
         f"Dashboard: {SITE_LINKS['dashboard']}\nDiscord support: {SITE_LINKS['discord']}"
     )
 
@@ -4154,8 +4171,9 @@ def _answer_what_is_it() -> str:
 
 def _answer_trial() -> str:
     return (
-        "There is no free trial or free version that I can confirm. The cheapest way to try it is the Monthly plan "
-        "at EUR 6.99, which you can cancel any time from your dashboard.\n\n"
+        "There is no free trial or free version that I can confirm. The cheapest way to try it is the Weekly "
+        "plan at EUR 2.99 for 7 days. It is a one-time payment and does not renew. Monthly is EUR 6.99 and "
+        "can be cancelled any time; Lifetime is EUR 9.99 once.\n\n"
         f"Plans and pricing: {SITE_LINKS['pricing']}"
     )
 
@@ -4179,9 +4197,9 @@ def _answer_devices() -> str:
 
 def _answer_discount() -> str:
     return (
-        "I don't have a confirmed discount or coupon code, so I won't invent one. The current prices are Monthly "
-        "EUR 6.99 and Lifetime EUR 9.99, both listed on the pricing page. If you were given a code by the team, ask "
-        "them on Discord to check it for you.\n\n"
+        "I don't have a confirmed discount or coupon code, so I won't invent one. The current prices are "
+        "Weekly EUR 2.99, Monthly EUR 6.99 and Lifetime EUR 9.99, all listed on the pricing page. If you "
+        "were given a code by the team, ask them on Discord to check it for you.\n\n"
         f"Plans and pricing: {SITE_LINKS['pricing']}\nDiscord support: {SITE_LINKS['discord']}"
     )
 
@@ -4234,7 +4252,7 @@ SUPPORT_TOPICS = (
     ("discord_link", re.compile(r"\b(link (my )?discord|discord (rank|role|link|koppel\w*)|champ\+)\b", re.I), _answer_discord_link),
     ("discount", re.compile(r"\b(discount|korting|coupon|promo ?code|voucher|goedkoper)\b", re.I), _answer_discount),
     ("billing", re.compile(r"\b(cancel|opzeg\w*|refund|money back|terugbetaling|chargeback|downgrade)\b", re.I), _answer_billing_change),
-    ("pricing", re.compile(r"\b(price|prices|pricing|cost|costs|costly|how much|hoeveel|kost\w*|prijs|plans?|abonnement\w*|subscription|monthly|lifetime|buy|kopen|purchase|checkout|betalen|order|bestellen)\b", re.I), _answer_pricing),
+    ("pricing", re.compile(r"\b(price|prices|pricing|cost|costs|costly|how much|hoeveel|kost\w*|prijs|plans?|abonnement\w*|subscription|weekly|monthly|lifetime|buy|kopen|purchase|checkout|betalen|order|bestellen)\b", re.I), _answer_pricing),
     # After pricing, because that answer already covers iDEAL and card payments.
     ("payment_methods", re.compile(r"\b(ideal|paypal|credit ?card|debit ?card|betaalmethod\w*|payment method\w*|stripe|crypto|bitcoin|apple pay|google pay)\b", re.I), _answer_payment_methods),
     ("download", re.compile(r"\b(download\w*|licen[cs]e key|licentie|my key|serial|dashboard)\b", re.I), _answer_download),
@@ -4272,7 +4290,7 @@ TOPIC_HINTS = {
     "discord_link": ("discord", "rank", "role", "koppelen"),
     "discount": ("discount", "coupon", "promo", "korting", "voucher"),
     "billing": ("cancel", "refund", "cancellation", "opzeggen", "terugbetaling"),
-    "pricing": ("price", "pricing", "cost", "costs", "prijs", "kosten", "plans", "subscription", "lifetime", "monthly"),
+    "pricing": ("price", "pricing", "cost", "costs", "prijs", "kosten", "plans", "subscription", "weekly", "monthly", "lifetime"),
     "payment_methods": ("ideal", "stripe", "paypal", "card", "bitcoin", "betalen"),
     "download": ("download", "downloads", "downloaden", "dashboard"),
     "install": ("install", "installeren", "installed", "fabric", "setup", "mods"),
