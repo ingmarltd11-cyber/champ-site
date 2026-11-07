@@ -843,6 +843,8 @@ class LoginReq(BaseModel):
     password: str
     totp_code: Optional[str] = None
     remember: bool = False
+    plan_type: Optional[str] = None
+    referral_code: Optional[str] = None
 
 
 class EmailReq(BaseModel):
@@ -856,6 +858,11 @@ class ResetReq(BaseModel):
 
 class PaymentLinkReq(BaseModel):
     email: EmailStr
+    plan_type: str
+    referral_code: Optional[str] = None
+
+
+class StartCheckoutReq(BaseModel):
     plan_type: str
     referral_code: Optional[str] = None
 
@@ -1391,6 +1398,47 @@ def update_feature(slug: str, p: FeatureUpdateReq, admin: dict = Depends(current
     return db_insert("features", {"slug": slug, **updates})
 
 
+def plan_checkout_url(email: str, plan: str, referral_code: Optional[str] = None) -> Optional[str]:
+    """Return a payment link for this account and plan, reusing a live pending link.
+
+    The plan lives in pending_payments, so the customer never has to remember it
+    across signup, login or email verification.
+    """
+    plan = (plan or "").strip().lower()
+    if plan not in PLANS:
+        return None
+    if license_active(db_get("licenses", {"email": eq(email), "plan_type": eq(plan)})):
+        return f"{SITE_URL}/dashboard.html?plan={plan}"
+
+    # A double-click or a login retry should continue the same checkout instead
+    # of leaving a trail of pending payments behind.
+    try:
+        rows = db_list("pending_payments", {
+            "email": eq(email),
+            "plan_type": eq(plan),
+            "status": eq("pending"),
+        }, limit=5)
+    except Exception:
+        rows = []
+    cutoff = now() - timedelta(hours=24)
+    for row in rows:
+        created = parse_dt(row.get("created_at"))
+        if created and created >= cutoff and row.get("uid"):
+            return f"{SITE_URL}/payment.html?uid={row['uid']}"
+
+    uid = uuid.uuid4()
+    ref = (referral_code or "").strip().upper() or None
+    if ref and not db_get("referrals", {"code": eq(ref)}):
+        ref = None
+    db_insert("pending_payments", {
+        "uid": str(uid),
+        "email": email,
+        "plan_type": plan,
+        "referral_code": ref,
+    })
+    return f"{SITE_URL}/payment.html?uid={uid}"
+
+
 # --------------------------------------------------------------------------
 # Routes: authentication
 # --------------------------------------------------------------------------
@@ -1444,14 +1492,9 @@ def signup(p: SignupReq, response: Response):
         # chosen, hand back a checkout link so the purchase flow is not interrupted.
         set_session(response, user)
         result = {"message": "Account created!", "verified": True}
-        plan = (p.plan_type or "").lower().strip()
-        if plan in PLANS and not license_active(db_get("licenses", {"email": eq(email), "plan_type": eq(plan)})):
-            uid = uuid.uuid4()
-            ref = (p.referral_code or "").strip().upper() or None
-            if ref and not db_get("referrals", {"code": eq(ref)}):
-                ref = None
-            db_insert("pending_payments", {"uid": str(uid), "email": email, "plan_type": plan, "referral_code": ref})
-            result["checkout_url"] = f"{SITE_URL}/payment.html?uid={uid}"
+        checkout_url = plan_checkout_url(email, p.plan_type or "", p.referral_code)
+        if checkout_url:
+            result["checkout_url"] = checkout_url
         return result
 
     send_verification_code(user)
@@ -1508,17 +1551,9 @@ def verify_code(p: VerifyCodeReq, response: Response):
     result = {"message": "Email verified successfully.", "verified": True,
               "checkout_url": f"{SITE_URL}/dashboard.html"}
     if plan:
-        if license_active(db_get("licenses", {"email": eq(email), "plan_type": eq(plan)})):
-            # Already verified and logged in above. Raising here would drop the session
-            # cookie, so just send them to the dashboard instead.
-            result["message"] = f"Email verified. You already have an active {plan} license."
-        else:
-            uid = uuid.uuid4()
-            ref = (p.referral_code or "").strip().upper() or None
-            if ref and not db_get("referrals", {"code": eq(ref)}):
-                ref = None
-            db_insert("pending_payments", {"uid": str(uid), "email": email, "plan_type": plan, "referral_code": ref})
-            result["checkout_url"] = f"{SITE_URL}/payment.html?uid={uid}"
+        checkout_url = plan_checkout_url(email, plan, p.referral_code)
+        if checkout_url:
+            result["checkout_url"] = checkout_url
     return result
 
 
@@ -1610,7 +1645,12 @@ def login(p: LoginReq, response: Response):
     if is_admin:
         set_admin_session(response, (user.get("username_lower") or user["username"]).lower(),
                           db_admin=True, remember=p.remember)
-    return {"message": "Logged in.", "username": user["username"], "is_admin": is_admin}
+    result = {"message": "Logged in.", "username": user["username"], "is_admin": is_admin}
+    if (p.plan_type or "").strip().lower() in PLANS:
+        checkout_url = plan_checkout_url(user["email"], p.plan_type or "", p.referral_code)
+        if checkout_url:
+            result["checkout_url"] = checkout_url
+    return result
 
 
 @app.post("/api/auth/browser/token")
@@ -1709,6 +1749,22 @@ def request_payment_link(p: PaymentLinkReq):
 def verify_payment_link(uid: uuid.UUID):
     row = load_pending(uid)
     return {"email": row["email"], "plan_type": row["plan_type"]}
+
+
+@app.post("/api/start-checkout")
+def start_checkout(p: StartCheckoutReq, user: dict = Depends(current_user)):
+    """Create (or reuse) the customer's pending payment for a plan.
+
+    This is the signed-in path from the pricing page. It deliberately takes no
+    email from the browser: the account on the session owns the payment link.
+    """
+    plan = (p.plan_type or "").strip().lower()
+    if plan not in PLANS:
+        raise HTTPException(400, "Unknown plan.")
+    url = plan_checkout_url(user["email"], plan, p.referral_code)
+    if not url:
+        raise HTTPException(500, "Could not prepare checkout.")
+    return {"checkout_url": url, "plan_type": plan}
 
 
 @app.post("/api/create-stripe-session")

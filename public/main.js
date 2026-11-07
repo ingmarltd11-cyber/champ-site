@@ -183,12 +183,58 @@ window.addEventListener('scroll', function () {
   if (nav) nav.style.boxShadow = window.scrollY > 10 ? '0 2px 24px rgba(0,0,0,.5)' : '';
 });
 
-// ---- Landing page: choose a plan and register ----
+// ---- Landing page: choose a plan and go straight to the right next step ----
 let selectedPlanTier = 'monthly';
+const CHAMP_PLANS = ['weekly', 'monthly', 'lifetime'];
+const CHAMP_PLAN_LABELS = {
+  weekly: 'Champ Weekly (\u20ac2.99)',
+  monthly: 'Champ Monthly (\u20ac6.99)',
+  lifetime: 'Champ Lifetime (\u20ac9.99)',
+};
 
-function openPurchase(plan) {
-  if (!['weekly','monthly','lifetime'].includes(plan)) return;
+function isChampPlan(plan) {
+  return CHAMP_PLANS.includes(plan);
+}
+
+function champPlanLabel(plan) {
+  return CHAMP_PLAN_LABELS[plan] || 'your plan';
+}
+
+async function beginPlanCheckout(plan) {
+  if (!isChampPlan(plan)) return { ok: false, error: 'Choose a plan first.' };
+  try {
+    const res = await api('/api/start-checkout', {
+      method: 'POST',
+      body: JSON.stringify({ plan_type: plan, referral_code: storedReferral() || null }),
+    });
+    if (res.ok && res.data && res.data.checkout_url) {
+      return { ok: true, url: res.data.checkout_url };
+    }
+    return { ok: false, error: errorText(res.data, 'Could not start checkout.') };
+  } catch (_) {
+    return { ok: false, error: 'Could not reach the payment server.' };
+  }
+}
+
+async function openPurchase(plan) {
+  if (!isChampPlan(plan)) return;
   selectedPlanTier = plan;
+
+  // Signed-in customers should not be sent through signup again. The server
+  // creates (or reuses) a pending payment for the account on the session.
+  try {
+    const me = await api('/api/auth/me');
+    if (me.ok && me.data && me.data.email) {
+      const started = await beginPlanCheckout(plan);
+      if (started.ok) {
+        window.location.href = started.url;
+        return;
+      }
+      alert(started.error);
+      return;
+    }
+  } catch (_) { /* fall through to signup */ }
+
   window.location.href = `signup.html?plan=${encodeURIComponent(plan)}`;
 }
 
@@ -317,7 +363,16 @@ async function handleGetStarted(event) {
 const registerForm = document.getElementById('registerForm');
 if (registerForm) {
   const params = new URLSearchParams(window.location.search);
-  const selectedPlan = params.get('plan') || '';
+  const rawPlan = params.get('plan') || '';
+  const selectedPlan = isChampPlan(rawPlan) ? rawPlan : '';
+
+  if (selectedPlan) {
+    document.querySelectorAll('a[href^="login.html"]').forEach(function (link) {
+      link.href = `login.html?plan=${encodeURIComponent(selectedPlan)}`;
+    });
+    const subtitle = document.querySelector('.auth-card-head p');
+    if (subtitle) subtitle.textContent = `Create your account, then continue to ${champPlanLabel(selectedPlan)} checkout.`;
+  }
 
   registerForm.addEventListener('submit', async function (e) {
     e.preventDefault();
@@ -374,9 +429,15 @@ const verifyForm = document.getElementById('verifyForm');
 if (verifyForm) {
   const params = new URLSearchParams(window.location.search);
   let email = params.get('email') || '';
-  const plan = params.get('plan') || '';
+  const rawPlan = params.get('plan') || '';
+  const plan = isChampPlan(rawPlan) ? rawPlan : '';
   const emailDisplay = document.getElementById('verifyEmail');
   if (emailDisplay) emailDisplay.textContent = email;
+  if (plan) {
+    document.querySelectorAll('a[href^="login.html"]').forEach(function (link) {
+      link.href = `login.html?plan=${encodeURIComponent(plan)}`;
+    });
+  }
 
   verifyForm.addEventListener('submit', async function (e) {
     e.preventDefault();
@@ -523,9 +584,18 @@ async function finishBrowserLogin(target) {
 const loginForm = document.getElementById('loginForm');
 if (loginForm) {
   const params = new URLSearchParams(window.location.search);
+  const rawPlan = params.get('plan') || '';
+  const checkoutPlan = isChampPlan(rawPlan) ? rawPlan : '';
   const browserLogin = browserLoginParams();
   if (browserLogin) {
     showMessage('formMessage', 'Champ on your PC opened this page. Sign in below and the app continues on its own.', false);
+  }
+  if (checkoutPlan) {
+    document.querySelectorAll('a[href^="signup.html"]').forEach(function (link) {
+      link.href = `signup.html?plan=${encodeURIComponent(checkoutPlan)}`;
+    });
+    const subtitle = document.querySelector('.auth-card-head p');
+    if (subtitle) subtitle.textContent = `Sign in to continue with ${champPlanLabel(checkoutPlan)} checkout.`;
   }
 
   // The form is only for signed-out visitors. Remember-me already keeps the
@@ -537,6 +607,15 @@ if (loginForm) {
         if (!res.ok || !res.data || !res.data.email) return;
         if (browserLogin) {
           await finishBrowserLogin(browserLogin);
+          return;
+        }
+        if (checkoutPlan) {
+          const started = await beginPlanCheckout(checkoutPlan);
+          if (started.ok) {
+            window.location.replace(started.url);
+            return;
+          }
+          showMessage('formMessage', started.error, true);
           return;
         }
         const requested = params.get('next');
@@ -567,6 +646,8 @@ if (loginForm) {
             password: document.getElementById('loginPassword').value,
             totp_code: totpCode || null,
             remember: Boolean(document.getElementById('loginRemember')?.checked),
+            plan_type: checkoutPlan || null,
+            referral_code: storedReferral() || null,
           }),
         });
       }
@@ -581,14 +662,20 @@ if (loginForm) {
           await finishBrowserLogin(browserLogin);
           return;
         }
+        if (data.checkout_url) {
+          window.location.href = data.checkout_url;
+          return;
+        }
         // Admins land in the admin panel by default; an explicit ?next= still wins.
         const requested = params.get('next');
         window.location.href = requested ? safeNext(requested) : (data.is_admin ? 'admin.html' : 'dashboard.html');
         return;
       }
       if (status === 403 && data.needs_verification && data.email) {
-        // Not verified yet: the backend just sent a new code, enter it on the verify page
-        window.location.href = `verify.html?email=${encodeURIComponent(data.email)}`;
+        // Not verified yet: the backend just sent a new code, enter it on the verify page.
+        // Keep the selected plan in the URL so verification can resume checkout.
+        const planQuery = checkoutPlan ? `&plan=${encodeURIComponent(checkoutPlan)}` : '';
+        window.location.href = `verify.html?email=${encodeURIComponent(data.email)}${planQuery}`;
         return;
       }
       showMessage('formMessage', errorText(data, 'Could not sign in.'), true);
@@ -607,7 +694,8 @@ if (loginForm) {
       return;
     }
     await api('/api/auth/resend-verification', { method: 'POST', body: JSON.stringify({ email: ident }) });
-    window.location.href = `verify.html?email=${encodeURIComponent(ident)}`;
+    const planQuery = checkoutPlan ? `&plan=${encodeURIComponent(checkoutPlan)}` : '';
+    window.location.href = `verify.html?email=${encodeURIComponent(ident)}${planQuery}`;
   });
 }
 
@@ -686,7 +774,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if (!me.ok || me.data.email !== link.email) {
     const next = encodeURIComponent(`payment.html?uid=${uid}`);
-    document.querySelector('#checkout-auth-view a[href^="login.html"]').href = `login.html?next=${next}`;
+    const switchAccount = me.ok ? '&switch=1' : '';
+    document.querySelector('#checkout-auth-view a[href^="login.html"]').href = `login.html?next=${next}${switchAccount}`;
     authMsg.textContent = me.ok
       ? `This link is for ${link.email}, but you are signed in as ${me.data.email}. Sign in with the right account.`
       : `Sign in (or create an account) with ${link.email} to continue.`;
