@@ -32,7 +32,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from cryptography.hazmat.primitives.serialization import load_der_public_key
 import jwt
 import requests
-from fastapi import Cookie, Depends, FastAPI, HTTPException, Request, Response
+from fastapi import Cookie, Depends, FastAPI, Header, HTTPException, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, EmailStr
 from starlette.concurrency import run_in_threadpool
@@ -1223,6 +1223,47 @@ def health():
             "webhook_ready": stripe_webhook,
         },
     }
+
+
+@app.post("/api/internal/weekly-schema")
+def internal_weekly_schema(mode: str = "check", x_migrate_token: str = Header(default="")):
+    """One-off guarded schema check/apply for the weekly plan; removed after the migration."""
+    expected = os.getenv("WEEKLY_MIGRATION_TOKEN", "")
+    if not expected or not hmac.compare_digest(x_migrate_token, expected):
+        raise HTTPException(404)
+    if mode not in ("check", "apply"):
+        raise HTTPException(400, "mode must be check or apply")
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        raise HTTPException(503, "database is not configured")
+
+    statements = {
+        "check": [
+            "select conname, pg_get_constraintdef(oid) as definition from pg_constraint "
+            "where conrelid in ('public.pending_payments'::regclass, 'public.licenses'::regclass) "
+            "and contype = 'c' order by conname;",
+        ],
+        "apply": [
+            "alter table public.pending_payments drop constraint if exists pending_payments_plan_type_check;",
+            "alter table public.pending_payments add constraint pending_payments_plan_type_check "
+            "check (plan_type in ('weekly', 'monthly', 'lifetime'));",
+            "alter table public.licenses drop constraint if exists licenses_plan_type_check;",
+            "alter table public.licenses add constraint licenses_plan_type_check "
+            "check (plan_type in ('weekly', 'monthly', 'lifetime'));",
+            "update public.site_settings set value = "
+            "'🔥 Champ Client 0.9.9.1 is out for Minecraft 1.21.11 Fabric Loader! Weekly €2.99, Monthly €6.99 or Lifetime €9.99.' "
+            "where key = 'announcement_text';",
+        ],
+    }
+    results = []
+    for query in statements[mode]:
+        r = requests.post(
+            f"{SUPABASE_URL}/pg/query",
+            headers={"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"},
+            json={"query": query},
+            timeout=30,
+        )
+        results.append({"status": r.status_code, "body": r.text[:500]})
+    return {"mode": mode, "results": results}
 
 
 @app.post("/api/admin/login")
