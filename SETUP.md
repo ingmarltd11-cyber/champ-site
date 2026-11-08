@@ -1,85 +1,164 @@
-# Champ Client — live zetten (Vercel + Supabase + SellAuth + Resend)
+# Champ Client — live zetten (Vercel + Supabase + Stripe + Resend)
 
-Volgorde: **Supabase → SellAuth → Resend → Vercel → testen.**
-Alle variabelen staan in `.env.example`.
+Volgorde: **Supabase → Stripe → Resend → Vercel → testen.**
+Alles wat je in Vercel moet invullen staat in `.env.example`.
 
-Mapstructuur: `public/` = website, `api/` = backend, `supabase/` = database.
+Mapstructuur: `public/` = de website (HTML, `main.js`, `style.css`, `assets/`), `api/` = de backend,
+`supabase/` = de database. Wil je iets aan de site aanpassen? Dat staat allemaal in `public/`.
 
 ---
 
 ## 1. Supabase (database)
-
 1. Maak een project op supabase.com.
-2. **SQL Editor → New query** → plak `supabase/schema.sql` → **Run**.
+2. **SQL Editor → New query** → plak de inhoud van `supabase/schema.sql` → **Run**.
+   (Maakt de tabellen aan.)
+2. **Storage**: er is geen bucket met jars meer nodig. De enige Windows-download is
+   `public/downloads/champ.bat` + `public/downloads/champ.exe`, de injector met de client erin; die
+   zitten in de deployment zelf, dus uploaden naar Supabase hoeft niet. De bucket `downloads` mag je
+   leeg laten of verwijderen.
 3. **Project Settings → API**: kopieer
    - Project URL → `SUPABASE_URL`
-   - de **secret / service_role key** → `SUPABASE_SERVICE_KEY` (nooit de publieke key)
+   - de **secret / service_role key** → `SUPABASE_SERVICE_KEY` (NOOIT de publieke/anon key, en nooit in je frontend zetten)
 
-De bestaande `licenses`-rijen en keys blijven staan. De oude Stripe-kolommen zijn alleen nog
-historische opslag; de nieuwe SellAuth-referentie gebruikt dezelfde kolom voor idempotency.
+## 2. Stripe (betalingen)
+Het live product **Champ Client** en de drie prijzen staan al in Stripe:
 
-## 2. SellAuth (betalingen)
+- *Weekly* — €2.99, one-time voor 7 dagen — `price_1UZD6c5Fx5xxUyLlLjRADgyo` → `STRIPE_PRICE_WEEKLY_ID`
+- *Monthly* — €6.99, one-time voor 30 dagen — `price_1UZZr85Fx5xxUyLlThdgui7Q` → `STRIPE_PRICE_MONTHLY_ID`
+- *Lifetime* — €9.99, one-time — `price_1UX6cT5Fx5xxUyLlZwvkbXiq` → `STRIPE_PRICE_LIFETIME_ID`
 
-1. Maak een shop op [sellauth.com](https://sellauth.com/) en kies je payment methods
-   (bijv. PayPal en crypto; je hoeft geen Stripe te koppelen).
-2. Maak drie producten of één product met drie varianten:
-   - **Weekly** — €2.99, 7 dagen, eenmalig
-   - **Monthly** — €6.99, 30 dagen, eenmalig (geen abonnement)
-   - **Lifetime** — €9.99, eenmalig
-3. Zet de delivery van elke variant op **Dynamic** en vul als delivery-URL:
-   `https://JOUW-DOMEIN/api/sellauth-webhook`
-4. Optioneel: maak een vierde product **HWID reset** van €5 met dezelfde dynamic URL.
-   Zonder dit product geeft de betaalde reset een nette 503; de gratis reset blijft werken.
-5. Kopieer per variant de **product ID** en **variant ID** naar de Vercel-variabelen.
-6. Ga naar **Developers → Overview** en kopieer de **webhook secret** naar
-   `SELLAUTH_WEBHOOK_SECRET`. Zet de secret nooit in de site of in git.
+De drie prijs-ID's en `SITE_URL` staan al in Vercel (production + preview). Wat nog ontbreekt:
 
-De webhook is ondertekend met HMAC-SHA256 over de ruwe body in `X-Signature`. De backend
-weigert een ongeldige handtekening, maakt één Champ-key per item en geeft bij een retry
-dezelfde key terug. SellAuth toont die key op de betaalpagina en Champ mailt hem ook.
+1. **Developers → API keys** → secret key → `STRIPE_SECRET_KEY` in Vercel (begin met `sk_test_...` om te testen).
+2. **Geen customer portal nodig**: monthly is een eenmalige 30-dagenpas; er is niets op te zeggen.
+3. **Webhook** (doe dit NA de Vercel-deploy, je hebt je domein nodig):
+   **Developers → Webhooks → Add endpoint**
+   - URL: `https://JOUW-DOMEIN/api/stripe-webhook`
+   - Events: `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
+     `charge.refunded`, `charge.dispute.created`
+   - Kopieer de *Signing secret* (`whsec_...`) → `STRIPE_WEBHOOK_SECRET`
+4. **Settings → Payment methods**: zet aan wat je wilt (kaart, iDEAL, Apple Pay...). Checkout toont
+   automatisch wat past bij land/valuta. Crypto en PayPal-knoppen zijn van de site gehaald: Stripe
+   ondersteunt crypto niet in Checkout.
+5. LET OP: Stripe heeft een lijst met verboden bedrijfstypes en game-cheat software kan daar onder
+   vallen. Lees hun beleid, anders riskeer je een bevroren account met vastgehouden geld.
 
-## 3. Resend (e-mail)
+## 3. Resend (e-mail: verificatie, reset, betaallink, licentie)
+1. resend.com → **Domains** → voeg je domein toe en zet de DNS-records (zonder eigen domein kun je
+   alleen naar je eigen mailadres sturen).
+2. **API Keys** → maak een key → `RESEND_API_KEY`
+3. `FROM_EMAIL` = bijv. `Champ Client <noreply@jouw-domein.com>`
 
-1. Voeg je domein toe en zet de DNS-records.
-2. Maak een API key → `RESEND_API_KEY`.
-3. `FROM_EMAIL` = bijv. `Champ Client <noreply@jouw-domein.com>`.
-
-Zonder eigen domein kun je alleen naar je eigen adres mailen; zet dan `EMAIL_VERIFICATION=false`
-en gebruik de Gmail-SMTP-fallback uit `.env.example`.
-
-## 4. Vercel
-
-1. Importeer de repo; `vercel.json` regelt de static site en `/api/*`.
-2. Zet alle waarden uit `.env.example` in **Settings → Environment Variables**.
-   `JWT_SECRET` maak je met:
+## 4. Vercel (hosting)
+1. Zet deze map in een GitHub-repo (`.env` staat in `.gitignore`, maar commit nooit geheimen).
+2. vercel.com → **Add New → Project** → importeer de repo. Laat Framework Preset en de rest op standaard staan:
+   `vercel.json` zet alles goed (geen build command, de site komt uit `public/`, de API uit `api/`).
+   Zie je bij de preset toch "FastAPI", dan maakt dat niet uit.
+3. **Settings → Environment Variables**: vul alles uit `.env.example` in. `JWT_SECRET` maak je met:
    `python -c "import secrets; print(secrets.token_urlsafe(48))"`
-   `SITE_URL` = je echte domein, met https en zonder `/` erachter.
-3. Deploy en zet daarna je domein goed; redeploy als `SITE_URL` wijzigt.
-4. Rate-limit aanraden: `/api/auth/*`, `/api/start-checkout` en `/api/sellauth-webhook`.
+   `SITE_URL` = je echte domein (met https, zonder `/` erachter).
+4. Deploy. Voeg daarna je domein toe onder **Settings → Domains**, zet `SITE_URL` goed en **redeploy**.
+5. Doe nu stap 2.4 (Stripe webhook) en zet de `whsec_...` in Vercel → **redeploy** nog een keer.
+6. Aanrader: **Firewall → rate limit** op `/api/auth/*` en `/api/request-payment-link` (beschikbaarheid
+   hangt van je Vercel-plan af).
 
-## 5. Testen
+## 5. Testen (eerst met Stripe TEST-keys)
+- [ ] `https://JOUW-DOMEIN/api/health` geeft `{"ok":true}`
+- [ ] Account maken → mail ontvangen → verifiëren → inloggen
+- [ ] Wachtwoord vergeten → mail → nieuw wachtwoord
+- [ ] Plan kiezen op de homepage → mail met betaallink → inloggen → checkout
+- [ ] Betalen met testkaart `4242 4242 4242 4242` (willekeurige toekomstige datum + CVC)
+- [ ] Dashboard toont licentiesleutel + download werkt (Stripe → Webhooks toont dan 200 OK)
+- [ ] Monthly pass → dashboard toont een 30-dagenvervaldatum; er is geen automatische verlenging
+- [ ] Daarna: live keys (`sk_live_...`, live prijzen, live webhook) invullen en opnieuw deployen
 
-- [ ] `https://JOUW-DOMEIN/api/health` geeft `{"ok":true}` en `sellauth.checkout_ready=true`.
-- [ ] Account maken → inloggen → plan kiezen → je gaat naar de SellAuth-checkout.
-- [ ] Testbetaling doen; SellAuth toont de Champ-key en de webhook geeft HTTP 200.
-- [ ] Dashboard toont de key en de download werkt.
-- [ ] Dezelfde delivery nog eens afvuren geeft dezelfde key (geen tweede licentie).
-- [ ] Betaalde HWID-reset (als ingericht) reset het apparaat en niet de licentie.
-- [ ] Daarna live payment methods en echte prijzen gebruiken.
+---
 
 ## Hoe het werkt
+- Betalen → Stripe stuurt een webhook → licentie wordt aangemaakt → mail met sleutel → dashboard toont download.
+- Downloads gaan via een **signed URL die 60 seconden geldig is**, alleen voor ingelogde gebruikers met een actieve licentie.
+- Weekly: eenmalige betaling voor 7 dagen; daarna stopt de toegang, zonder automatische verlenging.
+- Monthly: eenmalige betaling voor 30 dagen; daarna stopt de toegang, zonder automatische verlenging.
+- Lifetime: bij volledige terugbetaling of dispute wordt de licentie automatisch ingetrokken.
+  Bij monthly-refunds wordt de licentie via de webhook ingetrokken.
 
-- SellAuth verwerkt de betaling en stuurt per item een ondertekende dynamic-delivery POST.
-- De backend maakt of verlengt de licentie in Supabase en antwoordt met de key als platte tekst.
-- Weekly = 7 dagen, Monthly = 30 dagen, Lifetime = geen vervaldatum.
-- Een bestaande actieve key van dezelfde plan wordt verlengd vanaf de huidige einddatum.
-- De client en HWID-binding blijven ongewijzigd; alleen de betaalprovider is vervangen.
+## Belangrijk om te weten
+- De injector is een statisch bestand: wie 'm eenmaal gedownload heeft, kan 'm blijven gebruiken.
+  De licentie wordt bij elke start gecontroleerd via `POST /api/license/validate` met
+  `{"key": "CHAMP-XXXX-XXXX-XXXX-XXXX"}` → antwoord `{"valid": true/false, "plan": ..., "expires_at": ...}`.
+- Terms of Service en Privacy Policy zijn sjablonen: lees ze door, pas ze aan en laat ze zo mogelijk
+  door iemand met verstand van zaken checken (o.a. consumentenrechten/herroepingsrecht bij digitale producten,
+  btw en bedrijfsgegevens).
+- Lokaal testen kan met `vercel dev` en `DEV_MODE=true` (mails worden dan niet echt verstuurd,
+  de betaallink staat in de browserconsole).
 
-## Belangrijk
 
-- De injector is een statisch bestand; de licentie wordt bij elke start via
-  `POST /api/license/session` gecontroleerd.
-- Terms of Service en Privacy Policy zijn sjablonen: laat ze juridisch controleren.
-- Lokaal testen kan met `vercel dev` en `DEV_MODE=true`.
-- SellAuth kan kaartbetalingen via een eigen gateway laten lopen; je integreert zelf geen Stripe.
-  Als je helemaal geen Stripe-verwerking wilt, zet in SellAuth alleen PayPal en crypto aan.
+## New registration + verification flow
+
+Buy Monthly/Lifetime now sends the visitor to `signup.html?plan=...`. Registration requires a matching email twice and a matching password twice. A 6-digit code is sent through Resend and expires after 10 minutes. `verify.html` supports resend and changing the email address. After successful verification, the backend creates the existing `pending_payments` checkout record and redirects to the current Stripe checkout page.
+
+Run the updated `supabase/schema.sql` once to add the verification-code columns. Existing rows are preserved.
+
+## New site customization
+
+### Theme
+The site now uses a purple / deep-blue theme and `html { scroll-behavior: smooth; }` for smooth anchor scrolling.
+
+### Features page
+Open `/features.html`. Feature cards are loaded from the Supabase `features` table.
+
+### Admin panel
+Sign in on `/login.html`. Accounts with `is_admin = true` land straight in `/admin.html`; the admin page no longer has its own login form. A normal (non-admin) account that opens `/admin.html` sees an "Admins only" message.
+
+Enable admin for an existing account in Supabase:
+
+```sql
+update public.users set is_admin = true where email = 'you@example.com';
+```
+
+Admins automatically receive an active lifetime license, so their own key appears under **My account** in the admin panel.
+
+`ADMIN_USERNAME` / `ADMIN_PASSWORD` still work as a break-glass login through the normal login form; that account has no customer profile. Admin sessions are HttpOnly cookies. "Remember me" keeps the login for 30 days; without it the cookie ends when the browser closes.
+
+Discord keys (`/key generate` in the bot) are written to the same `licenses` table and appear in **Orders & Keys**. Keys without an email show an **Unclaimed** badge until the first account redeems them.
+
+The admin panel lets you edit each feature's:
+
+- title
+- description
+- video embed URL
+
+For YouTube, use an embed URL such as `https://www.youtube.com/embed/VIDEO_ID`.
+
+### Stripe plans
+The site sells three products plus a free trial:
+
+- `trial` — free, 24 hours, once per account, PC and network — no Stripe price
+- `weekly` — €2.99 one-time, 7 days — `STRIPE_PRICE_WEEKLY_ID`
+- `monthly` — €6.99 one-time, 30 dagen — `STRIPE_PRICE_MONTHLY_ID`
+- `lifetime` — €9.99 one-time — `STRIPE_PRICE_LIFETIME_ID`
+
+The `inject`, `mod10` and `mod5` plans have been removed entirely.
+
+Create the corresponding Stripe Prices and put their IDs into Vercel Environment Variables.
+
+### Supabase
+Run the complete `supabase/schema.sql` again. It now also creates/seeds the `features` table.
+
+It also repairs the `plan_type` check on `pending_payments` and `licenses`. Run it once on your
+existing project (it is safe to run repeatedly, unless your database still contains `inject`
+licenses — delete or migrate those rows first, otherwise the tightened check fails).
+
+For an existing project that already has the weekly plan, also run `supabase/trial-migration.sql`
+once in the SQL Editor. It allows the `trial` plan and adds `trial_ip` plus the two partial unique
+indexes behind the one-trial-per-network and one-trial-per-PC rules. There is
+nothing to upload: the Windows pair (`public/downloads/champ.bat` + `public/downloads/champ.exe`)
+ships with the deployment.
+
+### Free-trial VPN check
+
+The trial calls proxycheck.io before a key is issued and again when the key first binds to a PC.
+VPN, proxy, Tor and hosting/datacenter addresses are refused. Without a key the endpoint uses the
+unregistered limit of 100 checks per day; create a free account and set `PROXYCHECK_API_KEY` in
+Vercel for 1,000 per day. If the check cannot be completed, the trial is refused rather than issued
+unchecked, so a provider outage pauses new trials without touching paid licenses.
