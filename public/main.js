@@ -863,20 +863,6 @@ function showDashboardSection(name) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-function appendDiscordEscalation(container) {
-  if (!container) return;
-  const wrap = document.createElement('div');
-  wrap.className = 'ai-msg ai-bot';
-  const link = document.createElement('a');
-  link.href = 'https://discord.gg/6vyQnVjeX';
-  link.target = '_blank';
-  link.rel = 'noopener noreferrer';
-  link.className = 'ai-escalation-link';
-  link.textContent = 'Open Discord support';
-  wrap.appendChild(link);
-  container.appendChild(wrap);
-}
-
 function fmtDate(iso) {
   if (!iso) return '';
   // Date-only values are UTC midnight; read them at noon so the day never shifts.
@@ -982,7 +968,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   const query = new URLSearchParams(window.location.search);
   const justPaid = query.get('paid') === '1';
   const paidPlan = query.get('plan');
+  const checkoutSessionId = query.get('session_id');
   const notice = document.getElementById('dash-notice');
+
+  // Stripe returns the checkout session here. If its webhook did not arrive, this
+  // idempotent call still turns the paid session into the customer's license.
+  if (checkoutSessionId) {
+    try {
+      await api(`/api/checkout/confirm?session_id=${encodeURIComponent(checkoutSessionId)}`);
+    } catch (_) { /* the webhook retry remains the fallback */ }
+    try {
+      const clean = new URL(window.location.href);
+      clean.searchParams.delete('session_id');
+      window.history.replaceState({}, '', clean.pathname + clean.search + clean.hash);
+    } catch (_) { /* cosmetic */ }
+  }
 
   // Is the license we are waiting for active yet? (the paid plan if known, else any plan)
   const isActivated = (d) => {
@@ -1099,7 +1099,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (justPaid && !isActivated(data) && notice) {
     notice.style.display = 'block';
     notice.textContent = 'Payment received — activating your license…';
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 20; i++) {
       await new Promise((r) => setTimeout(r, 2500));
       data = await load();
       if (isActivated(data)) break;
@@ -1755,96 +1755,6 @@ function dismissAnnouncement() {
   if (text) localStorage.setItem('dismissed_announcement', text.textContent);
   document.body.classList.remove('has-announcement');
   document.documentElement.style.removeProperty('--announcement-h');
-}
-
-// ============================================================
-// AI Assistant Widget
-// ============================================================
-function toggleAIChat() {
-  const win = document.getElementById('aiChatWindow');
-  if (!win) return;
-  const isHidden = win.style.display === 'none';
-  win.style.display = isHidden ? 'flex' : 'none';
-  if (isHidden) {
-    setTimeout(() => document.getElementById('aiChatInput')?.focus(), 50);
-  }
-}
-
-const supportChatHistory = [];
-let supportChatSessionId = null;
-
-try {
-  supportChatSessionId = sessionStorage.getItem('champ_support_session');
-} catch (_) { /* session storage is optional */ }
-
-
-// Turn assistant replies into readable text with clickable links.
-function renderAIMessage(target, text) {
-  const html = escapeHtml(text)
-    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '$1 ($2)')
-    .replace(/^#{1,6}\s+/gm, '')
-    .replace(/^-{3,}\s*$/gm, '')
-    .replace(/`([^`]+)`/g, '$1')
-    .replace(/(https?:\/\/[^\s<>"']+)/g, (raw) => {
-      const url = raw.replace(/[.,;:!?)]+$/, '');
-      const trailing = raw.slice(url.length);
-      return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>${trailing}`;
-    })
-    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    .split(String.fromCharCode(10)).join('<br>');
-  target.innerHTML = html;
-}
-async function handleAIChatSubmit(e) {
-  e.preventDefault();
-  const input = document.getElementById('aiChatInput');
-  const messages = document.getElementById('aiChatMessages');
-  if (!input || !messages) return;
-
-  const text = input.value.trim();
-  if (!text) return;
-  input.value = '';
-
-  const userBubble = document.createElement('div');
-  userBubble.className = 'ai-msg ai-user';
-  userBubble.textContent = text;
-  messages.appendChild(userBubble);
-
-  const botBubble = document.createElement('div');
-  botBubble.className = 'ai-msg ai-bot';
-  botBubble.innerHTML = '<em>Thinking…</em>';
-  messages.appendChild(botBubble);
-  messages.scrollTop = messages.scrollHeight;
-
-  try {
-    const res = await api('/api/ai/chat', { method: 'POST', body: JSON.stringify({ message: text, history: supportChatHistory.slice(-8), channel: 'website', session_id: supportChatSessionId }) });
-    if (res.ok && res.data && res.data.reply) {
-      renderAIMessage(botBubble, res.data.reply);
-      if (res.data.session_id) {
-        supportChatSessionId = res.data.session_id;
-        try { sessionStorage.setItem('champ_support_session', supportChatSessionId); } catch (_) { /* session storage is optional */ }
-      }
-      supportChatHistory.push({ role: 'user', content: text }, { role: 'assistant', content: res.data.reply });
-      if (res.data.needs_escalation) {
-        const link = document.createElement('a');
-        link.href = res.data.escalation_url || 'https://discord.gg/6vyQnVjeX';
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-        link.className = 'ai-escalation-link';
-        link.textContent = 'Open Discord support';
-        const wrap = document.createElement('div');
-        wrap.className = 'ai-msg ai-bot';
-        wrap.appendChild(link);
-        messages.appendChild(wrap);
-      }
-    } else {
-      botBubble.textContent = errorText(res.data, 'I could not reach the support assistant. Please try again, or contact our team on Discord.');
-      appendDiscordEscalation(messages);
-    }
-  } catch (_) {
-    botBubble.textContent = 'I could not reach the support assistant. Please try again.';
-    appendDiscordEscalation(messages);
-  }
-  messages.scrollTop = messages.scrollHeight;
 }
 
 // ============================================================

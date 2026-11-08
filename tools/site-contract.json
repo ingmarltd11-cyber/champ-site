@@ -170,6 +170,8 @@
     "badge-lifetime-copy",
     "badge-monthly",
     "badge-monthly-copy",
+    "badge-trial",
+    "badge-trial-copy",
     "badge-weekly",
     "badge-weekly-copy",
     "billingOverview",
@@ -177,6 +179,8 @@
     "content-lifetime-copy",
     "content-monthly",
     "content-monthly-copy",
+    "content-trial",
+    "content-trial-copy",
     "content-weekly",
     "content-weekly-copy",
     "dash-email",
@@ -295,12 +299,6 @@
   },
   "index.html": {
    "ids": [
-    "aiChatForm",
-    "aiChatInput",
-    "aiChatMessages",
-    "aiChatWidget",
-    "aiChatWindow",
-    "aiWidgetToggle",
     "discordLinkCta",
     "faq",
     "features",
@@ -320,7 +318,7 @@
     "siteAnnouncementText"
    ],
    "apis": [],
-   "forms": 1
+   "forms": 0
   },
   "login.html": {
    "ids": [
@@ -394,16 +392,10 @@
   },
   "support.html": {
    "ids": [
-    "aiChatForm",
-    "aiChatInput",
-    "aiChatMessages",
-    "aiChatWidget",
-    "aiChatWindow",
-    "aiWidgetToggle",
     "mobileMenu"
    ],
    "apis": [],
-   "forms": 1
+   "forms": 0
   },
   "terms.html": {
    "ids": [],
@@ -472,10 +464,9 @@
    "adminUserSearch",
    "adminUserSearchForm",
    "adminUsers",
-   "aiChatInput",
-   "aiChatMessages",
-   "aiChatWindow",
    "auth-gate-message",
+   "badge-trial",
+   "badge-trial-copy",
    "billingOverview",
    "bulkExtendBtn",
    "bulkExtendDays",
@@ -488,6 +479,8 @@
    "checkout-auth-view",
    "checkout-loading-view",
    "completePurchaseBtn",
+   "content-trial",
+   "content-trial-copy",
    "createAIKnowledgeForm",
    "createAIKnowledgeMsg",
    "createChangelogForm",
@@ -609,6 +602,7 @@
    ".admin-feature-form",
    ".admin-tab",
    ".admin-tabpage",
+   ".auth-card-head p",
    ".changelog-edit-form",
    ".dashboard-section",
    ".dashboard-sidebar",
@@ -680,7 +674,6 @@
    "/api/admin/texture-packs/upload",
    "/api/admin/users",
    "/api/admin/users/",
-   "/api/ai/chat",
    "/api/auth/2fa/disable",
    "/api/auth/2fa/enable",
    "/api/auth/2fa/setup",
@@ -697,6 +690,7 @@
    "/api/base-finds",
    "/api/billing-portal",
    "/api/changelog",
+   "/api/checkout/confirm",
    "/api/create-stripe-session",
    "/api/dashboard/user-data",
    "/api/discord/refresh-role",
@@ -705,7 +699,9 @@
    "/api/referral/mine",
    "/api/reviews",
    "/api/settings",
+   "/api/start-checkout",
    "/api/texture-packs",
+   "/api/trial/start",
    "/api/verify-payment-link/"
   ]
  }

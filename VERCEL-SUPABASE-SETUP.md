@@ -54,7 +54,7 @@ Vercel blocks outbound port 25 but allows 465 (implicit TLS) and 587 (STARTTLS),
 
 The assistant has two layers. The built-in layer runs first and needs no key, no admin knowledge and no network: it answers pricing, plans, payment methods, cancelling, installation, downloads and licences, account and password help, supported versions and compatibility, updates, texture packs, Base Finds, Discord linking, order problems, safety and contact questions, in English and for common Dutch phrasing. It returns the same answers on the website and through the Discord bot.
 
-With `GROQ_API_KEY` set, every question the built-in layer does not recognise is sent to Groq (`openai/gpt-oss-120b`, falling back to `llama-3.1-8b-instant`) with the product facts, live site settings, features and admin knowledge as context. If the key is missing, invalid or rate limited, the assistant falls back to the built-in answer instead of showing an error. Check the active layer at `/api/ai/status`: `"mode":"built-in"` or `"mode":"llm"`.
+The public website assistant is retired. The Discord support bot still calls `/api/ai/chat` with `channel=discord`; with `GROQ_API_KEY` set it uses Groq (`openai/gpt-oss-120b`, falling back to `llama-3.1-8b-instant`) with the product facts, live site settings, features and admin knowledge as context. If the key is missing, invalid or rate limited, it falls back to the built-in answer.
 
 ## Supabase database
 
@@ -66,12 +66,12 @@ The `ai_knowledge` table was added to the connected project for the admin-manage
 
 1. Confirm `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` and `JWT_SECRET` are set for the environment currently deployed.
 2. Open `/api/health` and confirm it returns `{"ok":true}` with `"database":true`. A deployment that reports `"database":false` is missing `SUPABASE_URL` / `SUPABASE_SERVICE_KEY` in that environment; check the Preview/Production boxes when adding them.
-3. Open `/api/ai/status` and confirm `"ready":true`; `mode` shows which assistant layer is active.
+3. Check `/api/health` and confirm `"ai":"built-in"` or `"ai":"llm"`.
 4. Create an account on `/signup.html` and confirm you land signed in (dashboard, or checkout when a plan was chosen).
 5. Ask the assistant a pricing question and confirm it answers with the pricing link.
 6. Test Stripe using test credentials and a test webhook before switching any billing variable to live mode.
 7. Never log or share passwords, API keys or Supabase service keys.
-8. The support assistant already answers from its built-in knowledge. Add `GROQ_API_KEY` (or `OPENAI_API_KEY`) only for free-form answers to everything else; `/api/health` shows `"ai":"built-in"` or `"ai":"llm"`. The Discord bot calls `/api/ai/chat` with `channel=discord` and uses the same database-backed knowledge and per-ticket conversation history.
+8. The Discord support bot answers from its built-in knowledge. Add `GROQ_API_KEY` (or `OPENAI_API_KEY`) only for free-form answers to everything else; `/api/health` shows `"ai":"built-in"` or `"ai":"llm"`. The bot calls `/api/ai/chat` with `channel=discord` and uses the same database-backed knowledge and per-ticket conversation history.
 
 Vercel CLI authentication on this workstation was not available during setup. To connect the CLI persistently, install Vercel CLI and run `vercel login` in a terminal where you can complete the browser sign-in; then link the project with `vercel link`. This does not require sharing a token in chat. GitHub deployments normally trigger Vercel automatically when the Git integration is connected to this repository.
 

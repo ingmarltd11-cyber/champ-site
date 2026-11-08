@@ -221,40 +221,6 @@
     observer.observe(document.body, { childList: true, subtree: true });
   }
 
-  /* ---------- assistant widget ---------- */
-
-  function assistant() {
-    var win = document.getElementById('aiChatWindow');
-    var messages = document.getElementById('aiChatMessages');
-
-    if (win && 'MutationObserver' in window) {
-      var wasOpen = win.style.display !== 'none';
-      new MutationObserver(function () {
-        var open = win.style.display !== 'none';
-        if (open === wasOpen) return;
-        wasOpen = open;
-        if (!open || !motion || !win.animate) return;
-        win.animate(
-          [
-            { opacity: 0, transform: 'translateY(12px) scale(0.985)' },
-            { opacity: 1, transform: 'none' }
-          ],
-          { duration: 260, easing: EASE }
-        );
-      }).observe(win, { attributes: true, attributeFilter: ['style', 'class'] });
-    }
-
-    if (messages && 'MutationObserver' in window) {
-      new MutationObserver(function (mutations) {
-        mutations.forEach(function (mutation) {
-          Array.prototype.slice.call(mutation.addedNodes).forEach(function (node) {
-            if (node instanceof Element && node.classList.contains('ai-msg')) animateIn(node, 0);
-          });
-        });
-      }).observe(messages, { childList: true });
-    }
-  }
-
   /* ---------- motion toggle in the nav ---------- */
 
   var toggle = null;
@@ -299,7 +265,7 @@
     try { softReveals(); } catch (_) { /* cosmetic */ }
     try { counters(); } catch (_) { /* cosmetic */ }
     try { liveContent(); } catch (_) { /* cosmetic */ }
-    try { assistant(); } catch (_) { /* cosmetic */ }
+
   }
 
   // A stored "off" or a reduced-motion visitor should never wait on the observer.

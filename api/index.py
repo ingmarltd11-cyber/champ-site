@@ -861,6 +861,13 @@ def on_checkout_completed(session: dict) -> None:
     elif plan == "weekly":
         # Weekly is a one-time 7-day pass; there is no subscription to renew.
         expires = now() + timedelta(days=7)
+    existing = db_get("licenses", {"email": eq(email), "plan_type": eq(plan)})
+    already_granted = bool(
+        existing
+        and license_active(existing)
+        and session.get("payment_intent")
+        and existing.get("stripe_payment_intent") == session.get("payment_intent")
+    )
     lic = grant_license(email, plan, expires, session.get("customer"), subscription, session.get("payment_intent"))
 
     uid = session.get("client_reference_id")
@@ -871,6 +878,8 @@ def on_checkout_completed(session: dict) -> None:
             credit_referral(pending.get("referral_code") if pending else None, email, plan)
         except Exception as exc:
             print("Referral credit failed:", exc)
+    if already_granted:
+        return
     try:
         send_email(email, "Your Champ license",
                    email_html("Thanks for your purchase!",
@@ -1881,7 +1890,7 @@ def create_stripe_session(p: CheckoutReq, user: dict = Depends(current_user)):
         "line_items[0][price]": price,
         "line_items[0][quantity]": "1",
         "allow_promotion_codes": "true",
-        "success_url": f"{SITE_URL}/dashboard.html?paid=1&plan={plan}",
+        "success_url": f"{SITE_URL}/dashboard.html?paid=1&plan={plan}&session_id={{CHECKOUT_SESSION_ID}}",
         "cancel_url": f"{SITE_URL}/payment.html?uid={p.uid}",
         "metadata[email]": row["email"],
         "metadata[plan_type]": plan,
@@ -1893,6 +1902,29 @@ def create_stripe_session(p: CheckoutReq, user: dict = Depends(current_user)):
         data["customer_creation"] = "always"
     session = stripe_request("POST", "checkout/sessions", data)
     return {"url": session["url"]}
+
+
+@app.get("/api/checkout/confirm")
+def confirm_checkout(session_id: str):
+    """Finish a paid checkout when the Stripe webhook was missed.
+
+    The session id is the unguessable receipt the customer returns with. The
+    Stripe API is the authority on payment status, and the metadata decides which
+    account gets the license. Calling it twice is safe.
+    """
+    sid = (session_id or "").strip()
+    if not sid.startswith("cs_") or len(sid) > 240:
+        raise HTTPException(400, "Invalid checkout session.")
+    session = stripe_request("GET", f"checkout/sessions/{sid}")
+    if session.get("status") != "complete" or session.get("payment_status") not in ("paid", "no_payment_required"):
+        raise HTTPException(409, "The payment is not complete yet.")
+    meta = session.get("metadata") or {}
+    email = (meta.get("email") or session.get("customer_email") or "").lower()
+    plan = meta.get("plan_type")
+    if not email or plan not in PLANS:
+        raise HTTPException(400, "This checkout has no usable license details.")
+    on_checkout_completed(session)
+    return {"ok": True, "email": email, "plan": plan}
 
 
 @app.post("/api/stripe-webhook")
@@ -4782,7 +4814,7 @@ def provider_keys():
 
 def ai_knowledge_context() -> str:
     pieces = [
-        f"""SYSTEM POLICY: You are the friendly support assistant for Champ Client, on the website and in Discord. Always reply in English, even when the customer writes in another language.
+        f"""SYSTEM POLICY: You are the friendly support assistant for Champ Client, in Discord. Always reply in English, even when the customer writes in another language.
 Answer every normal question: product questions about the website and the mod/client (installation, usage, licences, accounts, purchases, known problems) and ordinary questions or small talk that have nothing to do with code.
 Use only the verified product knowledge below for product facts. Never invent prices, features, versions, delivery times or policies. For general questions you may use your own general knowledge.
 Never give code. No code blocks, snippets, scripts, commands, config files, pseudocode or programming instructions. Never explain how to obtain source code, a decompilation or a leak, and never point to GitHub, GitLab, Pastebin or gists. If asked for code, reply exactly: "I can't help with that: I don't share code and I won't explain how to get it. A staff member can help you further."
@@ -4849,32 +4881,13 @@ def admin_delete_ai_knowledge(knowledge_id: int, admin: dict = Depends(current_a
     return {"message": "Knowledge entry removed."}
 
 
-@app.get("/api/ai/status")
-def ai_status():
-    groq_key, openai_key = provider_keys()
-    return {
-        "ok": True,
-        "mode": "llm" if (groq_key or openai_key) else "built-in",
-        "ready": True,
-        "builtin_topics": len(SUPPORT_TOPICS),
-        "model": (os.getenv("GROQ_MODEL") or "openai/gpt-oss-120b").strip(),
-        "providers": {"groq": bool(groq_key), "openai": bool(openai_key)},
-        "official_site": OFFICIAL_SITE,
-        "vercel_env": os.getenv("VERCEL_ENV"),
-        "provider_env_names": sorted(
-            name for name in os.environ
-            if re.search(r"(GROQ|OPENAI|LLM|AI_|_AI)", name, re.IGNORECASE)
-        ),
-    }
-
-
 @app.post("/api/ai/chat")
 def ai_chat(p: AIChatReq):
     user_msg = p.message.strip()
     if not user_msg or len(user_msg) > 2000:
         raise HTTPException(400, "Message must be between 1 and 2000 characters.")
-    if p.channel not in (None, "discord", "website"):
-        raise HTTPException(400, "Unsupported support channel.")
+    if p.channel != "discord":
+        raise HTTPException(410, "The website assistant has been retired. Use the Discord support bot.")
 
     asked_hidden_host = mentions_hidden_host(user_msg)
     user_msg = hide_hidden_hosts(user_msg)
@@ -4930,32 +4943,16 @@ def ai_chat(p: AIChatReq):
         }
 
     knowledge = ai_knowledge_context()
+    supplied_id = (p.session_id or "").strip()
+    if not re.fullmatch(r"[0-9]{17,20}", supplied_id):
+        raise HTTPException(400, "A valid Discord conversation ID is required.")
     safe_history = []
-    if p.channel == "discord":
-        supplied_id = (p.session_id or "").strip()
-        if not re.fullmatch(r"[0-9]{17,20}", supplied_id):
-            raise HTTPException(400, "A valid Discord conversation ID is required.")
-        try:
-            stored = db_get("ai_conversations", {"session_id": eq(supplied_id)})
-            if stored and isinstance(stored.get("history"), list):
-                safe_history = stored["history"][-8:]
-        except Exception as exc:
-            print("AI conversation history unavailable:", type(exc).__name__)
-    else:
-        safe_history = p.history or []
-        supplied_id = (p.session_id or "").strip()
-        if supplied_id:
-            try:
-                parsed_session_id = uuid.UUID(supplied_id)
-            except (ValueError, AttributeError):
-                raise HTTPException(400, "Invalid support conversation ID.")
-            supplied_id = str(parsed_session_id)
-            try:
-                stored = db_get("website_ai_conversations", {"session_id": eq(supplied_id)})
-                if stored and isinstance(stored.get("history"), list):
-                    safe_history = stored["history"][-8:]
-            except Exception as exc:
-                print("Website AI conversation history unavailable:", type(exc).__name__)
+    try:
+        stored = db_get("ai_conversations", {"session_id": eq(supplied_id)})
+        if stored and isinstance(stored.get("history"), list):
+            safe_history = stored["history"][-8:]
+    except Exception as exc:
+        print("AI conversation history unavailable:", type(exc).__name__)
 
     history = []
     for item in safe_history[-8:]:
@@ -5026,24 +5023,17 @@ def ai_chat(p: AIChatReq):
                 if response.status_code == 200:
                     answer = finalize_reply(hide_hidden_hosts(response.json()["choices"][0]["message"]["content"].strip()), user_msg)
                     if answer:
-                        if p.channel in ("discord", "website") or supplied_id:
-                            table = "ai_conversations" if p.channel == "discord" else "website_ai_conversations"
-                            if p.channel != "discord" and not supplied_id:
-                                supplied_id = str(uuid.uuid4())
-                            try:
-                                safe_history = (history + [{"role": "user", "content": user_msg}, {"role": "assistant", "content": answer[:2500]}])[-8:]
-                                db_insert(table, {"session_id": supplied_id, "history": safe_history, "updated_at": iso(now())})
-                            except DBError as exc:
-                                if exc.status == 409:
-                                    _sb("PATCH", table, params={"session_id": eq(supplied_id)}, body={"history": safe_history, "updated_at": iso(now())}, prefer="return=minimal")
-                                else:
-                                    print("AI conversation save failed:", exc.status)
-                            except Exception as exc:
-                                print("AI conversation save failed:", type(exc).__name__)
-                        result = {"reply": answer[:1500], "escalation_url": DISCORD_INVITE, "needs_escalation": False}
-                        if p.channel != "discord" and supplied_id:
-                            result["session_id"] = supplied_id
-                        return result
+                        try:
+                            safe_history = (history + [{"role": "user", "content": user_msg}, {"role": "assistant", "content": answer[:2500]}])[-8:]
+                            db_insert("ai_conversations", {"session_id": supplied_id, "history": safe_history, "updated_at": iso(now())})
+                        except DBError as exc:
+                            if exc.status == 409:
+                                _sb("PATCH", "ai_conversations", params={"session_id": eq(supplied_id)}, body={"history": safe_history, "updated_at": iso(now())}, prefer="return=minimal")
+                            else:
+                                print("AI conversation save failed:", exc.status)
+                        except Exception as exc:
+                            print("AI conversation save failed:", type(exc).__name__)
+                        return {"reply": answer[:1500], "escalation_url": DISCORD_INVITE, "needs_escalation": False}
                 print("AI provider request failed:", provider, model, response.status_code)
                 if response.status_code in (401, 403, 429):
                     break

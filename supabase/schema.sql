@@ -212,15 +212,6 @@ create table if not exists public.ai_conversations (
   updated_at timestamptz not null default now()
 );
 -- Allow browser-based support sessions to persist multi-turn messages.
-create table if not exists public.website_ai_conversations (
-  session_id uuid primary key default gen_random_uuid(),
-  history jsonb not null default '[]'::jsonb,
-  updated_at timestamptz not null default now()
-);
-alter table public.ai_conversations enable row level security;
-alter table public.website_ai_conversations enable row level security;
-
--- Reviews (managed or approved in admin panel)
 create table if not exists public.reviews (
   id bigint generated always as identity primary key,
   author text not null,
