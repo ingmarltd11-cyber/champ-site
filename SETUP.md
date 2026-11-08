@@ -156,3 +156,11 @@ once in the SQL Editor. It allows the `trial` plan and adds `trial_ip` plus the 
 indexes behind the one-trial-per-network and one-trial-per-PC rules. There is
 nothing to upload: the Windows pair (`public/downloads/champ.bat` + `public/downloads/champ.exe`)
 ships with the deployment.
+
+### Free-trial VPN check
+
+The trial calls proxycheck.io before a key is issued and again when the key first binds to a PC.
+VPN, proxy, Tor and hosting/datacenter addresses are refused. Without a key the endpoint uses the
+unregistered limit of 100 checks per day; create a free account and set `PROXYCHECK_API_KEY` in
+Vercel for 1,000 per day. If the check cannot be completed, the trial is refused rather than issued
+unchecked, so a provider outage pauses new trials without touching paid licenses.

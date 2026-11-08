@@ -674,6 +674,65 @@ def client_ip(request: Request) -> str:
     return request.client.host if request.client else ""
 
 
+VPN_CHECK_URL = "https://proxycheck.io/v3/"
+VPN_CACHE_SECONDS = 600
+_VPN_CACHE: dict[str, tuple[float, bool, str, bool]] = {}
+
+
+def vpn_check(ip: str) -> tuple[bool, str, bool]:
+    """Return (blocked, message, unavailable) for one network.
+
+    VPN, proxy, Tor and hosting/datacenter addresses may not claim or bind a trial.
+    A check that cannot be completed blocks too: the trial is limited per network, so
+    issuing one without verifying the network would defeat that limit. Paid licenses
+    never call this.
+    """
+    if not ip:
+        return True, "We could not read your network address. Turn off your VPN and try again.", True
+    cached = _VPN_CACHE.get(ip)
+    if cached and time.time() - cached[0] < VPN_CACHE_SECONDS:
+        return cached[1], cached[2], cached[3]
+    key = os.getenv("PROXYCHECK_API_KEY", "").strip()
+    try:
+        response = requests.get(
+            f"{VPN_CHECK_URL}{quote(ip, safe='')}",
+            params={"key": key} if key else None,
+            timeout=4,
+        )
+    except requests.RequestException as exc:
+        print("VPN check request failed:", type(exc).__name__)
+        return True, "We could not verify your network. Turn off your VPN and try again in a minute.", True
+    if response.status_code == 429:
+        print("VPN check quota exhausted")
+        return True, "The free-trial network check is busy. Please try again later.", True
+    if response.status_code != 200:
+        print("VPN check HTTP", response.status_code)
+        return True, "We could not verify your network. Please try again later.", True
+    try:
+        data = response.json()
+    except ValueError:
+        return True, "We could not verify your network. Please try again later.", True
+    if str(data.get("status") or "").lower() not in ("ok", "warning"):
+        print("VPN check status", data.get("status"))
+        return True, "We could not verify your network. Please try again later.", True
+    entry = data.get(ip)
+    if not isinstance(entry, dict):
+        entry = next((v for v in data.values() if isinstance(v, dict) and "detections" in v), None)
+    if not isinstance(entry, dict):
+        return True, "We could not verify your network. Please try again later.", True
+    detections = entry.get("detections") or {}
+    if detections.get("vpn") or detections.get("proxy") or detections.get("tor"):
+        result = (True, "VPNs, proxies and Tor are not allowed for the free trial. Turn yours off and try again.", False)
+    elif detections.get("hosting"):
+        result = (True, "The free trial needs a home or mobile connection. Datacenter and hosting networks are not allowed.", False)
+    else:
+        result = (False, "", False)
+    _VPN_CACHE[ip] = (time.time(), result[0], result[1], result[2])
+    if len(_VPN_CACHE) > 512:
+        _VPN_CACHE.clear()
+    return result
+
+
 def free_reset_available(lic: dict) -> bool:
     """True while the key has not used its weekly reset yet."""
     last = parse_dt(lic.get("hwid_reset_at"))
@@ -1904,6 +1963,11 @@ def start_trial(request: Request, user: dict = Depends(current_user)):
             })
 
     ip = client_ip(request)
+    blocked, why, unavailable = vpn_check(ip)
+    if blocked:
+        return JSONResponse(status_code=503 if unavailable else 403, content={
+            "ok": False, "error": "vpn_blocked", "detail": why, "message": why,
+        })
     try:
         if trial_ip_used(ip):
             return JSONResponse(status_code=409, content={
@@ -2098,7 +2162,7 @@ def validate_license(p: ValidateReq):
 
 
 @app.post("/api/license/bind")
-def bind_license(p: BindReq):
+def bind_license(request: Request, p: BindReq):
     """A client's first call: links the key to this PC (once) and answers with the license state."""
     key = p.key.strip().upper()
     lic = db_get("licenses", {"license_key": eq(key)})
@@ -2106,6 +2170,12 @@ def bind_license(p: BindReq):
         raise HTTPException(404, "License key not found.")
     if not license_active(lic):
         raise HTTPException(403, "This license is no longer active.")
+    if lic.get("plan_type") == TRIAL_PLAN:
+        blocked, why, unavailable = vpn_check(client_ip(request))
+        if blocked:
+            return JSONResponse(status_code=503 if unavailable else 403, content={
+                "ok": False, "error": "vpn_blocked", "detail": why, "message": why,
+            })
 
     hwid = normalize_hwid(p.hwid)
     if lic.get("plan_type") == TRIAL_PLAN and not hmac.compare_digest(lic.get("hwid") or "", hwid):
@@ -2667,6 +2737,10 @@ def key_license(raw: str) -> dict:
 def key_payload(lic: dict, request: Request, hwid: str) -> dict:
     """The same answer launcher_payload gives, computed from the key instead of a session."""
     ip = client_ip(request)
+    if lic.get("plan_type") == TRIAL_PLAN:
+        blocked, why, unavailable = vpn_check(ip)
+        if blocked:
+            raise HTTPException(503 if unavailable else 403, why)
 
     local = ""
     if hwid:
@@ -3858,7 +3932,7 @@ def get_site_settings():
         "hero_title": "Every module.|*One injector.*",
         "hero_sub": "Champ runs inside the Minecraft 1.21.11 you already have open. Start the game, run champ.bat, and the menu is there. No jar goes into your mods folder, and you don't have to restart the game afterwards.",
         "pricing_title": "Three plans, *same client.*",
-        "pricing_sub": "Start with a free 24-hour trial, then weekly, monthly or lifetime. Stripe handles the payment, the license lands in your dashboard as soon as it clears.",
+        "pricing_sub": "Start with a free 24-hour trial, then weekly, monthly or lifetime. VPNs and proxies cannot claim it. Stripe handles the payment, the license lands in your dashboard as soon as it clears.",
         "features_title": "Every module, *listed.*",
         "features_sub": "The full list, grouped by category: combat, mace, spear, movement, misc, visuals and Donut SMP. Filter one group or scroll the lot, then open a card for its settings and a clip.",
         "support_title": "Need *help?*",
@@ -4177,7 +4251,7 @@ Install: customers download two Windows files from their dashboard, champ.bat an
 
 Scope: the website advertises 247 modules, custom Dear ImGui render overlays, crystal macros and DonutSMP base raiding suites. The full module list lives on the features page. Never invent module names or describe a specific module that is not listed on the site.
 
-Free trial: a signed-in account can claim one 24-hour trial from the pricing page. It is free, includes every module, and is limited to one trial per account, one per PC and one per network. The key is linked to the first PC that runs it and cannot be moved to another PC; it expires 24 hours after it is claimed.
+Free trial: a signed-in account can claim one 24-hour trial from the pricing page. It is free, includes every module, and is limited to one trial per account, one per PC and one per network. The key is linked to the first PC that runs it and cannot be moved to another PC; it expires 24 hours after it is claimed. VPN, proxy, Tor and datacenter connections are refused.
 
 Plans and delivery: Weekly costs EUR 2.99 for 7 days as a one-time payment and does not renew. Monthly costs EUR 6.99 and can be cancelled anytime from the dashboard. Lifetime costs EUR 9.99 as a one-time payment and includes future 1.21.x updates. Checkout uses Stripe, which supports credit cards, debit cards, iDEAL and country-specific local payment methods. After successful payment the product is available in the customer's dashboard immediately, and a licence e-mail with the key is sent. Downloads require an active license. PayPal, crypto and other payment providers are not available in this shop; never suggest them.
 
@@ -4272,8 +4346,8 @@ def _answer_pricing() -> str:
         "one-time payment, Monthly is EUR 6.99 and you can cancel it any time from your dashboard, and "
         "Lifetime is EUR 9.99 as a one-time payment and includes future 1.21.x updates.\n\n"
         "The trial gives every module for one day, needs no card, and is limited to one per account, PC "
-        "and network. Every plan includes the same modules and texture packs; only how long access lasts "
-        "changes. The weekly pass does not renew automatically.\n\n"
+        "and network; VPNs and proxies cannot claim it. Every plan includes the same modules and texture "
+        "packs; only how long access lasts changes. The weekly pass does not renew automatically.\n\n"
         "Checkout runs through Stripe, which accepts credit cards, debit cards, iDEAL and several local "
         "payment methods. Your download and licence appear in your dashboard right after payment.\n\n"
         f"Plans and pricing: {SITE_LINKS['pricing']}"
@@ -4407,7 +4481,8 @@ def _answer_trial() -> str:
     return (
         "Yes - there is a free 24-hour trial. Claim it on the pricing page while signed in: it gives every "
         "module for one day and needs no card. It is limited to one trial per account, one per PC and one "
-        "per network. The key is linked to the first PC that uses it and cannot be moved to another PC.\n\n"
+        "per network. The key is linked to the first PC that uses it and cannot be moved to another PC. "
+        "VPNs, proxies, Tor and datacenter connections are refused.\n\n"
         "When the day ends, Weekly is the cheapest paid plan at EUR 2.99 for 7 days, one-time and without "
         "auto-renewal. Monthly is EUR 6.99 and Lifetime is EUR 9.99 once.\n\n"
         f"Start the trial: {SITE_LINKS['pricing']}"
