@@ -3858,7 +3858,7 @@ def get_site_settings():
         "hero_title": "Every module.|*One injector.*",
         "hero_sub": "Champ runs inside the Minecraft 1.21.11 you already have open. Start the game, run champ.bat, and the menu is there. No jar goes into your mods folder, and you don't have to restart the game afterwards.",
         "pricing_title": "Three plans, *same client.*",
-        "pricing_sub": "Weekly, monthly or lifetime. Stripe handles the payment, the license lands in your dashboard as soon as it clears.",
+        "pricing_sub": "Start with a free 24-hour trial, then weekly, monthly or lifetime. Stripe handles the payment, the license lands in your dashboard as soon as it clears.",
         "features_title": "Every module, *listed.*",
         "features_sub": "The full list, grouped by category: combat, mace, spear, movement, misc, visuals and Donut SMP. Filter one group or scroll the lot, then open a card for its settings and a clip.",
         "support_title": "Need *help?*",
@@ -4177,6 +4177,8 @@ Install: customers download two Windows files from their dashboard, champ.bat an
 
 Scope: the website advertises 247 modules, custom Dear ImGui render overlays, crystal macros and DonutSMP base raiding suites. The full module list lives on the features page. Never invent module names or describe a specific module that is not listed on the site.
 
+Free trial: a signed-in account can claim one 24-hour trial from the pricing page. It is free, includes every module, and is limited to one trial per account, one per PC and one per network. The key is linked to the first PC that runs it and cannot be moved to another PC; it expires 24 hours after it is claimed.
+
 Plans and delivery: Weekly costs EUR 2.99 for 7 days as a one-time payment and does not renew. Monthly costs EUR 6.99 and can be cancelled anytime from the dashboard. Lifetime costs EUR 9.99 as a one-time payment and includes future 1.21.x updates. Checkout uses Stripe, which supports credit cards, debit cards, iDEAL and country-specific local payment methods. After successful payment the product is available in the customer's dashboard immediately, and a licence e-mail with the key is sent. Downloads require an active license. PayPal, crypto and other payment providers are not available in this shop; never suggest them.
 
 Licence keys by e-mail: every purchase and every key that support hands out or edits is e-mailed automatically to the customer address, with the key in the message and a thank-you note; the same key is shown in the dashboard. Keys look like CHAMP-XXXX-XXXX-XXXX-XXXX. Advice on where to find the key, check the inbox and spam folder for the licence mail and then the dashboard. Never ask a customer to post a key in chat and never repeat a key back.
@@ -4266,11 +4268,12 @@ SITE_LINKS = {
 
 def _answer_pricing() -> str:
     return (
-        "Champ Client has three plans: Weekly is EUR 2.99 for 7 days as a one-time payment, Monthly is "
-        "EUR 6.99 and you can cancel it any time from your dashboard, and Lifetime is EUR 9.99 as a "
-        "one-time payment and includes future 1.21.x updates.\n\n"
-        "Every plan includes the same modules and texture packs; only how long access lasts changes. "
-        "The weekly pass does not renew automatically.\n\n"
+        "Champ Client has a free 24-hour trial and three paid plans: Weekly is EUR 2.99 for 7 days as a "
+        "one-time payment, Monthly is EUR 6.99 and you can cancel it any time from your dashboard, and "
+        "Lifetime is EUR 9.99 as a one-time payment and includes future 1.21.x updates.\n\n"
+        "The trial gives every module for one day, needs no card, and is limited to one per account, PC "
+        "and network. Every plan includes the same modules and texture packs; only how long access lasts "
+        "changes. The weekly pass does not renew automatically.\n\n"
         "Checkout runs through Stripe, which accepts credit cards, debit cards, iDEAL and several local "
         "payment methods. Your download and licence appear in your dashboard right after payment.\n\n"
         f"Plans and pricing: {SITE_LINKS['pricing']}"
@@ -4402,10 +4405,12 @@ def _answer_what_is_it() -> str:
 
 def _answer_trial() -> str:
     return (
-        "There is no free trial or free version that I can confirm. The cheapest way to try it is the Weekly "
-        "plan at EUR 2.99 for 7 days. It is a one-time payment and does not renew. Monthly is EUR 6.99 and "
-        "can be cancelled any time; Lifetime is EUR 9.99 once.\n\n"
-        f"Plans and pricing: {SITE_LINKS['pricing']}"
+        "Yes - there is a free 24-hour trial. Claim it on the pricing page while signed in: it gives every "
+        "module for one day and needs no card. It is limited to one trial per account, one per PC and one "
+        "per network. The key is linked to the first PC that uses it and cannot be moved to another PC.\n\n"
+        "When the day ends, Weekly is the cheapest paid plan at EUR 2.99 for 7 days, one-time and without "
+        "auto-renewal. Monthly is EUR 6.99 and Lifetime is EUR 9.99 once.\n\n"
+        f"Start the trial: {SITE_LINKS['pricing']}"
     )
 
 
@@ -4428,8 +4433,9 @@ def _answer_devices() -> str:
 
 def _answer_discount() -> str:
     return (
-        "I don't have a confirmed discount or coupon code, so I won't invent one. The current prices are "
-        "Weekly EUR 2.99, Monthly EUR 6.99 and Lifetime EUR 9.99, all listed on the pricing page. If you "
+        "I don't have a confirmed discount or coupon code, so I won't invent one. There is a free 24-hour "
+        "trial if you want to try every module first. The current prices are Weekly EUR 2.99, Monthly "
+        "EUR 6.99 and Lifetime EUR 9.99, all listed on the pricing page. If you "
         "were given a code by the team, ask them on Discord to check it for you.\n\n"
         f"Plans and pricing: {SITE_LINKS['pricing']}\nDiscord support: {SITE_LINKS['discord']}"
     )
