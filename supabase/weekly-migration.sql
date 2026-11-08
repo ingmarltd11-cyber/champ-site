@@ -8,7 +8,7 @@ alter table public.pending_payments add constraint pending_payments_plan_type_ch
 
 alter table public.licenses drop constraint if exists licenses_plan_type_check;
 alter table public.licenses add constraint licenses_plan_type_check
-  check (plan_type in ('weekly', 'monthly', 'lifetime'));
+  check (plan_type in ('trial', 'weekly', 'monthly', 'lifetime'));
 
 update public.site_settings
 set value = '🔥 Champ Client 0.9.9.1 is out for Minecraft 1.21.11 Fabric Loader! Weekly €2.99, Monthly €6.99 or Lifetime €9.99.'
