@@ -897,6 +897,18 @@ function renderTrial(trial) {
 }
 
 function renderLicense(kind, lic) {
+  if (kind === 'monthly') {
+    const billing = document.getElementById('billingOverview');
+    if (billing) {
+      if (!lic) {
+        billing.innerHTML = '<p class="no-license-text">No monthly pass on this account.</p>';
+      } else if (!lic.active) {
+        billing.innerHTML = '<p class="no-license-text">Your monthly pass is no longer active.</p>';
+      } else {
+        billing.innerHTML = `<p class="no-license-text">Your monthly pass is active${lic.expires_at ? ` until ${fmtDate(lic.expires_at)}` : ''}. It is prepaid for 30 days and does not renew.</p>`;
+      }
+    }
+  }
   const badge = document.getElementById(`badge-${kind}`);
   const content = document.getElementById(`content-${kind}`);
   if (!badge || !content) return;
@@ -932,11 +944,6 @@ function renderLicense(kind, lic) {
   html += ` <a href="downloads/champ.bat" class="btn-ghost" download>Download champ.bat</a>`;
   html += `<p class="no-license-text" style="margin-top:10px">Keep <b>champ.bat</b> next to <b>champ.exe</b> &mdash; the bat simply starts the exe. Start Minecraft 1.21.11 first.</p>`;
   paint(state, html);
-
-  if (kind === 'monthly') {
-    const billing = document.getElementById('billingOverview');
-    if (billing) billing.innerHTML = `<p class="no-license-text">Your monthly pass is active${lic.expires_at ? ` until ${fmtDate(lic.expires_at)}` : ''}. It is prepaid for 30 days and does not renew.</p>`;
-  }
 
   const billingButton = document.getElementById('manageBillingBtn');
   if (billingButton) billingButton.style.display = 'none';
