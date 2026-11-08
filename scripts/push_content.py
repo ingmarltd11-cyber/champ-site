@@ -58,7 +58,7 @@ KNOWLEDGE = [
             "the mods folder and there is no jar to install. Customers keep their own Fabric Loader profile, "
             "start Minecraft, then run the one .exe downloaded from the dashboard, sign in with their Champ "
             "account and inject into the running game. Plans are EUR 9.99 lifetime and EUR 6.99 monthly, paid "
-            "through Stripe Checkout; the license is bound to one PC and one network, and both can be reset "
+            "through SellAuth hosted checkout; the license is bound to one PC and one network, and both can be reset "
             "from the dashboard. Only report facts confirmed by current records or this knowledge."
         ),
     },

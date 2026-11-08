@@ -151,7 +151,7 @@
 
         <div id="addKeyContainer" class="admin-form-panel" style="display:none">
           <h3>New key</h3>
-          <p class="no-license-text">No Stripe needed. Leave the e-mail empty for an unclaimed key: the first account that redeems it becomes the owner.</p>
+          <p class="no-license-text">No payment provider needed. Leave the e-mail empty for an unclaimed key: the first account that redeems it becomes the owner.</p>
           <form id="adminCreateKeyForm" class="admin-editor">
             <label>Customer e-mail (optional)<input name="email" placeholder="customer@example.com"></label>
             <label>Plan<select name="plan_type"><option value="trial">trial</option><option value="weekly">weekly</option><option value="monthly">monthly</option><option value="lifetime">lifetime</option></select></label>
@@ -265,31 +265,9 @@
     <!-- ======================================================== DISCOUNTS -->
     <section class="admin-tabpage" id="tab-discounts" style="display:none">
       <article class="dash-card">
-        <div class="admin-section-head">
-          <div>
-            <h2>Discount codes</h2>
-            <p class="no-license-text">Coupons customers type on the Stripe checkout page. Stripe enforces the expiry and the usage limit, so a code can never be used more often than set here.</p>
-          </div>
-          <button class="btn-primary" type="button" onclick="showAddDiscountForm()">+ New code</button>
-        </div>
-
-        <div id="addDiscountContainer" class="admin-form-panel" style="display:none">
-          <h3>New discount</h3>
-          <form id="adminCreateDiscountForm" class="admin-editor">
-            <label>Code<input name="code" required placeholder="SUMMER25" maxlength="32"></label>
-            <label>Type<select name="kind"><option value="percent">Percentage off</option><option value="amount">Amount off (EUR)</option></select></label>
-            <label>Value<input type="number" name="value" step="0.01" min="0.01" required placeholder="25"></label>
-            <label>Max uses (0 = unlimited)<input type="number" name="max_uses" min="0" value="0"></label>
-            <label>Expires (optional)<input name="expires_at" placeholder="2026-12-31"></label>
-            <div style="display:flex;gap:10px">
-              <button class="btn-primary" type="submit">Create code</button>
-              <button class="btn-ghost" type="button" onclick="document.getElementById('addDiscountContainer').style.display='none'">Cancel</button>
-            </div>
-            <p id="adminCreateDiscountMsg" class="save-message" style="display:none" role="status"></p>
-          </form>
-        </div>
-
-        <div id="adminDiscounts" class="admin-table-wrap"><p class="no-license-text">Loading discount codes…</p></div>
+        <h2>Discount codes</h2>
+        <p class="no-license-text">Discount codes are created in SellAuth and applied on the hosted checkout. This panel does not run a checkout API.</p>
+        <a class="btn-primary" href="https://dash.sellauth.com/" target="_blank" rel="noopener">Open SellAuth</a>
       </article>
     </section>
 

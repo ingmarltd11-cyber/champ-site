@@ -2,8 +2,9 @@
 Champ Client backend
 ====================
 FastAPI on Vercel (serverless).  Supabase = database + private file storage,
-Stripe = payments, Resend = e-mail.  Everything external is called over plain
-REST with `requests`, so there are no heavy SDKs to break on deploy.
+SellAuth = hosted checkout + dynamic license delivery, Resend = e-mail.
+Everything external is called over plain REST with `requests`, so there are no
+heavy SDKs to break on deploy.
 
 All routes live under /api/... (see vercel.json).  The website is served from
 the same domain, so no CORS is needed and the login cookie is first-party.
@@ -24,7 +25,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 from typing import Optional
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 import bcrypt
 from cryptography.exceptions import InvalidSignature
@@ -96,10 +97,8 @@ VERIFY_EMAIL = os.getenv("EMAIL_VERIFICATION", "false").lower() in ("1", "true",
 COOKIE_SECURE = not DEV_MODE
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
-GRACE_HOURS = 24  # extra access after a subscription period ends (renewal lag)
-
 PLANS = ("weekly", "monthly", "lifetime")
-# A free trial is a license, not a purchase: it never enters pending_payments or Stripe.
+# A free trial is a license, not a purchase: it never enters pending_payments or checkout.
 TRIAL_PLAN = "trial"
 TRIAL_HOURS = 24
 LICENSE_PLANS = (TRIAL_PLAN,) + PLANS
@@ -112,13 +111,17 @@ DIST_CLIENT_FILE = "champ.exe"
 PUBLIC_CLIENT_BUILD = "2026-11-06T15:26:17Z"
 # A challenge is signed by the PC's Ed25519 key and must come back quickly.
 DEVICE_CHALLENGE_SECONDS = 120
-PLAN_PRICES = {
-    "weekly": "STRIPE_PRICE_WEEKLY_ID",
-    "monthly": "STRIPE_PRICE_MONTHLY_ID",
-    "lifetime": "STRIPE_PRICE_LIFETIME_ID",
+# SellAuth products/variants. One product can hold all three variants, or each plan can be
+# its own product; a per-plan product id overrides the shared SELLAUTH_PRODUCT_ID.
+SELLAUTH_PLAN_ENV = {
+    "weekly": ("SELLAUTH_PRODUCT_WEEKLY_ID", "SELLAUTH_VARIANT_WEEKLY_ID"),
+    "monthly": ("SELLAUTH_PRODUCT_MONTHLY_ID", "SELLAUTH_VARIANT_MONTHLY_ID"),
+    "lifetime": ("SELLAUTH_PRODUCT_LIFETIME_ID", "SELLAUTH_VARIANT_LIFETIME_ID"),
 }
+# Monthly is sold as a prepaid 30-day pass, so no customer is locked into a recurring plan.
+SELLAUTH_PLAN_DAYS = {"weekly": 7, "monthly": 30, "lifetime": None}
 # One device per key. The first reset is free, then one more every 7 days; after that a reset is a
-# one-off payment. 500 = EUR 5.00, Stripe works in cents.
+# one-off payment. 500 = EUR 5.00, SellAuth works in cents.
 HWID_FREE_RESET_DAYS = 7
 HWID_RESET_PRICE_CENTS = 500
 USERNAME_RE = re.compile(r"^[A-Za-z0-9_]{3,16}$")
@@ -445,56 +448,73 @@ def send_verification_code(user: dict) -> None:
 
 
 # --------------------------------------------------------------------------
-# Stripe (REST)
+# SellAuth (hosted checkout + dynamic delivery)
 # --------------------------------------------------------------------------
-def stripe_request(method: str, path: str, data: Optional[dict] = None) -> dict:
-    key = os.getenv("STRIPE_SECRET_KEY")
-    if not key:
-        raise HTTPException(500, "Payments are not configured.")
-    r = requests.request(method, f"https://api.stripe.com/v1/{path}", data=data, auth=(key, ""), timeout=20)
-    body = r.json()
-    if r.status_code >= 400:
-        print("Stripe error:", r.status_code, body)
-        raise HTTPException(502, "Payment provider error. Please try again.")
-    return body
+def sellauth_shop_url() -> str:
+    return (os.getenv("SELLAUTH_SHOP_URL") or "").strip().rstrip("/")
 
 
-def verify_stripe_signature(payload: bytes, header: str, secret: str, tolerance: int = 300) -> bool:
+def sellauth_product_id(plan: str) -> str:
+    env_name = SELLAUTH_PLAN_ENV.get(plan, ("", ""))[0]
+    return (os.getenv(env_name) or os.getenv("SELLAUTH_PRODUCT_ID") or "").strip()
+
+
+def sellauth_variant_id(plan: str) -> str:
+    env_name = SELLAUTH_PLAN_ENV.get(plan, ("", ""))[1]
+    return (os.getenv(env_name) or "").strip()
+
+
+def sellauth_config(plan: str) -> Optional[tuple[str, str]]:
+    """The product/variant pair for a plan, or None until the shop is configured."""
+    if plan not in PLANS:
+        return None
+    product, variant = sellauth_product_id(plan), sellauth_variant_id(plan)
+    return (product, variant) if product and variant else None
+
+
+def sellauth_checkout_url(email: str, plan: str) -> Optional[str]:
+    """A hosted SellAuth checkout link with the customer's email prefilled.
+
+    The link is deterministic: the customer can retry or reopen it without us
+    storing a short-lived payment session. Licence delivery happens through the
+    signed webhook, never through the browser.
+    """
+    shop = sellauth_shop_url()
+    config = sellauth_config(plan)
+    if not shop or not config:
+        return None
+    product, variant = config
+    query = urlencode({
+        "cart[0][productId]": product,
+        "cart[0][variantId]": variant,
+        "cart[0][quantity]": "1",
+        "email": email,
+    }, safe="[]")
+    return f"{shop}/checkout-link?{query}"
+
+
+def sellauth_reset_checkout_url(email: str) -> Optional[str]:
+    """Hosted checkout for the optional EUR 5 hardware-reset product."""
+    shop = sellauth_shop_url()
+    product = (os.getenv("SELLAUTH_PRODUCT_RESET_ID") or "").strip()
+    variant = (os.getenv("SELLAUTH_VARIANT_RESET_ID") or "").strip()
+    if not shop or not product or not variant:
+        return None
+    query = urlencode({
+        "cart[0][productId]": product,
+        "cart[0][variantId]": variant,
+        "cart[0][quantity]": "1",
+        "email": email,
+    }, safe="[]")
+    return f"{shop}/checkout-link?{query}"
+
+
+def verify_sellauth_signature(payload: bytes, header: str, secret: str) -> bool:
+    """SellAuth signs the raw request body with HMAC-SHA256 in X-Signature."""
     if not secret or not header:
         return False
-    timestamp, signatures = None, []
-    for part in header.split(","):
-        k, _, v = part.strip().partition("=")
-        if k == "t":
-            timestamp = v
-        elif k == "v1":
-            signatures.append(v)
-    if not timestamp or not signatures:
-        return False
-    try:
-        if abs(time.time() - int(timestamp)) > tolerance:
-            return False
-    except ValueError:
-        return False
-    expected = hmac.new(secret.encode(), f"{timestamp}.".encode() + payload, hashlib.sha256).hexdigest()
-    return any(hmac.compare_digest(expected, s) for s in signatures)
-
-
-def period_end(sub: dict) -> Optional[datetime]:
-    """current_period_end lives on the subscription (old API) or its items (new API)."""
-    ts = sub.get("current_period_end")
-    if not ts:
-        items = (sub.get("items") or {}).get("data") or []
-        ts = max((i.get("current_period_end") or 0 for i in items), default=0) or None
-    return datetime.fromtimestamp(ts, tz=timezone.utc) if ts else None
-
-
-def invoice_subscription_id(invoice: dict) -> Optional[str]:
-    sid = invoice.get("subscription")
-    if not sid:
-        details = ((invoice.get("parent") or {}).get("subscription_details") or {})
-        sid = details.get("subscription")
-    return sid if isinstance(sid, str) else None
+    expected = hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, header.strip().lower())
 
 
 # --------------------------------------------------------------------------
@@ -565,7 +585,7 @@ def normalize_hwid(value: str) -> str:
 
 
 def public_site() -> str:
-    """Absolute site URL for links the injector and Stripe have to follow."""
+    """Absolute site URL for links the injector and checkout have to follow."""
     return (os.getenv("SITE_URL") or "https://champ-site-psi.vercel.app").rstrip("/")
 
 
@@ -774,14 +794,18 @@ def reset_license_hwid(lic: dict, reason: str, payment_intent: Optional[str] = N
     return rows[0] if rows else lic
 
 
-def grant_license(email: str, plan: str, expires_at: Optional[datetime], customer=None,
-                  subscription=None, payment_intent=None) -> dict:
+def grant_license(email: str, plan: str, expires_at: Optional[datetime],
+                  provider_ref: Optional[str] = None) -> dict:
+    """Create or refresh a licence. provider_ref is the idempotency key from the payment provider.
+
+    The old Stripe columns stay in the table for historical rows and indexes; new payments store
+    their SellAuth delivery reference in stripe_payment_intent so a webhook retry can find the
+    exact licence it already issued instead of extending it twice.
+    """
     fields = {
         "status": "active",
         "expires_at": iso(expires_at) if expires_at else None,
-        "stripe_customer_id": customer,
-        "stripe_subscription_id": subscription,
-        "stripe_payment_intent": payment_intent,
+        "stripe_payment_intent": provider_ref,
         "updated_at": iso(now()),
     }
     existing = db_get("licenses", {"email": eq(email), "plan_type": eq(plan)})
@@ -811,109 +835,114 @@ def ensure_admin_license(user: Optional[dict]) -> Optional[dict]:
         return None
 
 
-def sync_subscription(sub: dict) -> None:
-    lic = db_get("licenses", {"stripe_subscription_id": eq(sub["id"])})
-    if not lic:
-        return
-    if sub.get("status") in ("active", "trialing", "past_due"):
-        end = period_end(sub)
-        values = {"status": "active", "expires_at": iso(end + timedelta(hours=GRACE_HOURS)) if end else None}
-    else:
-        values = {"status": "inactive", "expires_at": iso(now())}
-    values["updated_at"] = iso(now())
-    db_update("licenses", {"id": eq(lic["id"])}, values)
+def sellauth_plan_for_item(item: dict) -> Optional[str]:
+    """Map a SellAuth product/variant back to one of Champ's three plans."""
+    product = item.get("product") or {}
+    variant = item.get("variant") or {}
+    product_id = str(item.get("product_id") or product.get("id") or "")
+    variant_id = str(item.get("variant_id") or variant.get("id") or "")
+    for plan in PLANS:
+        config = sellauth_config(plan)
+        if not config:
+            continue
+        configured_product, configured_variant = config
+        if variant_id == configured_variant and product_id == configured_product:
+            return plan
+    return None
 
 
-def revoke_by_payment_intent(payment_intent: Optional[str]) -> None:
-    if payment_intent:
-        db_update("licenses", {"stripe_payment_intent": eq(payment_intent)},
-                  {"status": "revoked", "updated_at": iso(now())})
-
-
-def on_checkout_completed(session: dict) -> None:
-    if session.get("payment_status") not in ("paid", "no_payment_required"):
-        return  # delayed payment methods fire checkout.session.async_payment_succeeded later
-    meta = session.get("metadata") or {}
-    if meta.get("kind") == "hwid_reset":
-        # Paid hardware reset: the payment clears the device binding, nothing else changes.
-        try:
-            lic_id = int(meta.get("license_id") or 0)
-        except (TypeError, ValueError):
-            lic_id = 0
-        rows = db_list("licenses", {"id": eq(lic_id)}, limit=1) if lic_id else []
-        if rows:
-            reset_license_hwid(rows[0], "paid", session.get("payment_intent"))
-        else:
-            print("Paid HWID reset without a license:", session.get("id"), lic_id)
-        return
-    email = (meta.get("email") or session.get("customer_email") or "").lower()
-    plan = meta.get("plan_type")
-    if not email or plan not in PLANS:
-        print("Checkout without usable metadata:", session.get("id"))
-        return
-
-    expires = None
-    subscription = session.get("subscription")
-    if plan == "monthly" and subscription:
-        sub = stripe_request("GET", f"subscriptions/{subscription}")
-        end = period_end(sub)
-        expires = end + timedelta(hours=GRACE_HOURS) if end else None
-    elif plan == "weekly":
-        # Weekly is a one-time 7-day pass; there is no subscription to renew.
-        expires = now() + timedelta(days=7)
-    existing = db_get("licenses", {"email": eq(email), "plan_type": eq(plan)})
-    already_granted = bool(
-        existing
-        and license_active(existing)
-        and session.get("payment_intent")
-        and existing.get("stripe_payment_intent") == session.get("payment_intent")
+def sellauth_is_reset_item(item: dict) -> bool:
+    product = item.get("product") or {}
+    variant = item.get("variant") or {}
+    product_id = str(item.get("product_id") or product.get("id") or "")
+    variant_id = str(item.get("variant_id") or variant.get("id") or "")
+    return bool(
+        product_id
+        and variant_id
+        and product_id == (os.getenv("SELLAUTH_PRODUCT_RESET_ID") or "").strip()
+        and variant_id == (os.getenv("SELLAUTH_VARIANT_RESET_ID") or "").strip()
     )
-    lic = grant_license(email, plan, expires, session.get("customer"), subscription, session.get("payment_intent"))
 
-    uid = session.get("client_reference_id")
-    if uid:
-        db_update("pending_payments", {"uid": eq(uid)}, {"status": "paid"})
-        try:
-            pending = db_get("pending_payments", {"uid": eq(uid)})
-            credit_referral(pending.get("referral_code") if pending else None, email, plan)
-        except Exception as exc:
-            print("Referral credit failed:", exc)
-    if already_granted:
-        return
+
+def handle_sellauth_delivery(payload: dict) -> str:
+    """Turn one signed SellAuth dynamic-delivery item into a Champ licence or reset.
+
+    SellAuth calls this once per invoice item. The item id is the idempotency key:
+    a retry returns the same key (or the already-completed reset message) instead
+    of granting a second licence or extending the same one twice.
+    """
+    if payload.get("event") != "INVOICE.ITEM.DELIVER-DYNAMIC":
+        raise HTTPException(400, "Unsupported event.")
+    if payload.get("status") not in ("completed", "partially_completed"):
+        raise HTTPException(400, "This invoice is not paid.")
+
+    item = payload.get("item") or {}
+    email = str(payload.get("email") or ((payload.get("customer") or {}).get("email")) or "").strip().lower()
+    if not email or "@" not in email:
+        raise HTTPException(400, "This invoice has no usable email address.")
+
+    invoice_id = item.get("invoice_id") or payload.get("id")
+    item_id = item.get("id")
+    if not invoice_id or not item_id:
+        raise HTTPException(400, "This invoice item has no usable id.")
+    provider_ref = f"sellauth:{invoice_id}:{item_id}"
+
+    if sellauth_is_reset_item(item):
+        if db_list("hwid_resets", {"payment_intent": eq(provider_ref)}, limit=1):
+            return "Your device reset was already completed."
+        lic = account_license({"email": email})
+        if not lic:
+            raise HTTPException(404, "No active license is linked to this email address.")
+        reset_license_hwid(lic, "paid", provider_ref)
+        return "Payment received. Your device is reset; open your dashboard to see the new state."
+
+    plan = sellauth_plan_for_item(item)
+    if not plan:
+        print("SellAuth item without a configured plan:", invoice_id, item_id)
+        raise HTTPException(503, "This plan is not configured yet. Please contact support.")
+    try:
+        quantity = int(item.get("quantity") or 1)
+    except (TypeError, ValueError):
+        quantity = 0
+    if quantity != 1:
+        raise HTTPException(400, "This checkout must contain exactly one license.")
+
+    already = db_get("licenses", {"stripe_payment_intent": eq(provider_ref)})
+    if already and already.get("license_key"):
+        return already["license_key"]
+
+    base = now()
+    existing = db_get("licenses", {"email": eq(email), "plan_type": eq(plan)})
+    if existing:
+        current_end = parse_dt(existing.get("expires_at"))
+        if current_end and current_end > base:
+            base = current_end
+    days = SELLAUTH_PLAN_DAYS.get(plan)
+    expires = base + timedelta(days=days) if days else None
+    lic = grant_license(email, plan, expires, provider_ref)
+
+    # A referral is kept on the pending row created when the customer started checkout.
+    # If they bought directly in SellAuth there is no row and no referral credit.
+    try:
+        pending_rows = db_list("pending_payments", {
+            "email": eq(email), "plan_type": eq(plan), "status": eq("pending"),
+        }, limit=5, order="created_at.desc")
+        if pending_rows:
+            pending = pending_rows[0]
+            db_update("pending_payments", {"uid": eq(pending["uid"])}, {"status": "paid"})
+            credit_referral(pending.get("referral_code"), email, plan)
+    except Exception as exc:
+        print("Referral credit failed:", type(exc).__name__)
+
     try:
         send_email(email, "Your Champ license",
                    email_html("Thanks for your purchase!",
                               f"Your {plan} license key:<br><b style='font-size:18px'>{html.escape(lic['license_key'])}</b><br><br>"
                               "Log in to your dashboard to download the client.",
                               f"{SITE_URL}/dashboard.html", "Open dashboard"))
-    except Exception as exc:  # the license is already saved; never fail the webhook over an e-mail
-        print("Confirmation e-mail failed:", exc)
-
-
-def handle_stripe_event(event: dict) -> None:
-    if db_get("stripe_events", {"id": eq(event["id"])}):
-        return  # already processed (Stripe retries)
-    etype, obj = event["type"], event["data"]["object"]
-
-    if etype in ("checkout.session.completed", "checkout.session.async_payment_succeeded"):
-        on_checkout_completed(obj)
-    elif etype == "invoice.paid":
-        sid = invoice_subscription_id(obj)
-        if sid:
-            sync_subscription(stripe_request("GET", f"subscriptions/{sid}"))
-    elif etype in ("customer.subscription.updated", "customer.subscription.deleted"):
-        sync_subscription(obj)
-    elif etype == "charge.refunded":
-        if obj.get("refunded"):  # fully refunded
-            revoke_by_payment_intent(obj.get("payment_intent"))
-    elif etype == "charge.dispute.created":
-        revoke_by_payment_intent(obj.get("payment_intent"))
-
-    try:
-        db_insert("stripe_events", {"id": event["id"], "type": etype})
-    except DBError as e:
-        if e.status != 409:
-            raise
+    except Exception as exc:  # the licence is saved; never fail delivery over an e-mail
+        print("Confirmation e-mail failed:", type(exc).__name__)
+    return lic["license_key"]
 
 
 # --------------------------------------------------------------------------
@@ -960,20 +989,9 @@ class ResetReq(BaseModel):
     password: str
 
 
-class PaymentLinkReq(BaseModel):
-    email: EmailStr
-    plan_type: str
-    referral_code: Optional[str] = None
-
-
 class StartCheckoutReq(BaseModel):
     plan_type: str
     referral_code: Optional[str] = None
-
-
-class CheckoutReq(BaseModel):
-    uid: uuid.UUID
-    payment_method: Optional[str] = None  # ignored: Stripe shows the methods enabled in your dashboard
 
 
 class ValidateReq(BaseModel):
@@ -1091,18 +1109,6 @@ class AdminUserGrantReq(BaseModel):
 class AdminExtendReq(BaseModel):
     days: int = 7
     plan_type: Optional[str] = None      # empty = every plan
-
-
-class AdminDiscountReq(BaseModel):
-    code: str
-    kind: str = "percent"                  # percent | amount
-    value: float = 0                       # percent off, or euros off
-    max_uses: int = 0                      # 0 = unlimited
-    expires_at: Optional[str] = ""
-
-
-class AdminDiscountToggleReq(BaseModel):
-    active: bool = True
 
 
 class AdminFindUpdateReq(BaseModel):
@@ -1305,12 +1311,8 @@ def health():
     # Deployment diagnostics without values: which transport can send mail and whether
     # this deployment can reach its database. "database": false means the Vercel
     # environment is missing SUPABASE_URL / SUPABASE_SERVICE_KEY.
-    # booleans only: never expose a key, a price id or a webhook secret.
-    stripe_secret = bool(os.getenv("STRIPE_SECRET_KEY"))
-    stripe_weekly = bool(os.getenv("STRIPE_PRICE_WEEKLY_ID"))
-    stripe_monthly = bool(os.getenv("STRIPE_PRICE_MONTHLY_ID"))
-    stripe_lifetime = bool(os.getenv("STRIPE_PRICE_LIFETIME_ID"))
-    stripe_webhook = bool(os.getenv("STRIPE_WEBHOOK_SECRET"))
+    # booleans only: never expose an id, key or webhook secret.
+    plans_ready = {plan: bool(sellauth_config(plan)) for plan in PLANS}
     return {
         "ok": True,
         "email": email_transport(),
@@ -1323,15 +1325,14 @@ def health():
         "sessions": sessions_ready(),
         "ai": "llm" if any(provider_keys()) else "built-in",
         "vercel_env": os.getenv("VERCEL_ENV"),
-        # checkout needs a secret key and all three prices; the webhook also needs its signing secret.
-        "stripe": {
-            "secret_key": stripe_secret,
-            "price_weekly": stripe_weekly,
-            "price_monthly": stripe_monthly,
-            "price_lifetime": stripe_lifetime,
-            "webhook_secret": stripe_webhook,
-            "checkout_ready": stripe_secret and stripe_weekly and stripe_monthly and stripe_lifetime,
-            "webhook_ready": stripe_webhook,
+        "sellauth": {
+            "shop": bool(sellauth_shop_url()),
+            "weekly": plans_ready["weekly"],
+            "monthly": plans_ready["monthly"],
+            "lifetime": plans_ready["lifetime"],
+            "webhook_secret": bool(os.getenv("SELLAUTH_WEBHOOK_SECRET")),
+            "checkout_ready": bool(sellauth_shop_url()) and all(plans_ready.values()),
+            "webhook_ready": bool(os.getenv("SELLAUTH_WEBHOOK_SECRET")),
         },
     }
 
@@ -1502,45 +1503,48 @@ def update_feature(slug: str, p: FeatureUpdateReq, admin: dict = Depends(current
     return db_insert("features", {"slug": slug, **updates})
 
 
-def plan_checkout_url(email: str, plan: str, referral_code: Optional[str] = None) -> Optional[str]:
-    """Return a payment link for this account and plan, reusing a live pending link.
+def remember_referral(email: str, plan: str, referral_code: Optional[str]) -> None:
+    """Keep the referral code on a short-lived pending row for the SellAuth webhook.
 
-    The plan lives in pending_payments, so the customer never has to remember it
-    across signup, login or email verification.
+    SellAuth prefills the customer email but has no field for our internal referral,
+    so the signed delivery webhook looks up the most recent pending row for that
+    email and plan. A direct SellAuth purchase simply has no row and no referral.
     """
+    ref = (referral_code or "").strip().upper() or None
+    if not ref or not db_get("referrals", {"code": eq(ref)}):
+        return
+    try:
+        recent = db_list("pending_payments", {
+            "email": eq(email), "plan_type": eq(plan), "status": eq("pending"),
+            "created_at": f"gte.{iso(now() - timedelta(minutes=10))}",
+        }, limit=1)
+    except Exception:
+        recent = []
+    if recent:
+        return
+    try:
+        db_insert("pending_payments", {
+            "uid": str(uuid.uuid4()),
+            "email": email,
+            "plan_type": plan,
+            "referral_code": ref,
+        })
+    except Exception as exc:
+        print("Pending referral write failed:", type(exc).__name__)
+
+
+def plan_checkout_url(email: str, plan: str, referral_code: Optional[str] = None) -> Optional[str]:
+    """A SellAuth checkout link for this account and plan, or the dashboard when active."""
     plan = (plan or "").strip().lower()
     if plan not in PLANS:
         return None
     if license_active(db_get("licenses", {"email": eq(email), "plan_type": eq(plan)})):
         return f"{SITE_URL}/dashboard.html?plan={plan}"
-
-    # A double-click or a login retry should continue the same checkout instead
-    # of leaving a trail of pending payments behind.
-    try:
-        rows = db_list("pending_payments", {
-            "email": eq(email),
-            "plan_type": eq(plan),
-            "status": eq("pending"),
-        }, limit=5)
-    except Exception:
-        rows = []
-    cutoff = now() - timedelta(hours=24)
-    for row in rows:
-        created = parse_dt(row.get("created_at"))
-        if created and created >= cutoff and row.get("uid"):
-            return f"{SITE_URL}/payment.html?uid={row['uid']}"
-
-    uid = uuid.uuid4()
-    ref = (referral_code or "").strip().upper() or None
-    if ref and not db_get("referrals", {"code": eq(ref)}):
-        ref = None
-    db_insert("pending_payments", {
-        "uid": str(uid),
-        "email": email,
-        "plan_type": plan,
-        "referral_code": ref,
-    })
-    return f"{SITE_URL}/payment.html?uid={uid}"
+    url = sellauth_checkout_url(email, plan)
+    if not url:
+        return None
+    remember_referral(email, plan, referral_code)
+    return url
 
 
 # --------------------------------------------------------------------------
@@ -1815,135 +1819,35 @@ def reset_password(p: ResetReq):
 # --------------------------------------------------------------------------
 # Routes: purchase flow
 # --------------------------------------------------------------------------
-def load_pending(uid) -> dict:
-    row = db_get("pending_payments", {"uid": eq(str(uid))})
-    if not row:
-        raise HTTPException(404, "Invalid or expired link.")
-    if row["status"] != "pending":
-        raise HTTPException(410, "This payment link was already used.")
-    if parse_dt(row["created_at"]) < now() - timedelta(hours=24):
-        raise HTTPException(410, "This payment link has expired. Please request a new one.")
-    return row
-
-
-@app.post("/api/request-payment-link")
-def request_payment_link(p: PaymentLinkReq):
-    plan, email = p.plan_type.lower(), p.email.lower()
-    if plan not in PLANS:
-        raise HTTPException(400, "Unknown plan.")
-    recent = db_list("pending_payments", {"email": eq(email), "created_at": f"gte.{iso(now() - timedelta(seconds=60))}"}, limit=1)
-    if recent:
-        raise HTTPException(429, "Please wait a minute before requesting another link.")
-    uid = uuid.uuid4()
-    ref = (p.referral_code or "").strip().upper() or None
-    if ref and not db_get("referrals", {"code": eq(ref)}):
-        ref = None
-    db_insert("pending_payments", {"uid": str(uid), "email": email, "plan_type": plan, "referral_code": ref})
-    link = f"{SITE_URL}/payment.html?uid={uid}"
-    send_email(email, f"Complete your Champ {plan} purchase",
-               email_html("Complete your purchase", f"Click below to continue to checkout for the <b>{plan}</b> plan. This link is valid for 24 hours.",
-                          link, "Continue to checkout"))
-    result = {"message": "Link sent."}
-    if DEV_MODE:
-        result["dev_link"] = link
-    return result
-
-
-@app.get("/api/verify-payment-link/{uid}")
-def verify_payment_link(uid: uuid.UUID):
-    row = load_pending(uid)
-    return {"email": row["email"], "plan_type": row["plan_type"]}
-
-
 @app.post("/api/start-checkout")
 def start_checkout(p: StartCheckoutReq, user: dict = Depends(current_user)):
-    """Create (or reuse) the customer's pending payment for a plan.
+    """Return a hosted SellAuth checkout link for the signed-in account.
 
-    This is the signed-in path from the pricing page. It deliberately takes no
-    email from the browser: the account on the session owns the payment link.
+    The browser never receives a provider secret and never creates a licence;
+    SellAuth calls the signed webhook after the payment clears.
     """
     plan = (p.plan_type or "").strip().lower()
     if plan not in PLANS:
         raise HTTPException(400, "Unknown plan.")
     url = plan_checkout_url(user["email"], plan, p.referral_code)
     if not url:
-        raise HTTPException(500, "Could not prepare checkout.")
+        raise HTTPException(503, "Checkout is not configured yet. Please contact support.")
     return {"checkout_url": url, "plan_type": plan}
 
 
-@app.post("/api/create-stripe-session")
-def create_stripe_session(p: CheckoutReq, user: dict = Depends(current_user)):
-    row = load_pending(p.uid)
-    if user["email"] != row["email"]:
-        raise HTTPException(403, f"This link belongs to {row['email']}. Sign in with that account.")
-    plan = row["plan_type"]
-    if license_active(db_get("licenses", {"email": eq(user["email"]), "plan_type": eq(plan)})):
-        raise HTTPException(409, f"You already have an active {plan} license.")
-    price = os.getenv(PLAN_PRICES.get(plan, "")) if PLAN_PRICES.get(plan) else None
-    if not price:
-        raise HTTPException(500, "This plan is not configured yet.")
-
-    data = {
-        "mode": "subscription" if plan == "monthly" else "payment",
-        "customer_email": row["email"],
-        "client_reference_id": str(p.uid),
-        "line_items[0][price]": price,
-        "line_items[0][quantity]": "1",
-        "allow_promotion_codes": "true",
-        "success_url": f"{SITE_URL}/dashboard.html?paid=1&plan={plan}&session_id={{CHECKOUT_SESSION_ID}}",
-        "cancel_url": f"{SITE_URL}/payment.html?uid={p.uid}",
-        "metadata[email]": row["email"],
-        "metadata[plan_type]": plan,
-    }
-    if plan == "monthly":
-        data["subscription_data[metadata][email]"] = row["email"]
-        data["subscription_data[metadata][plan_type]"] = plan
-    else:
-        data["customer_creation"] = "always"
-    session = stripe_request("POST", "checkout/sessions", data)
-    return {"url": session["url"]}
-
-
-@app.get("/api/checkout/confirm")
-def confirm_checkout(session_id: str):
-    """Finish a paid checkout when the Stripe webhook was missed.
-
-    The session id is the unguessable receipt the customer returns with. The
-    Stripe API is the authority on payment status, and the metadata decides which
-    account gets the license. Calling it twice is safe.
-    """
-    sid = (session_id or "").strip()
-    if not sid.startswith("cs_") or len(sid) > 240:
-        raise HTTPException(400, "Invalid checkout session.")
-    session = stripe_request("GET", f"checkout/sessions/{sid}")
-    if session.get("status") != "complete" or session.get("payment_status") not in ("paid", "no_payment_required"):
-        raise HTTPException(409, "The payment is not complete yet.")
-    meta = session.get("metadata") or {}
-    email = (meta.get("email") or session.get("customer_email") or "").lower()
-    plan = meta.get("plan_type")
-    if not email or plan not in PLANS:
-        raise HTTPException(400, "This checkout has no usable license details.")
-    on_checkout_completed(session)
-    return {"ok": True, "email": email, "plan": plan}
-
-
-@app.post("/api/stripe-webhook")
-async def stripe_webhook(request: Request):
+@app.post("/api/sellauth-webhook")
+async def sellauth_webhook(request: Request):
+    """Signed dynamic-delivery endpoint. Responds with the key as plain text."""
     payload = await request.body()
-    if not verify_stripe_signature(payload, request.headers.get("stripe-signature", ""), os.getenv("STRIPE_WEBHOOK_SECRET", "")):
-        raise HTTPException(400, "Invalid signature.")
-    await run_in_threadpool(handle_stripe_event, json.loads(payload))
-    return {"received": True}  # an exception above -> HTTP 500 -> Stripe retries automatically
-
-
-@app.post("/api/billing-portal")
-def billing_portal(user: dict = Depends(current_user)):
-    lic = db_get("licenses", {"email": eq(user["email"]), "plan_type": eq("monthly")})
-    if not lic or not lic.get("stripe_customer_id"):
-        raise HTTPException(404, "No subscription found.")
-    session = stripe_request("POST", "billing_portal/sessions",
-                             {"customer": lic["stripe_customer_id"], "return_url": f"{SITE_URL}/dashboard.html"})
-    return {"url": session["url"]}
+    if not verify_sellauth_signature(payload, request.headers.get("x-signature", ""),
+                                     os.getenv("SELLAUTH_WEBHOOK_SECRET", "")):
+        raise HTTPException(401, "Invalid signature.")
+    try:
+        event = json.loads(payload)
+    except ValueError:
+        raise HTTPException(400, "Invalid JSON.")
+    key = await run_in_threadpool(handle_sellauth_delivery, event)
+    return Response(content=key, media_type="text/plain")
 
 
 # --------------------------------------------------------------------------
@@ -2066,7 +1970,6 @@ def dashboard(user: dict = Depends(current_user)):
             "active": license_active(row),
             "status": row.get("status") or "inactive",
             "expires_at": row.get("expires_at") if plan in ("trial", "weekly", "monthly") else None,
-            "can_manage": plan == "monthly" and bool(row.get("stripe_customer_id")),
         }
     trial_row = licenses.get(TRIAL_PLAN)
     trial_info = {
@@ -2577,7 +2480,7 @@ def account_device_reset(user: dict = Depends(current_user)):
 
 @app.post("/api/account/device/reset/checkout")
 def account_device_reset_checkout(user: dict = Depends(current_user)):
-    """EUR 5 one-off payment for a reset once the free one is used."""
+    """EUR 5 one-off reset, sold as its own SellAuth product."""
     lic = account_license(user)
     if not lic:
         raise HTTPException(404, "You don't have an active license.")
@@ -2585,22 +2488,10 @@ def account_device_reset_checkout(user: dict = Depends(current_user)):
         raise HTTPException(403, "A free trial stays on the PC it first starts on. Upgrade to move it.")
     if not lic.get("hwid"):
         raise HTTPException(400, "No device is linked to this key yet.")
-
-    data = {
-        "mode": "payment",
-        "customer_email": user["email"],
-        "line_items[0][price_data][currency]": "eur",
-        "line_items[0][price_data][unit_amount]": str(HWID_RESET_PRICE_CENTS),
-        "line_items[0][price_data][product_data][name]": "Champ Client - Hardware ID reset",
-        "line_items[0][quantity]": "1",
-        "success_url": f"{public_site()}/dashboard.html?device_reset=paid#device",
-        "cancel_url": f"{public_site()}/dashboard.html#device",
-        "metadata[kind]": "hwid_reset",
-        "metadata[license_id]": str(lic["id"]),
-        "metadata[email]": user["email"],
-    }
-    session = stripe_request("POST", "checkout/sessions", data)
-    return {"url": session["url"]}
+    url = sellauth_reset_checkout_url(user["email"])
+    if not url:
+        raise HTTPException(503, "Device-reset checkout is not configured yet. Please contact support.")
+    return {"url": url}
 
 
 # --------------------------------------------------------------------------
@@ -3389,8 +3280,6 @@ def admin_license_json(r: dict) -> dict:
         "hwid_bound_at": r.get("hwid_bound_at"),
         "hwid_reset_at": r.get("hwid_reset_at"),
         "last_seen_at": r.get("last_seen_at"),
-        "stripe_customer_id": r.get("stripe_customer_id") or "",
-        "stripe_subscription_id": r.get("stripe_subscription_id") or "",
     }
 
 
@@ -3454,7 +3343,7 @@ def admin_licenses(search: str = "", limit: int = 50, admin: dict = Depends(curr
 
 @app.post("/api/admin/licenses")
 def admin_create_license(p: AdminLicenseCreateReq, admin: dict = Depends(current_admin)):
-    """Hand out a key without Stripe: unclaimed, or already tied to a customer."""
+    """Hand out a key without a payment provider: unclaimed, or already tied to a customer."""
     plan = (p.plan_type or "").strip().lower()
     if plan not in LICENSE_PLANS:
         raise HTTPException(400, "Plan must be trial, weekly, monthly or lifetime.")
@@ -3820,93 +3709,7 @@ def admin_extend_all(p: AdminExtendReq, admin: dict = Depends(current_admin)):
     return {"message": message, "extended": extended, "skipped": skipped, "failures": failures}
 
 
-# --------------------------------------------------------------------------
-# Admin: discount codes
-# --------------------------------------------------------------------------
-# A discount is a Stripe coupon with one promotion code: Stripe is the checkout, so it also enforces
-# the code, the expiry and the usage limit, and the checkout page already accepts promotion codes.
-DISCOUNT_CODE_RE = re.compile(r"^[A-Z0-9][A-Z0-9_-]{2,31}$")
-
-
-def stripe_timestamp(value: Optional[str]) -> Optional[int]:
-    """A date from the panel (2026-12-31) or a full timestamp, as a unix time for Stripe."""
-    text = (value or "").strip()
-    if not text:
-        return None
-    try:
-        dt = parse_dt(text if ("T" in text or " " in text) else text + "T23:59:59")
-    except ValueError:
-        raise HTTPException(400, "Use a date like 2026-12-31, or a full timestamp.")
-    return int(dt.timestamp()) if dt else None
-
-
-def discount_json(promo: dict) -> dict:
-    coupon = ((promo.get("promotion") or {}).get("coupon") or {})
-    if not isinstance(coupon, dict):
-        coupon = {}
-    amount_off = coupon.get("amount_off")
-    return {
-        "id": promo.get("id"),
-        "code": promo.get("code") or "",
-        "active": bool(promo.get("active")),
-        "uses": promo.get("times_redeemed") or 0,
-        "max_uses": promo.get("max_redemptions") or 0,
-        "expires_at": (datetime.fromtimestamp(promo["expires_at"], tz=timezone.utc).isoformat()
-                       if promo.get("expires_at") else None),
-        "created_at": (datetime.fromtimestamp(promo["created"], tz=timezone.utc).isoformat()
-                       if promo.get("created") else None),
-        "percent_off": coupon.get("percent_off"),
-        "amount_off": (amount_off / 100) if amount_off else None,
-        "currency": (coupon.get("currency") or "eur").upper(),
-    }
-
-
-@app.get("/api/admin/discounts")
-def admin_discounts(admin: dict = Depends(current_admin)):
-    body = stripe_request("GET", "promotion_codes?limit=100&expand[]=data.promotion.coupon")
-    return {"discounts": [discount_json(p) for p in body.get("data") or []]}
-
-
-@app.post("/api/admin/discounts", status_code=201)
-def admin_create_discount(p: AdminDiscountReq, admin: dict = Depends(current_admin)):
-    code = (p.code or "").strip().upper()
-    if not DISCOUNT_CODE_RE.match(code):
-        raise HTTPException(400, "A code is 3-32 characters: letters, digits, - and _.")
-    kind = (p.kind or "percent").strip().lower()
-    if kind not in ("percent", "amount"):
-        raise HTTPException(400, "Type must be percent or amount.")
-    coupon = {"duration": "once", "name": f"Champ {code}"}
-    if kind == "percent":
-        value = float(p.value or 0)
-        if not 0 < value <= 100:
-            raise HTTPException(400, "A percentage is between 0.1 and 100.")
-        coupon["percent_off"] = value
-    else:
-        cents = int(round(float(p.value or 0) * 100))
-        if not 0 < cents <= 100000:
-            raise HTTPException(400, "An amount is between 0.01 and 1000 euros.")
-        coupon["amount_off"] = cents
-        coupon["currency"] = "eur"
-    created = stripe_request("POST", "coupons", coupon)
-    promo = {"coupon": created["id"], "code": code}
-    max_uses = max(0, int(p.max_uses or 0))
-    if max_uses:
-        promo["max_redemptions"] = max_uses
-    expires = stripe_timestamp(p.expires_at)
-    if expires:
-        promo["expires_at"] = expires
-    saved = stripe_request("POST", "promotion_codes", promo)
-    expanded = stripe_request("GET", f"promotion_codes/{saved['id']}?expand[]=promotion.coupon")
-    return discount_json(expanded)
-
-
-@app.post("/api/admin/discounts/{promo_id}")
-def admin_toggle_discount(promo_id: str, p: AdminDiscountToggleReq, admin: dict = Depends(current_admin)):
-    """Pause or resume a code. Stripe keeps the redemptions, so the history stays intact."""
-    saved = stripe_request("POST", f"promotion_codes/{promo_id}",
-                           {"active": "true" if p.active else "false"})
-    expanded = stripe_request("GET", f"promotion_codes/{saved['id']}?expand[]=promotion.coupon")
-    return discount_json(expanded)
+# Discounts are managed in SellAuth. No coupon API runs on this site.
 
 
 @app.get("/api/admin/referrals")
@@ -3968,7 +3771,7 @@ def get_site_settings():
         "hero_title": "Every module.|*One injector.*",
         "hero_sub": "Champ runs inside the Minecraft 1.21.11 you already have open. Start the game, run champ.bat, and the menu is there. No jar goes into your mods folder, and you don't have to restart the game afterwards.",
         "pricing_title": "Three plans, *same client.*",
-        "pricing_sub": "Start with a free 24-hour trial, then weekly, monthly or lifetime. VPNs and proxies cannot claim it. Stripe handles the payment, the license lands in your dashboard as soon as it clears.",
+        "pricing_sub": "Start with a free 24-hour trial, then weekly, monthly or lifetime. VPNs and proxies cannot claim it. SellAuth handles the payment, the license lands in your dashboard as soon as it clears.",
         "features_title": "Every module, *listed.*",
         "features_sub": "The full list, grouped by category: combat, mace, spear, movement, misc, visuals and Donut SMP. Filter one group or scroll the lot, then open a card for its settings and a clip.",
         "support_title": "Need *help?*",
@@ -4289,7 +4092,7 @@ Scope: the website advertises 247 modules, custom Dear ImGui render overlays, cr
 
 Free trial: a signed-in account can claim one 24-hour trial from the pricing page. It is free, includes every module, and is limited to one trial per account, one per PC and one per network. The key is linked to the first PC that runs it and cannot be moved to another PC; it expires 24 hours after it is claimed. VPN, proxy, Tor and datacenter connections are refused.
 
-Plans and delivery: Weekly costs EUR 2.99 for 7 days as a one-time payment and does not renew. Monthly costs EUR 6.99 and can be cancelled anytime from the dashboard. Lifetime costs EUR 9.99 as a one-time payment and includes future 1.21.x updates. Checkout uses Stripe, which supports credit cards, debit cards, iDEAL and country-specific local payment methods. After successful payment the product is available in the customer's dashboard immediately, and a licence e-mail with the key is sent. Downloads require an active license. PayPal, crypto and other payment providers are not available in this shop; never suggest them.
+Plans and delivery: Weekly costs EUR 2.99 for 7 days as a one-time payment and does not renew. Monthly costs EUR 6.99 for 30 days as a one-time payment and does not renew. Lifetime costs EUR 9.99 as a one-time payment and includes future 1.21.x updates. Checkout uses SellAuth, which supports cards, PayPal, crypto and country-specific local payment methods. After successful payment the product is available in the customer's dashboard immediately, and a licence e-mail with the key is sent. Downloads require an active license. Never mention a payment method that is not enabled in the SellAuth shop.
 
 Licence keys by e-mail: every purchase and every key that support hands out or edits is e-mailed automatically to the customer address, with the key in the message and a thank-you note; the same key is shown in the dashboard. Keys look like CHAMP-XXXX-XXXX-XXXX-XXXX. Advice on where to find the key, check the inbox and spam folder for the licence mail and then the dashboard. Never ask a customer to post a key in chat and never repeat a key back.
 
@@ -4384,7 +4187,7 @@ def _answer_pricing() -> str:
         "The trial gives every module for one day, needs no card, and is limited to one per account, PC "
         "and network; VPNs and proxies cannot claim it. Every plan includes the same modules and texture "
         "packs; only how long access lasts changes. The weekly pass does not renew automatically.\n\n"
-        "Checkout runs through Stripe, which accepts credit cards, debit cards, iDEAL and several local "
+        "Checkout runs through SellAuth, which accepts cards, PayPal, crypto and several local "
         "payment methods. Your download and licence appear in your dashboard right after payment.\n\n"
         f"Plans and pricing: {SITE_LINKS['pricing']}"
     )
@@ -4392,7 +4195,7 @@ def _answer_pricing() -> str:
 
 def _answer_payment_methods() -> str:
     return (
-        "Payments go through Stripe: credit cards, debit cards, iDEAL and country-specific local methods all work. "
+        "Payments go through SellAuth: cards, PayPal, crypto and country-specific local methods all work. "
         "PayPal and crypto are not confirmed for this shop, so please do not count on them.\n\n"
         f"Plans and pricing: {SITE_LINKS['pricing']}"
     )
@@ -4602,7 +4405,7 @@ SUPPORT_TOPICS = (
     ("billing", re.compile(r"\b(cancel|opzeg\w*|refund|money back|terugbetaling|chargeback|downgrade)\b", re.I), _answer_billing_change),
     ("pricing", re.compile(r"\b(price|prices|pricing|cost|costs|costly|how much|hoeveel|kost\w*|prijs|plans?|abonnement\w*|subscription|weekly|monthly|lifetime|buy|kopen|purchase|checkout|betalen|order|bestellen)\b", re.I), _answer_pricing),
     # After pricing, because that answer already covers iDEAL and card payments.
-    ("payment_methods", re.compile(r"\b(ideal|paypal|credit ?card|debit ?card|betaalmethod\w*|payment method\w*|stripe|crypto|bitcoin|apple pay|google pay)\b", re.I), _answer_payment_methods),
+    ("payment_methods", re.compile(r"\b(ideal|paypal|credit ?card|debit ?card|betaalmethod\w*|payment method\w*|sellauth|crypto|bitcoin|apple pay|google pay)\b", re.I), _answer_payment_methods),
     ("download", re.compile(r"\b(download\w*|licen[cs]e key|licentie|my key|serial|dashboard)\b", re.I), _answer_download),
     ("install", re.compile(r"\b(install\w*|set ?up|setup|fabric|mods? folder|forge|optifine|loader)\b", re.I), _answer_install),
     ("requirements", re.compile(r"\b(version|versie|1\.\d{1,2}(\.\d+)?|requirements?|vereisten|java|minecraft|which mc|supported mc)\b", re.I), _answer_requirements),
@@ -4639,7 +4442,7 @@ TOPIC_HINTS = {
     "discount": ("discount", "coupon", "promo", "korting", "voucher"),
     "billing": ("cancel", "refund", "cancellation", "opzeggen", "terugbetaling"),
     "pricing": ("price", "pricing", "cost", "costs", "prijs", "kosten", "plans", "subscription", "weekly", "monthly", "lifetime"),
-    "payment_methods": ("ideal", "stripe", "paypal", "card", "bitcoin", "betalen"),
+    "payment_methods": ("ideal", "sellauth", "paypal", "card", "bitcoin", "betalen"),
     "download": ("download", "downloads", "downloaden", "dashboard"),
     "install": ("install", "installeren", "installed", "fabric", "setup", "mods"),
     "requirements": ("version", "versie", "requirements", "vereisten", "java", "minecraft"),
@@ -4761,7 +4564,7 @@ LINK_PATTERN = re.compile(r"https?://[^\s<>\"']+")
 # When the model forgets a link, point customers at the page that matches the question.
 LINK_TARGETS = (
     (r"\b(discord|ticket|staff|human support)\b", "Discord support", DISCORD_INVITE),
-    (r"\b(price|pricing|cost|costs|buy|purchase|payment|pay|stripe|ideal|subscription|monthly|lifetime|refund|plans?)\b", "Plans and pricing", OFFICIAL_SITE + "/index.html#pricing"),
+    (r"\b(price|pricing|cost|costs|buy|purchase|payment|pay|sellauth|ideal|subscription|monthly|lifetime|refund|plans?)\b", "Plans and pricing", OFFICIAL_SITE + "/index.html#pricing"),
     (r"\b(download|downloads|dashboard|licen[cs]e|texture|base finds|account|log ?in|sign ?in)\b", "Dashboard, downloads and licence", OFFICIAL_SITE + "/dashboard.html"),
     (r"\b(verif\w*|email|password|reset|sign ?up|creat\w* an account)\b", "Support and account help", OFFICIAL_SITE + "/support.html"),
     (r"\b(install|installing|installation|fabric|sodium|iris|lithium|ferritecore|crash|error|bug|broken|not working)\b", "Support and setup help", OFFICIAL_SITE + "/support.html"),
@@ -4892,7 +4695,7 @@ def ai_chat(p: AIChatReq):
     asked_hidden_host = mentions_hidden_host(user_msg)
     user_msg = hide_hidden_hosts(user_msg)
     lowered = user_msg.lower()
-    if any(k in lowered for k in ["admin password", "supabase_key", "stripe_secret", "jwt_secret", "leak token", "api key", "service role"]):
+    if any(k in lowered for k in ["admin password", "supabase_key", "sellauth_webhook_secret", "jwt_secret", "leak token", "api key", "service role"]):
         return {"reply": "I cannot help expose secrets or private account information. If you need account help, please contact our support team on Discord: https://discord.gg/6vyQnVjeX", "escalation_url": "https://discord.gg/6vyQnVjeX", "needs_escalation": True}
 
     # The assistant is customer support, never a code or internals assistant.

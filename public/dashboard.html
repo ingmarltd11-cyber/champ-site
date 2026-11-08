@@ -56,7 +56,7 @@
 
     <div class="sidebar-label">Account</div>
     <button class="sidebar-link" data-section="keys" type="button"><span class="sidebar-icon" data-dash-icon="key"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-key"></use></svg></span><span>Keys &amp; licenses</span></button>
-    <button class="sidebar-link" data-section="billing" type="button"><span class="sidebar-icon" data-dash-icon="card"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-card"></use></svg></span><span>Subscription</span></button>
+    <button class="sidebar-link" data-section="billing" type="button"><span class="sidebar-icon" data-dash-icon="card"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-card"></use></svg></span><span>Billing</span></button>
     <button class="sidebar-link" data-section="referrals" type="button"><span class="sidebar-icon" data-dash-icon="gift"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-gift"></use></svg></span><span>Referrals</span></button>
     <button class="sidebar-link" data-section="discord" type="button"><span class="sidebar-icon" data-dash-icon="message"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-message"></use></svg></span><span>Discord</span></button>
     <button class="sidebar-link" data-section="security" type="button"><span class="sidebar-icon" data-dash-icon="shield"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-shield"></use></svg></span><span>Security</span></button>
@@ -86,7 +86,7 @@
           <div class="dash-trust">
             <span class="trust-badge"><span class="trust-dot"></span>Fabric 1.21.11</span>
             <span class="trust-badge"><span class="trust-dot"></span>Instant delivery</span>
-            <span class="trust-badge"><span class="trust-dot"></span>Secure Stripe checkout</span>
+            <span class="trust-badge"><span class="trust-dot"></span>Secure SellAuth checkout</span>
           </div>
         </div>
 
@@ -297,7 +297,7 @@
         <ul class="fact-list">
           <li>One key links to <b>one account</b> and <b>one PC</b>, and it is yours until it expires.</li>
           <li>A key from a reseller is activated on the overview — copy it exactly as it was sent.</li>
-          <li>A weekly pass is a one-time 7-day key and does not renew; a monthly plan renews through Stripe; a lifetime key never needs renewing.</li>
+          <li>A weekly pass is a one-time 7-day key and does not renew; a monthly pass is prepaid for 30 days and does not renew; a lifetime key never needs renewing.</li>
           <li>Moving PC or network is a reset, not a new purchase: the first device reset is free.</li>
         </ul>
         <button class="btn-ghost" type="button" data-section-link="overview">Go to activation</button>
@@ -308,15 +308,14 @@
     <section id="dash-section-billing" class="dashboard-section">
       <header class="page-head">
         <p class="dash-eyebrow">Account</p>
-        <h1>Your <em>subscription</em></h1>
-        <p>Manage your recurring plan, payment details and cancellations in Stripe.</p>
+        <h1>Your <em>billing</em></h1>
+        <p>Monthly access is a prepaid 30-day pass; there is nothing to cancel.</p>
       </header>
 
       <article class="dash-card">
         <div class="card-title"><span class="title-icon" data-dash-icon="card"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-card"></use></svg></span>Plan &amp; payments</div>
-        <div id="billingOverview"><p class="no-license-text">Loading subscription status…</p></div>
-        <button id="manageBillingBtn" class="btn-primary" type="button" style="display:none">Manage subscription</button>
-        <p class="dash-note">Invoices, cards and cancellation all live in the Stripe portal — no e-mail needed. Weekly passes are paid once for 7 days; lifetime keys are paid once and never renew.</p>
+        <div id="billingOverview"><p class="no-license-text">Loading billing status…</p></div>
+        <p class="dash-note">Payments are handled by SellAuth. Weekly passes are paid once for 7 days, monthly is prepaid for 30 days, and lifetime keys are paid once and never renew.</p>
       </article>
     </section>
 

@@ -4,7 +4,6 @@
    "ids": [
     "addAIKnowledgeContainer",
     "addChangelogContainer",
-    "addDiscountContainer",
     "addFeatureContainer",
     "addKeyContainer",
     "addReviewContainer",
@@ -14,14 +13,11 @@
     "adminBetaNote",
     "adminBetaVersion",
     "adminChangelogList",
-    "adminCreateDiscountForm",
-    "adminCreateDiscountMsg",
     "adminCreateKeyForm",
     "adminCreateKeyMsg",
     "adminDashboardIcons",
     "adminDenied",
     "adminDeniedText",
-    "adminDiscounts",
     "adminFeatures",
     "adminFinds",
     "adminLicenseEditForm",
@@ -125,7 +121,7 @@
     "userGrantPlan"
    ],
    "apis": [],
-   "forms": 12
+   "forms": 11
   },
   "changelog.html": {
    "ids": [
@@ -225,7 +221,6 @@
     "i-user",
     "i-zap",
     "logoutBtn",
-    "manageBillingBtn",
     "redeemForm",
     "redeemKey",
     "redeemMessage",
@@ -344,20 +339,9 @@
    "forms": 0
   },
   "payment.html": {
-   "ids": [
-    "activeCheckoutForm",
-    "auth-gate-message",
-    "checkout-auth-view",
-    "checkout-loading-view",
-    "completePurchaseBtn",
-    "display-customer-email",
-    "display-plan-sub",
-    "display-plan-title",
-    "tos-checkbox",
-    "validation-status-text"
-   ],
+   "ids": [],
    "apis": [],
-   "forms": 1
+   "forms": 0
   },
   "privacy.html": {
    "ids": [],
@@ -422,10 +406,8 @@
  },
  "js": {
   "ids": [
-   "activeCheckoutForm",
    "addAIKnowledgeContainer",
    "addChangelogContainer",
-   "addDiscountContainer",
    "addFeatureContainer",
    "addReviewContainer",
    "addTexturePackContainer",
@@ -434,12 +416,9 @@
    "adminBetaNote",
    "adminBetaVersion",
    "adminChangelogList",
-   "adminCreateDiscountForm",
-   "adminCreateDiscountMsg",
    "adminDashboardIcons",
    "adminDenied",
    "adminDeniedText",
-   "adminDiscounts",
    "adminFeatures",
    "adminFinds",
    "adminLicenseEditForm",
@@ -464,7 +443,6 @@
    "adminUserSearch",
    "adminUserSearchForm",
    "adminUsers",
-   "auth-gate-message",
    "badge-trial",
    "badge-trial-copy",
    "billingOverview",
@@ -476,9 +454,6 @@
    "changeEmailForm",
    "changeEmailPassword",
    "changelogList",
-   "checkout-auth-view",
-   "checkout-loading-view",
-   "completePurchaseBtn",
    "content-trial",
    "content-trial-copy",
    "createAIKnowledgeForm",
@@ -490,7 +465,6 @@
    "createReviewMsg",
    "createTexturePackForm",
    "dash-email",
-   "dash-notice",
    "dash-section-overview",
    "dash-username",
    "dashboardFindsGrid",
@@ -502,8 +476,6 @@
    "discordMessage",
    "discordRoleBtn",
    "discordStatus",
-   "display-customer-email",
-   "display-plan-title",
    "downloadChooser",
    "featureFilterNote",
    "featureFilters",
@@ -530,8 +502,6 @@
    "loginRemember",
    "loginUser",
    "logoutBtn",
-   "manageBillingBtn",
-   "manageBtn",
    "mobileMenu",
    "networkReset",
    "newEmail",
@@ -570,7 +540,6 @@
    "sidebarLogout",
    "siteAnnouncementBanner",
    "siteAnnouncementText",
-   "tos-checkbox",
    "twofaCode",
    "twofaDisableForm",
    "twofaDisablePw",
@@ -591,7 +560,6 @@
    "userGrantDays",
    "userGrantMsg",
    "userGrantPlan",
-   "validation-status-text",
    "verifyButton",
    "verifyCode",
    "verifyEmail",
@@ -629,7 +597,6 @@
    "[data-edit]",
    "[data-feature-toggle]",
    "[data-preview]",
-   "[data-promo]",
    "[data-reset-feature]",
    "[data-section-link]",
    "[data-section]",
@@ -654,8 +621,6 @@
    "/api/admin/base-finds/",
    "/api/admin/changelog",
    "/api/admin/changelog/",
-   "/api/admin/discounts",
-   "/api/admin/discounts/",
    "/api/admin/extend-licenses",
    "/api/admin/features",
    "/api/admin/features/",
@@ -688,10 +653,7 @@
    "/api/auth/signup",
    "/api/auth/verify-code",
    "/api/base-finds",
-   "/api/billing-portal",
    "/api/changelog",
-   "/api/checkout/confirm",
-   "/api/create-stripe-session",
    "/api/dashboard/user-data",
    "/api/discord/refresh-role",
    "/api/features",
@@ -701,8 +663,7 @@
    "/api/settings",
    "/api/start-checkout",
    "/api/texture-packs",
-   "/api/trial/start",
-   "/api/verify-payment-link/"
+   "/api/trial/start"
   ]
  }
 }
