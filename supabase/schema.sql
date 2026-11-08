@@ -35,7 +35,7 @@ create index if not exists pending_payments_email_idx on public.pending_payments
 create table if not exists public.licenses (
   id                      bigint generated always as identity primary key,
   email                   text not null,
-  plan_type               text not null check (plan_type in ('weekly', 'monthly', 'lifetime')),
+  plan_type               text not null check (plan_type in ('trial', 'weekly', 'monthly', 'lifetime')),
   license_key             text not null unique,
   status                  text not null default 'active',
   expires_at              timestamptz,
@@ -56,6 +56,14 @@ alter table public.licenses add column if not exists hwid text not null default 
 alter table public.licenses add column if not exists hwid_bound_at timestamptz;
 alter table public.licenses add column if not exists hwid_reset_at timestamptz;
 create index if not exists licenses_hwid_idx on public.licenses (hwid);
+
+-- Free trial: one per account, one per PC and one per network. trial_ip is the network that
+-- claimed it; the partial unique indexes keep the two "one per" rules true under concurrent tabs.
+alter table public.licenses add column if not exists trial_ip text not null default '';
+create unique index if not exists licenses_trial_ip_uniq on public.licenses (trial_ip)
+  where plan_type = 'trial' and trial_ip <> '';
+create unique index if not exists licenses_trial_hwid_uniq on public.licenses (hwid)
+  where plan_type = 'trial' and hwid <> '';
 
 -- Device identity: the client generates an Ed25519 key pair on the PC and only the public key
 -- leaves it. The server pins that key to the license, so a copied JAR or config on another PC
@@ -249,7 +257,7 @@ alter table public.pending_payments add constraint pending_payments_plan_type_ch
 
 alter table public.licenses drop constraint if exists licenses_plan_type_check;
 alter table public.licenses add constraint licenses_plan_type_check
-  check (plan_type in ('weekly', 'monthly', 'lifetime'));
+  check (plan_type in ('trial', 'weekly', 'monthly', 'lifetime'));
 
 -- Lock tables: service key access
 alter table public.users            enable row level security;

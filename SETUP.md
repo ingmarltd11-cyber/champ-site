@@ -133,8 +133,9 @@ The admin panel lets you edit each feature's:
 For YouTube, use an embed URL such as `https://www.youtube.com/embed/VIDEO_ID`.
 
 ### Stripe plans
-The site sells exactly two products:
+The site sells three products plus a free trial:
 
+- `trial` — free, 24 hours, once per account, PC and network — no Stripe price
 - `weekly` — €2.99 one-time, 7 days — `STRIPE_PRICE_WEEKLY_ID`
 - `monthly` — €6.99 recurring — `STRIPE_PRICE_MONTHLY_ID`
 - `lifetime` — €9.99 one-time — `STRIPE_PRICE_LIFETIME_ID`
@@ -148,6 +149,10 @@ Run the complete `supabase/schema.sql` again. It now also creates/seeds the `fea
 
 It also repairs the `plan_type` check on `pending_payments` and `licenses`. Run it once on your
 existing project (it is safe to run repeatedly, unless your database still contains `inject`
-licenses — delete or migrate those rows first, otherwise the tightened check fails). There is
+licenses — delete or migrate those rows first, otherwise the tightened check fails).
+
+For an existing project that already has the weekly plan, also run `supabase/trial-migration.sql`
+once in the SQL Editor. It allows the `trial` plan and adds `trial_ip` plus the two partial unique
+indexes behind the one-trial-per-network and one-trial-per-PC rules. There is
 nothing to upload: the Windows pair (`public/downloads/champ.bat` + `public/downloads/champ.exe`)
 ships with the deployment.

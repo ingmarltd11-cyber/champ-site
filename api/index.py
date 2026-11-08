@@ -99,6 +99,10 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
 GRACE_HOURS = 24  # extra access after a subscription period ends (renewal lag)
 
 PLANS = ("weekly", "monthly", "lifetime")
+# A free trial is a license, not a purchase: it never enters pending_payments or Stripe.
+TRIAL_PLAN = "trial"
+TRIAL_HOURS = 24
+LICENSE_PLANS = (TRIAL_PLAN,) + PLANS
 # The only Windows download there is: champ.exe, with champ.bat next to it as the start script. The
 # exe carries the client, the agent and the logo, and injects into the game the customer already has
 # open. No jar, no runner, no per-plan file; the plan only decides whether the license is active.
@@ -519,6 +523,34 @@ def license_active(lic: Optional[dict]) -> bool:
         return False
     expires = parse_dt(lic.get("expires_at"))
     return expires is None or expires > now()
+
+
+def trial_license(email: str) -> Optional[dict]:
+    """The one trial row this account has ever claimed, active or not."""
+    try:
+        return db_get("licenses", {"email": eq(email.lower()), "plan_type": eq(TRIAL_PLAN)})
+    except Exception as exc:
+        print("Trial lookup failed:", type(exc).__name__)
+        return None
+
+
+def trial_ip_used(ip: str) -> bool:
+    """One trial per network: the IP that claimed a trial cannot claim another."""
+    if not ip:
+        return False
+    return bool(db_list("licenses", {"plan_type": eq(TRIAL_PLAN), "trial_ip": eq(ip)}, limit=1))
+
+
+def trial_hwid_taken(hwid: str, license_id) -> bool:
+    """True when a different trial already ran on this PC."""
+    if not hwid:
+        return False
+    try:
+        rows = db_list("licenses", {"plan_type": eq(TRIAL_PLAN), "hwid": eq(hwid)}, limit=5)
+    except Exception as exc:
+        print("Trial HWID lookup failed:", type(exc).__name__)
+        raise HTTPException(503, "The license server is temporarily unavailable.")
+    return any(str(row.get("id")) != str(license_id) for row in rows)
 
 
 # --------------------------------------------------------------------------
@@ -1509,7 +1541,7 @@ def verify_code(p: VerifyCodeReq, response: Response):
 
     if not re.fullmatch(r"\d{6}", code):
         raise HTTPException(400, "Verification code must contain 6 digits.")
-    if plan and plan not in PLANS:
+    if plan and plan not in PLANS and plan != TRIAL_PLAN:
         raise HTTPException(400, "Unknown plan.")
 
     user = db_get("users", {"email": eq(email)})
@@ -1550,7 +1582,7 @@ def verify_code(p: VerifyCodeReq, response: Response):
 
     result = {"message": "Email verified successfully.", "verified": True,
               "checkout_url": f"{SITE_URL}/dashboard.html"}
-    if plan:
+    if plan and plan != TRIAL_PLAN:
         checkout_url = plan_checkout_url(email, plan, p.referral_code)
         if checkout_url:
             result["checkout_url"] = checkout_url
@@ -1820,12 +1852,109 @@ def billing_portal(user: dict = Depends(current_user)):
 
 
 # --------------------------------------------------------------------------
+# Free 24-hour trial: one per account, one per PC, one per network
+# --------------------------------------------------------------------------
+@app.get("/api/trial")
+def trial_state(request: Request, user: dict = Depends(current_user)):
+    email = user["email"].lower()
+    row = trial_license(email)
+    paid_active = any(
+        license_active(db_get("licenses", {"email": eq(email), "plan_type": eq(plan)}))
+        for plan in PLANS
+    )
+    ip = client_ip(request)
+    try:
+        ip_used = trial_ip_used(ip)
+    except Exception as exc:
+        print("Trial IP check failed:", type(exc).__name__)
+        ip_used = True
+    return {
+        "plan": TRIAL_PLAN,
+        "hours": TRIAL_HOURS,
+        "used": bool(row),
+        "active": license_active(row),
+        "expires_at": (row or {}).get("expires_at"),
+        "paid_active": paid_active,
+        "ip_used": ip_used,
+        "eligible": bool(not row and not paid_active and not ip_used),
+    }
+
+
+@app.post("/api/trial/start", status_code=201)
+def start_trial(request: Request, user: dict = Depends(current_user)):
+    """Hands the signed-in account one 24-hour key.
+
+    The PC is not known yet: the injector binds it on first launch, and that is where
+    trial_hwid_taken refuses a machine that already used a trial. The network is known
+    here, so a trial is only issued once per IP; the unique index backs both rules up.
+    """
+    email = user["email"].lower()
+    existing = trial_license(email)
+    if existing:
+        return JSONResponse(status_code=409, content={
+            "ok": False, "error": "trial_used",
+            "message": "This account has already used its free 24-hour trial.",
+            "expires_at": existing.get("expires_at"),
+        })
+    for plan in PLANS:
+        if license_active(db_get("licenses", {"email": eq(email), "plan_type": eq(plan)})):
+            return JSONResponse(status_code=409, content={
+                "ok": False, "error": "paid_active",
+                "message": "Your account already has an active license, so no trial is needed.",
+            })
+
+    ip = client_ip(request)
+    try:
+        if trial_ip_used(ip):
+            return JSONResponse(status_code=409, content={
+                "ok": False, "error": "trial_ip_used",
+                "message": "A free trial has already been started from this network.",
+            })
+    except Exception as exc:
+        print("Trial IP check failed:", type(exc).__name__)
+        raise HTTPException(503, "The free trial is not available right now. Please try again later.")
+
+    row = {
+        "email": email,
+        "plan_type": TRIAL_PLAN,
+        "license_key": new_license_key(),
+        "status": "active",
+        "expires_at": iso(now() + timedelta(hours=TRIAL_HOURS)),
+        "trial_ip": ip,
+    }
+    try:
+        saved = db_insert("licenses", row)
+    except DBError as exc:
+        if exc.status == 409:
+            return JSONResponse(status_code=409, content={
+                "ok": False, "error": "trial_used",
+                "message": "A free trial has already been used on this account, PC or network.",
+            })
+        print("Trial insert failed:", exc.status)
+        raise HTTPException(503, "The free trial is not available right now. Please try again later.")
+    lic = saved or row
+    try:
+        send_email(email, "Your Champ 24-hour trial",
+                   email_html("Your free day is ready",
+                              "Your 24-hour trial key:<br>"
+                              f"<b style='font-size:18px'>{html.escape(lic['license_key'])}</b><br><br>"
+                              "Start Minecraft 1.21.11 first, then run champ.exe and enter this key. "
+                              "The trial is linked to the first PC and network that uses it.",
+                              f"{SITE_URL}/dashboard.html", "Open dashboard"))
+    except Exception as exc:
+        print("Trial e-mail failed:", exc)
+    return {"ok": True, "plan": TRIAL_PLAN, "key": lic["license_key"],
+            "expires_at": lic.get("expires_at"), "hours": TRIAL_HOURS,
+            "message": f"Your free {TRIAL_HOURS}-hour trial is active."}
+
+
+# --------------------------------------------------------------------------
 # Routes: dashboard, downloads, license check
 # --------------------------------------------------------------------------
 @app.get("/api/dashboard/user-data")
 def dashboard(user: dict = Depends(current_user)):
     ensure_admin_license(user)
-    licenses = {plan: None for plan in PLANS}
+    licenses = {plan: None for plan in LICENSE_PLANS}
     for row in db_list("licenses", {"email": eq(user["email"])}):
         plan = row.get("plan_type")
         if plan not in licenses:
@@ -1836,10 +1965,19 @@ def dashboard(user: dict = Depends(current_user)):
             "key": row.get("license_key") or "",
             "active": license_active(row),
             "status": row.get("status") or "inactive",
-            "expires_at": row.get("expires_at") if plan in ("weekly", "monthly") else None,
+            "expires_at": row.get("expires_at") if plan in ("trial", "weekly", "monthly") else None,
             "can_manage": plan == "monthly" and bool(row.get("stripe_customer_id")),
         }
+    trial_row = licenses.get(TRIAL_PLAN)
+    trial_info = {
+        "hours": TRIAL_HOURS,
+        "used": bool(trial_row),
+        "active": bool(trial_row and trial_row.get("active")),
+        "expires_at": trial_row.get("expires_at") if trial_row else None,
+        "eligible": bool(not trial_row and not any(l and l.get("active") for l in licenses.values())),
+    }
     return {"email": user["email"], "username": user["username"], "licenses": licenses,
+            "trial": trial_info,
             "is_admin": bool(user.get("is_admin")),
             "phone": user.get("phone"), "totp_enabled": bool(user.get("totp_enabled")),
             "discord_username": user.get("discord_username"), "discord_linked": bool(user.get("discord_id"))}
@@ -1862,7 +2000,7 @@ def download(plan: str, user: dict = Depends(current_user)):
     Every plan gets the same executable, because the injector carries the client and puts it into the
     running game; the plan only decides whether this account may use it.
     """
-    if plan not in PLANS:
+    if plan not in LICENSE_PLANS:
         raise HTTPException(404, "Unknown download.")
     if user.get("is_admin"):
         # Admins hold a lifetime license and may test the download too.
@@ -1970,6 +2108,13 @@ def bind_license(p: BindReq):
         raise HTTPException(403, "This license is no longer active.")
 
     hwid = normalize_hwid(p.hwid)
+    if lic.get("plan_type") == TRIAL_PLAN and not hmac.compare_digest(lic.get("hwid") or "", hwid):
+        if trial_hwid_taken(hwid, lic["id"]):
+            return JSONResponse(status_code=409, content={
+                "ok": False,
+                "error": "trial_device_used",
+                "message": "This PC has already used a free trial. Pick a paid plan to keep playing.",
+            })
     public_key = normalize_public_key(p.public_key) if p.public_key else ""
     stored_key = (lic.get("device_pubkey") or "").strip()
 
@@ -1985,13 +2130,22 @@ def bind_license(p: BindReq):
 
     bound_now = False
     if not lic.get("hwid"):
-        rows = db_update("licenses", {"id": eq(lic["id"])}, {
-            "hwid": hwid,
-            "hwid_bound_at": iso(now()),
-            "device_pubkey": public_key or stored_key,
-            "device_key_bound_at": iso(now()) if (public_key or stored_key) else None,
-            "updated_at": iso(now()),
-        })
+        try:
+            rows = db_update("licenses", {"id": eq(lic["id"])}, {
+                "hwid": hwid,
+                "hwid_bound_at": iso(now()),
+                "device_pubkey": public_key or stored_key,
+                "device_key_bound_at": iso(now()) if (public_key or stored_key) else None,
+                "updated_at": iso(now()),
+            })
+        except DBError as exc:
+            if exc.status == 409:
+                return JSONResponse(status_code=409, content={
+                    "ok": False,
+                    "error": "trial_device_used",
+                    "message": "This PC has already used a free trial. Pick a paid plan to keep playing.",
+                })
+            raise
         if rows:
             lic = rows[0]
         bound_now = True
@@ -2250,7 +2404,7 @@ def license_heartbeat(p: HeartbeatReq):
 # --------------------------------------------------------------------------
 def account_license(user: dict) -> Optional[dict]:
     """The active license of a signed-in customer, lifetime first."""
-    for plan in ("lifetime", "monthly", "weekly"):
+    for plan in ("lifetime", "monthly", "weekly", TRIAL_PLAN):
         lic = db_get("licenses", {"email": eq(user["email"]), "plan_type": eq(plan)})
         if license_active(lic):
             return lic
@@ -2264,6 +2418,7 @@ def account_device(request: Request, user: dict = Depends(current_user)):
         return {"license": None}
     return {
         "license": lic["plan_type"],
+        "resettable": lic["plan_type"] != TRIAL_PLAN,
         "key": lic["license_key"],
         "device": mask_hwid(lic.get("hwid")),
         "bound_at": lic.get("hwid_bound_at"),
@@ -2300,6 +2455,8 @@ def account_device_reset(user: dict = Depends(current_user)):
     lic = account_license(user)
     if not lic:
         raise HTTPException(404, "You don't have an active license.")
+    if lic.get("plan_type") == TRIAL_PLAN:
+        raise HTTPException(403, "A free trial stays on the PC it first starts on. Upgrade to move it.")
     if not lic.get("hwid"):
         raise HTTPException(400, "No device is linked to this key yet.")
     if not free_reset_available(lic):
@@ -2318,6 +2475,8 @@ def account_device_reset_checkout(user: dict = Depends(current_user)):
     lic = account_license(user)
     if not lic:
         raise HTTPException(404, "You don't have an active license.")
+    if lic.get("plan_type") == TRIAL_PLAN:
+        raise HTTPException(403, "A free trial stays on the PC it first starts on. Upgrade to move it.")
     if not lic.get("hwid"):
         raise HTTPException(400, "No device is linked to this key yet.")
 
@@ -2469,6 +2628,11 @@ def launcher_reset_device(user: dict = Depends(current_user)):
     lic = account_license(user)
     if not lic:
         raise HTTPException(404, "You don't have an active license.")
+    if lic.get("plan_type") == TRIAL_PLAN:
+        return JSONResponse(status_code=403, content={
+            "ok": False, "error": "trial_locked",
+            "message": "A free trial stays on the PC it first starts on. Upgrade to move it.",
+        })
     if not lic.get("hwid"):
         return {"ok": True, "message": "No PC is linked to this key yet."}
     if not free_reset_available(lic):
@@ -2512,8 +2676,15 @@ def key_payload(lic: dict, request: Request, hwid: str) -> dict:
             local = ""
     device = str(lic.get("hwid") or "").strip()
     if local and not device:
-        rows = db_update("licenses", {"id": eq(lic["id"])},
-                         {"hwid": local, "hwid_bound_at": iso(now()), "updated_at": iso(now())})
+        if lic.get("plan_type") == TRIAL_PLAN and trial_hwid_taken(local, lic["id"]):
+            raise HTTPException(409, "This PC has already used a free trial. Pick a paid plan to keep playing.")
+        try:
+            rows = db_update("licenses", {"id": eq(lic["id"])},
+                             {"hwid": local, "hwid_bound_at": iso(now()), "updated_at": iso(now())})
+        except DBError as exc:
+            if exc.status == 409:
+                raise HTTPException(409, "This PC has already used a free trial. Pick a paid plan to keep playing.")
+            raise
         if rows:
             lic = rows[0]
             device = local
@@ -3175,8 +3346,8 @@ def admin_licenses(search: str = "", limit: int = 50, admin: dict = Depends(curr
 def admin_create_license(p: AdminLicenseCreateReq, admin: dict = Depends(current_admin)):
     """Hand out a key without Stripe: unclaimed, or already tied to a customer."""
     plan = (p.plan_type or "").strip().lower()
-    if plan not in PLANS:
-        raise HTTPException(400, "Plan must be weekly, monthly or lifetime.")
+    if plan not in LICENSE_PLANS:
+        raise HTTPException(400, "Plan must be trial, weekly, monthly or lifetime.")
     status = (p.status or "active").strip().lower()
     if status not in LICENSE_STATUSES:
         raise HTTPException(400, "Status must be active, inactive or revoked.")
@@ -3186,6 +3357,8 @@ def admin_create_license(p: AdminLicenseCreateReq, admin: dict = Depends(current
     expires_at = admin_expiry(p.expires_at)
     if plan == "weekly" and not expires_at:
         expires_at = iso(now() + timedelta(days=7))
+    elif plan == TRIAL_PLAN and not expires_at:
+        expires_at = iso(now() + timedelta(hours=TRIAL_HOURS))
     row = {
         "email": admin_email(p.email, key),
         "plan_type": plan,
@@ -3220,13 +3393,15 @@ def admin_update_license(lic_id: int, p: AdminLicenseUpdateReq, admin: dict = De
         values["status"] = status
     if p.plan_type is not None:
         plan = p.plan_type.strip().lower()
-        if plan not in PLANS:
-            raise HTTPException(400, "Plan must be weekly, monthly or lifetime.")
+        if plan not in LICENSE_PLANS:
+            raise HTTPException(400, "Plan must be trial, weekly, monthly or lifetime.")
         values["plan_type"] = plan
-        if plan == "weekly" and p.expires_at is None and (
+        if plan in ("weekly", TRIAL_PLAN) and p.expires_at is None and (
             plan != (lic.get("plan_type") or "").lower() or not lic.get("expires_at")
         ):
-            values["expires_at"] = iso(now() + timedelta(days=7))
+            values["expires_at"] = iso(
+                now() + (timedelta(days=7) if plan == "weekly" else timedelta(hours=TRIAL_HOURS))
+            )
     if p.expires_at is not None:
         values["expires_at"] = admin_expiry(p.expires_at)
     if p.license_key is not None:

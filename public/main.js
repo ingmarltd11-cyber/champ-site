@@ -242,6 +242,24 @@ function startPurchase(plan) {
   openPurchase(plan);
 }
 
+async function startFreeTrial() {
+  try {
+    const me = await api('/api/auth/me');
+    if (!me.ok || !me.data || !me.data.email) {
+      window.location.href = 'signup.html?plan=trial';
+      return;
+    }
+    const res = await api('/api/trial/start', { method: 'POST' });
+    if (res.ok) {
+      window.location.href = 'dashboard.html?trial=started';
+      return;
+    }
+    alert(errorText(res.data, 'Could not start the free trial.'));
+  } catch (_) {
+    alert('Could not reach the server. Please try again.');
+  }
+}
+
 // ---- Landing page: showcase grid ----
 // Zet hier je eigen screenshots/clips neer (bestanden in public/assets/):
 //   { src: 'assets/showcase-1.png', caption: 'Killaura in een 1v1' }
@@ -364,14 +382,18 @@ const registerForm = document.getElementById('registerForm');
 if (registerForm) {
   const params = new URLSearchParams(window.location.search);
   const rawPlan = params.get('plan') || '';
+  const trialPlan = rawPlan === 'trial';
   const selectedPlan = isChampPlan(rawPlan) ? rawPlan : '';
+  const authPlan = selectedPlan || (trialPlan ? 'trial' : '');
 
-  if (selectedPlan) {
+  if (authPlan) {
     document.querySelectorAll('a[href^="login.html"]').forEach(function (link) {
-      link.href = `login.html?plan=${encodeURIComponent(selectedPlan)}`;
+      link.href = `login.html?plan=${encodeURIComponent(authPlan)}`;
     });
     const subtitle = document.querySelector('.auth-card-head p');
-    if (subtitle) subtitle.textContent = `Create your account, then continue to ${champPlanLabel(selectedPlan)} checkout.`;
+    if (subtitle) subtitle.textContent = trialPlan
+      ? 'Create your account, then start your free 24-hour trial.'
+      : `Create your account, then continue to ${champPlanLabel(selectedPlan)} checkout.`;
   }
 
   registerForm.addEventListener('submit', async function (e) {
@@ -402,15 +424,15 @@ if (registerForm) {
           email_confirm: emailConfirm,
           password,
           password_confirm: passwordConfirm,
-          plan_type: selectedPlan || null,
+          plan_type: authPlan || null,
           referral_code: storedReferral() || null,
         }),
       });
       if (ok) {
         if (data.verified) {
-          window.location.href = data.checkout_url || 'dashboard.html';
+          window.location.href = data.checkout_url || (trialPlan ? 'dashboard.html?trial=1' : 'dashboard.html');
         } else {
-          window.location.href = `verify.html?email=${encodeURIComponent(email)}&plan=${encodeURIComponent(selectedPlan)}`;
+          window.location.href = `verify.html?email=${encodeURIComponent(email)}&plan=${encodeURIComponent(authPlan)}`;
         }
         return;
       }
@@ -430,7 +452,7 @@ if (verifyForm) {
   const params = new URLSearchParams(window.location.search);
   let email = params.get('email') || '';
   const rawPlan = params.get('plan') || '';
-  const plan = isChampPlan(rawPlan) ? rawPlan : '';
+  const plan = isChampPlan(rawPlan) ? rawPlan : (rawPlan === 'trial' ? 'trial' : '');
   const emailDisplay = document.getElementById('verifyEmail');
   if (emailDisplay) emailDisplay.textContent = email;
   if (plan) {
@@ -462,7 +484,9 @@ if (verifyForm) {
       }
       showMessage('verifyMessage', (data.message || 'Email verified!') + ' Redirecting...', false);
       setTimeout(() => {
-        window.location.href = data.checkout_url || 'dashboard.html';
+        window.location.href = plan === 'trial'
+          ? 'dashboard.html?trial=1'
+          : (data.checkout_url || 'dashboard.html');
       }, 500);
     } catch (_) {
       showMessage('verifyMessage', 'Could not reach the server. Please try again.', true);
@@ -585,17 +609,20 @@ const loginForm = document.getElementById('loginForm');
 if (loginForm) {
   const params = new URLSearchParams(window.location.search);
   const rawPlan = params.get('plan') || '';
+  const trialPlan = rawPlan === 'trial';
   const checkoutPlan = isChampPlan(rawPlan) ? rawPlan : '';
   const browserLogin = browserLoginParams();
   if (browserLogin) {
     showMessage('formMessage', 'Champ on your PC opened this page. Sign in below and the app continues on its own.', false);
   }
-  if (checkoutPlan) {
+  if (checkoutPlan || trialPlan) {
     document.querySelectorAll('a[href^="signup.html"]').forEach(function (link) {
-      link.href = `signup.html?plan=${encodeURIComponent(checkoutPlan)}`;
+      link.href = `signup.html?plan=${encodeURIComponent(checkoutPlan || 'trial')}`;
     });
     const subtitle = document.querySelector('.auth-card-head p');
-    if (subtitle) subtitle.textContent = `Sign in to continue with ${champPlanLabel(checkoutPlan)} checkout.`;
+    if (subtitle) subtitle.textContent = trialPlan
+      ? 'Sign in to start your free 24-hour trial.'
+      : `Sign in to continue with ${champPlanLabel(checkoutPlan)} checkout.`;
   }
 
   // The form is only for signed-out visitors. Remember-me already keeps the
@@ -616,6 +643,10 @@ if (loginForm) {
             return;
           }
           showMessage('formMessage', started.error, true);
+          return;
+        }
+        if (trialPlan) {
+          window.location.replace('dashboard.html?trial=1');
           return;
         }
         const requested = params.get('next');
@@ -646,7 +677,7 @@ if (loginForm) {
             password: document.getElementById('loginPassword').value,
             totp_code: totpCode || null,
             remember: Boolean(document.getElementById('loginRemember')?.checked),
-            plan_type: checkoutPlan || null,
+            plan_type: checkoutPlan || (trialPlan ? 'trial' : null),
             referral_code: storedReferral() || null,
           }),
         });
@@ -662,6 +693,10 @@ if (loginForm) {
           await finishBrowserLogin(browserLogin);
           return;
         }
+        if (trialPlan) {
+          window.location.href = 'dashboard.html?trial=1';
+          return;
+        }
         if (data.checkout_url) {
           window.location.href = data.checkout_url;
           return;
@@ -674,7 +709,7 @@ if (loginForm) {
       if (status === 403 && data.needs_verification && data.email) {
         // Not verified yet: the backend just sent a new code, enter it on the verify page.
         // Keep the selected plan in the URL so verification can resume checkout.
-        const planQuery = checkoutPlan ? `&plan=${encodeURIComponent(checkoutPlan)}` : '';
+        const planQuery = (checkoutPlan || trialPlan) ? `&plan=${encodeURIComponent(checkoutPlan || 'trial')}` : '';
         window.location.href = `verify.html?email=${encodeURIComponent(data.email)}${planQuery}`;
         return;
       }
@@ -849,6 +884,32 @@ function fmtDate(iso) {
   return new Date(value).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
+function renderTrial(trial) {
+  const badge = document.getElementById('badge-trial');
+  const content = document.getElementById('content-trial');
+  const copyBadge = document.getElementById('badge-trial-copy');
+  const copyContent = document.getElementById('content-trial-copy');
+  if (!badge || !content) return;
+
+  const used = Boolean(trial && trial.used);
+  const eligible = Boolean(trial && trial.eligible);
+  const text = used ? 'Used' : (eligible ? 'Available' : 'Unavailable');
+  const cls = eligible ? 'status-badge status-active' : 'status-badge status-none';
+  let html;
+  if (used) {
+    html = '<p class="no-license-text">This account has used its free 24-hour trial.</p><a href="index.html#pricing" class="btn-purchase-direct">View plans</a>';
+  } else if (eligible) {
+    html = '<p class="no-license-text">Every module for one day, no card. One trial per account, PC and network.</p><button class="btn-ghost" type="button" onclick="startFreeTrial()">Start free trial</button>';
+  } else {
+    html = '<p class="no-license-text">A free trial was already used from this account or network.</p><a href="index.html#pricing" class="btn-purchase-direct">View plans</a>';
+  }
+  badge.innerText = text;
+  badge.className = cls;
+  content.innerHTML = html;
+  if (copyBadge) { copyBadge.innerText = text; copyBadge.className = cls; }
+  if (copyContent) copyContent.innerHTML = html;
+}
+
 function renderLicense(kind, lic) {
   const badge = document.getElementById(`badge-${kind}`);
   const content = document.getElementById(`content-${kind}`);
@@ -863,20 +924,23 @@ function renderLicense(kind, lic) {
     if (copyContent) copyContent.innerHTML = html;
   };
   if (!lic) {
-    const planName = ({weekly:'Weekly', monthly:'Monthly', lifetime:'Lifetime'})[kind] || kind;
+    const planName = ({weekly:'Weekly', monthly:'Monthly', lifetime:'Lifetime', trial:'Trial'})[kind] || kind;
     paint({ text: 'No license', className: 'status-badge status-none' }, `<p class="no-license-text">No ${planName.toLowerCase()} license is linked to your account yet.</p><a href="index.html#pricing" class="btn-purchase-direct">Browse plans</a>`);
     return;
   }
 
-  const label = ({weekly:'Weekly', monthly:'Monthly', lifetime:'Lifetime'})[kind] || kind;
+  const label = ({weekly:'Weekly', monthly:'Monthly', lifetime:'Lifetime', trial:'Trial'})[kind] || kind;
   if (!lic.active) {
-    paint({ text: 'Expired', className: 'status-badge status-none' }, `<p class="no-license-text">Your ${label.toLowerCase()} license is no longer active.</p><a href="index.html#pricing" class="btn-purchase-direct">Renew ${label}</a>`);
+    const expired = kind === 'trial'
+      ? '<p class="no-license-text">Your free 24-hour trial has ended.</p><a href="index.html#pricing" class="btn-purchase-direct">View plans</a>'
+      : `<p class="no-license-text">Your ${label.toLowerCase()} license is no longer active.</p><a href="index.html#pricing" class="btn-purchase-direct">Renew ${label}</a>`;
+    paint({ text: 'Expired', className: 'status-badge status-none' }, expired);
     return;
   }
 
   const state = { text: 'Active', className: 'status-badge status-active' };
   let html = `<div class="license-box">${escapeHtml(lic.key)}</div>`;
-  if ((kind === 'weekly' || kind === 'monthly') && lic.expires_at) html += `<p class="no-license-text" style="margin-bottom:12px">${kind === 'weekly' ? 'Ends' : 'Renews / ends'} around ${fmtDate(lic.expires_at)}</p>`;
+  if ((kind === 'weekly' || kind === 'monthly' || kind === 'trial') && lic.expires_at) html += `<p class="no-license-text" style="margin-bottom:12px">${kind === 'monthly' ? 'Renews / ends' : 'Ends'} around ${fmtDate(lic.expires_at)}</p>`;
   html += `<a href="downloads/champ.exe" class="btn-download" data-champ-download download>Download champ.exe</a>`;
   // The only companion file: champ.bat starts champ.exe. Nothing else ships on Windows.
   html += ` <a href="downloads/champ.bat" class="btn-ghost" download>Download champ.bat</a>`;
@@ -995,6 +1059,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderLicense('weekly', d.licenses.weekly);
     renderLicense('monthly', d.licenses.monthly);
     renderLicense('lifetime', d.licenses.lifetime);
+    if (d.licenses.trial) renderLicense('trial', d.licenses.trial);
+    else renderTrial(d.trial);
     if (!window.dashboardExtrasInitialized) {
       window.dashboardExtrasInitialized = true;
       initDashboardExtras(d);
@@ -1005,6 +1071,28 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   let data = await load();
   if (!data) return;
+
+  // Arriving from the pricing or signup trial button: the account is already signed in,
+  // so claim the free day without making the customer click a second time.
+  if (query.get('trial') === '1' && data.trial && data.trial.eligible) {
+    const started = await api('/api/trial/start', { method: 'POST' });
+    if (started.ok) {
+      window.history.replaceState({}, '', window.location.pathname);
+      data = (await load()) || data;
+      if (notice) {
+        notice.style.display = 'block';
+        notice.textContent = 'Your free 24-hour trial is active. Download the client and enter the key below.';
+      }
+    } else if (notice) {
+      notice.style.display = 'block';
+      notice.style.color = '#fbbf24';
+      notice.textContent = errorText(started.data, 'Could not start the free trial.');
+    }
+  } else if (query.get('trial') === 'started' && notice) {
+    notice.style.display = 'block';
+    notice.textContent = 'Your free 24-hour trial is active. Download the client and enter the key below.';
+  }
+
   document.getElementById('manageBillingBtn')?.addEventListener('click', openBillingPortal);
 
   // After paying, the license appears as soon as Stripe confirms (usually seconds)
@@ -1059,10 +1147,12 @@ function initDashboardExtras(data) {
         <p class="no-license-text">One PC per key: the injector binds your hardware the first time it runs, so a shared key does not work on a second PC.</p>
         <div class="license-box">${d.device ? escapeHtml(d.device) : 'No device linked yet'}</div>
         <p class="no-license-text">${d.bound_at ? 'Linked on ' + escapeHtml(new Date(d.bound_at).toLocaleString()) : 'Run the injector once to link this PC.'}</p>
-        ${d.device ? (d.free_reset
-          ? '<button class="btn-ghost" type="button" id="deviceResetFree">Reset device (free)</button>'
-          : `<button class="btn-ghost" type="button" id="deviceResetPaid">Reset device (${money(d.reset_price_cents)})</button>
-             <p class="no-license-text" style="margin-top:10px">Free reset used${next ? `; available again on ${escapeHtml(next)}` : ''}. A paid reset clears it immediately.</p>`) : ''}
+        ${d.device ? (!d.resettable
+          ? '<p class="no-license-text">A free trial stays on the PC it first starts on. Upgrade to move it.</p>'
+          : (d.free_reset
+            ? '<button class="btn-ghost" type="button" id="deviceResetFree">Reset device (free)</button>'
+            : `<button class="btn-ghost" type="button" id="deviceResetPaid">Reset device (${money(d.reset_price_cents)})</button>
+               <p class="no-license-text" style="margin-top:10px">Free reset used${next ? `; available again on ${escapeHtml(next)}` : ''}. A paid reset clears it immediately.</p>`)) : ''}
 
         <p class="no-license-text" style="margin-top:22px">Network: Champ only injects from the network your key is linked to. Resetting is free and unlimited &mdash; a new router, a VPN or a move is never a lockout.</p>
         <div class="license-box">${d.ip_bound ? escapeHtml(d.ip) : 'No network linked yet'}</div>
