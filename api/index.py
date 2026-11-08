@@ -712,6 +712,8 @@ def vpn_check(ip: str) -> tuple[bool, str, bool]:
         data = response.json()
     except ValueError:
         return True, "We could not verify your network. Please try again later.", True
+    if not isinstance(data, dict):
+        return True, "We could not verify your network. Please try again later.", True
     if str(data.get("status") or "").lower() not in ("ok", "warning"):
         print("VPN check status", data.get("status"))
         return True, "We could not verify your network. Please try again later.", True
@@ -720,7 +722,9 @@ def vpn_check(ip: str) -> tuple[bool, str, bool]:
         entry = next((v for v in data.values() if isinstance(v, dict) and "detections" in v), None)
     if not isinstance(entry, dict):
         return True, "We could not verify your network. Please try again later.", True
-    detections = entry.get("detections") or {}
+    detections = entry.get("detections")
+    if not isinstance(detections, dict):
+        return True, "We could not verify your network. Please try again later.", True
     if detections.get("vpn") or detections.get("proxy") or detections.get("tor"):
         result = (True, "VPNs, proxies and Tor are not allowed for the free trial. Turn yours off and try again.", False)
     elif detections.get("hosting"):
