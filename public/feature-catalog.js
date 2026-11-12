@@ -1,5 +1,5 @@
 /* The module catalogue of the Features page.
-   This file mirrors the modules that ship in the Champ Client: 247 modules in 7 categories.
+   This file mirrors the modules that ship in the Champ Client: 255 modules in 8 categories.
    Keep it in sync with the client's module manifest - every entry here must be a real module in
    the client, and the client must not ship a module that is missing here.
    Each module has its own slug, so the admin panel can attach a screenshot, a video and a
@@ -42,6 +42,12 @@ window.CHAMP_FEATURES = {
       label: "Visuals",
       icon: "👀",
       blurb: "ESP, name tags, chunk finders, animations and overlays.",
+    },
+    {
+      id: "legit",
+      label: "Legit",
+      icon: "🌿",
+      blurb: "Quiet HUD readouts and session tools that look like vanilla.",
     },
     {
       id: "donut",
@@ -312,5 +318,13 @@ window.CHAMP_FEATURES = {
     { slug: "sus-chunk-finder", category: "donut", title: "Sus Chunk Finder", description: "Finds suspicious chunks from amethyst and full-beehive generation signals" },
     { slug: "sus-chunk-v2", category: "donut", title: "Sus Chunk V2", description: "Detects suspicious underground activity from geode light patterns." },
     { slug: "tunnel-base-finder", category: "donut", title: "Tunnel Base Finder", description: "Finds bases digging tunnel" },
+    { slug: "totem-predict", category: "mace", title: "Totem Predict", description: "Predicts when a totem is about to pop and warns you before the hit lands." },
+    { slug: "fps", category: "legit", title: "FPS", description: "Shows your frames per second on the HUD." },
+    { slug: "ping", category: "legit", title: "Ping", description: "Shows your latency to the server on the HUD." },
+    { slug: "time", category: "legit", title: "Time", description: "Shows the in-game clock on the HUD." },
+    { slug: "hit-reach", category: "legit", title: "Hit Reach", description: "Shows how many blocks away your last hit was." },
+    { slug: "session-token", category: "legit", title: "Session Token", description: "Shows a Session Token shortcut on the multiplayer server list." },
+    { slug: "ai-chat", category: "donut", title: "AI Chat", description: "Talk to a guarded AI assistant in DonutSMP chat with your own API key." },
+    { slug: "clutch", category: "movement", title: "Clutch", description: "Predicts your landing and saves the fall with a water bucket or pearl, with silent aim." },
   ]
 };
