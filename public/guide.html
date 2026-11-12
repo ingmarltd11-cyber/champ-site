@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Guide: Silent Aim &amp; the hard parts — Champ Client</title>
+<meta name="description" content="How Champ Client's silent aim, silent swap, backtrack, hitbox and totem modules actually work, and how to tune them.">
+<link rel="icon" type="image/png" href="assets/logo-teal.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+
+<div id="siteAnnouncementBanner" class="site-announcement-bar" style="display:none;">
+  <span id="siteAnnouncementText"></span>
+  <button onclick="dismissAnnouncement()" class="announcement-close" aria-label="Close announcement">&times;</button>
+</div>
+
+<nav>
+  <a class="nav-logo" href="index.html"><img src="assets/logo-teal.png" alt="Champ crab logo"><span>Champ <em>Client</em></span></a>
+  <ul class="nav-links">
+    <li><a href="features.html">Features</a></li>
+    <li><a href="guide.html" class="active">Guide</a></li>
+    <li><a href="configs.html">Configs</a></li>
+    <li><a href="changelog.html">Changelog</a></li>
+    <li><a href="index.html#pricing">Pricing</a></li>
+    <li><a href="support.html">Support</a></li>
+  </ul>
+  <div class="nav-actions">
+    <a href="login.html" class="btn-ghost">Sign In</a>
+    <a href="signup.html" class="btn-primary">Get Started &rarr;</a>
+    <button class="hamburger" onclick="toggleMenu()" aria-label="Menu"><span></span><span></span><span></span></button>
+  </div>
+</nav>
+
+<div class="mobile-menu" id="mobileMenu">
+  <a href="index.html" onclick="toggleMenu()">Homepage</a>
+  <a href="features.html" onclick="toggleMenu()">Features</a>
+  <a href="guide.html" onclick="toggleMenu()">Guide</a>
+  <a href="configs.html" onclick="toggleMenu()">Configs</a>
+  <a href="changelog.html" onclick="toggleMenu()">Changelog</a>
+  <a href="index.html#pricing" onclick="toggleMenu()">Pricing</a>
+  <a href="support.html" onclick="toggleMenu()">Support</a>
+  <a href="login.html" onclick="toggleMenu()">Sign In</a>
+</div>
+
+<main class="features-page guide-page">
+  <section class="features-hero">
+    <p class="hero-eyebrow">Field guide</p>
+    <h1>Silent aim, and the <em>hard parts.</em></h1>
+    <p class="hero-sub">What the switches do, in plain language. Every section below matches a real option in the client &mdash; no marketing, just how the behaviour is produced and how to tune it.</p>
+    <div class="feature-stats">
+      <div class="feature-stat"><b>Packet-only</b><span>silent rotations</span></div>
+      <div class="feature-stat"><b>1.21.11</b><span>current target</span></div>
+      <div class="feature-stat"><b>Every option</b><span>explained</span></div>
+    </div>
+  </section>
+
+  <nav class="guide-toc" aria-label="Guide contents">
+    <a href="#silent-aim">Silent aim</a>
+    <a href="#aim-modes">Aim vs Aim Assist</a>
+    <a href="#silent-swap">Silent swap</a>
+    <a href="#mace">Auto Mace</a>
+    <a href="#totems">Totems</a>
+    <a href="#combat">Kill Aura &amp; hitbox</a>
+    <a href="#backtrack">Backtrack</a>
+    <a href="#packets">Packet hygiene</a>
+    <a href="#fixes">When it feels wrong</a>
+  </nav>
+
+  <section class="guide-section" id="silent-aim">
+    <h2>Silent aim</h2>
+    <p class="guide-lead">Silent aim changes the angle the <strong>server</strong> receives, not the angle <strong>you</strong> look at. Your camera, your F5 body and your walk direction stay exactly where you put them.</p>
+    <div class="guide-grid">
+      <div class="guide-card">
+        <h3>What goes out on the wire</h3>
+        <p>The rotation is written onto your outgoing movement packet. When vanilla would send no packet at all &mdash; you are standing still and not turning &mdash; the client sends a single look packet with the aim angle, so a mace held over a target still reaches the server. An angle the server already has is never repeated: a look packet that never changes is a tell.</p>
+      </div>
+      <div class="guide-card">
+        <h3>What never happens</h3>
+        <p>The player entity is never rotated on the client. That is why nothing shows in F5, why an elytra flight does not bend, and why your character keeps walking the way your keyboard says instead of steering toward the target. It also means other mods reading your body rotation see your own look.</p>
+      </div>
+      <div class="guide-card">
+        <h3>What the server still knows</h3>
+        <p>Combat has to be checked against a direction. The server sees the aim angle on the packet &mdash; it has to, otherwise the hit would be rejected as a direction mismatch. Silent aim hides the rotation from your screen and your body, not from the packet. That is the honest limit of every silent aim.</p>
+      </div>
+    </div>
+    <p class="guide-note">Turn it on in <span class="guide-kbd">Kill Aura &rarr; Aim &rarr; Silent Aim</span>, <span class="guide-kbd">Auto Mace &rarr; Aim &rarr; Silent Aim</span>, or in the standalone <span class="guide-kbd">Silent Aura</span> module. With <span class="guide-kbd">Aim</span> off, those auras hit with the angle you already have.</p>
+  </section>
+
+  <section class="guide-section" id="aim-modes">
+    <h2>Aim, Aim Assist and smoothing</h2>
+    <p class="guide-lead">Three different things, named almost the same. Picking the wrong one is the most common reason a module &ldquo;feels off&rdquo;.</p>
+    <div class="guide-grid">
+      <div class="guide-card">
+        <h3>Aim (visible)</h3>
+        <p>Turns your real camera onto the target. You see it, F5 shows it, and your movement follows the new look. This is what most clients call a normal aimbot. Inside Kill Aura and Auto Mace this is the <span class="guide-kbd">Aim</span> toggle with <span class="guide-kbd">Silent Aim</span> off.</p>
+      </div>
+      <div class="guide-card">
+        <h3>Silent aim</h3>
+        <p>The same target selection, delivered on the packet only. Nothing on your screen changes. Use this when you still want to steer your own movement or keep an eye on a second player.</p>
+      </div>
+      <div class="guide-card">
+        <h3>Aim Assist &amp; Smooth</h3>
+        <p>Its own module, and the smooth option inside the auras. <span class="guide-kbd">Speed</span> runs from 50% to 100%: 100% is the same as 40&deg; vertical and 40&deg; horizontal per tick, 50% is the same as 20&deg; and 20&deg;. Lower is slower and more human; higher snaps. Smoothing only exists while Smooth is selected &mdash; the plain mode shows no sliders at all.</p>
+      </div>
+    </div>
+    <p class="guide-note">Kill Aura's aim and its silent aim use the same smoothing system: if <span class="guide-kbd">Smooth</span> is on, both modes ease in at the speed you picked instead of snapping 180&deg; in one tick.</p>
+  </section>
+
+  <section class="guide-section" id="silent-swap">
+    <h2>Silent swap</h2>
+    <p class="guide-lead">A silent swap moves an item on the server while your hotbar keeps showing what you were holding. The click is an ordinary container click on window 0, which is always open, so no inventory screen is opened and nothing is drawn.</p>
+    <div class="guide-grid">
+      <div class="guide-card">
+        <h3>Where it is used</h3>
+        <p><span class="guide-kbd">Auto Mace &rarr; Silent Swap</span> swaps the mace in and out of the hand without moving your hotbar. <span class="guide-kbd">Silent Auto Totem</span> and <span class="guide-kbd">Totem Predict &rarr; Silent</span> place a totem in the offhand the same way. <span class="guide-kbd">Silent Take Off</span> and <span class="guide-kbd">Silent Requip</span> change your chest slot with three container clicks.</p>
+      </div>
+      <div class="guide-card">
+        <h3>The visible versions</h3>
+        <p>With the silent switch off, the module selects the hotbar slot first &mdash; your hand really changes &mdash; and then performs the swap. You will see the item appear, which is the point: some players prefer knowing what their character is holding.</p>
+      </div>
+      <div class="guide-card">
+        <h3>Why clicks and not key presses</h3>
+        <p>A key press only exists on your keyboard. A container click is a packet the server already accepts from a player with an inventory open, it carries its own window id, and it needs no screen on your side. That is what makes it both fast and quiet.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="guide-section" id="mace">
+    <h2>Auto Mace</h2>
+    <p class="guide-lead">The mace sequence: fall past three blocks, aim once, swap, hit, swap back. Every delay below is a real option, not a hidden constant.</p>
+    <ul class="guide-list">
+      <li><strong>Fall gate.</strong> The module only arms once you have fallen three blocks or more. Under three blocks a mace hit is a normal hit and the swap is wasted.</li>
+      <li><strong>Range.</strong> Aim and swap only happen when the target is inside four blocks. Past that the module holds still instead of aiming at something you cannot reach.</li>
+      <li><strong>Aim.</strong> With <span class="guide-kbd">Aim</span> on, <span class="guide-kbd">Silent Aim</span> appears. Silent sends the angle on the packet; visible turns your camera. Both accept the Smooth system above.</li>
+      <li><strong>Silent Swap.</strong> The server-side slot changes, the hotbar does not. Your hand keeps the item you were holding while the hit lands with the mace.</li>
+      <li><strong>Reaction.</strong> The cooldown is zero by default, and the attack timing matches the triggerbot: the hit goes out on the first tick the cooldown allows, not on a fixed delay.</li>
+      <li><strong>Take Off / Requip.</strong> <span class="guide-kbd">Takeoff Elytra</span> puts a chestplate on (netherite, then any) so the elytra comes off without leaving the slot empty; <span class="guide-kbd">Requip</span> puts the elytra back after the hit, and <span class="guide-kbd">Silent Requip</span> does it without touching the hotbar.</li>
+    </ul>
+    <p class="guide-note">The pearl catch modules were removed from the Mace category in this build. <span class="guide-kbd">Auto Pearl Catch</span> is back as an empty entry for the rewrite.</p>
+  </section>
+
+  <section class="guide-section" id="totems">
+    <h2>Totems</h2>
+    <p class="guide-lead">Three modules cover the same idea at different moments: before the damage, on the pop, and when you open your own inventory.</p>
+    <div class="guide-grid">
+      <div class="guide-card">
+        <h3>Totem Predict</h3>
+        <p>When your health drops below <span class="guide-kbd">Minimum Health</span> (1&ndash;20, the same scale as the health bar) it moves a totem into your offhand. <span class="guide-kbd">Silent</span> keeps your hotbar and camera still. <span class="guide-kbd">Delay</span> waits a rolled 0&ndash;500&nbsp;ms before the swap; off means the swap happens on the tick the threshold is crossed. <span class="guide-kbd">Whitelist</span> names the items allowed to stay in the offhand, so a shield or a gapple is never silently thrown out.</p>
+      </div>
+      <div class="guide-card">
+        <h3>Silent Auto Totem</h3>
+        <p>The on-pop version. It waits for the offhand to be empty, waits its open delay, sends one swap click and closes the handler again. <span class="guide-kbd">Hotbar Totem</span> fills a hotbar slot instead, and the same whitelist protects that slot.</p>
+      </div>
+      <div class="guide-card">
+        <h3>Auto Totem</h3>
+        <p>The full inventory routine, with <span class="guide-kbd">Mode</span> for Crystal or SMP and a measure list that decides how much danger it is willing to ignore. Use it when you want the client to manage the whole inventory shuffle.</p>
+      </div>
+    </div>
+    <p class="guide-note">Totem Predict reacts to the health you have now, not to damage that has been sent but not applied yet. It is a preparation module: it makes sure a totem is already in the offhand when the next hit lands.</p>
+  </section>
+
+  <section class="guide-section" id="combat">
+    <h2>Kill Aura, hitbox and reach</h2>
+    <p class="guide-lead">Kill Aura has three ways to decide when to click, and the range is deliberately capped at a number a server will accept.</p>
+    <ul class="guide-list">
+      <li><strong>Normal.</strong> Attacks when the vanilla cooldown is full, at your configured range.</li>
+      <li><strong>CPS.</strong> Ignores the cooldown and clicks on a schedule between <span class="guide-kbd">Min CPS</span> and <span class="guide-kbd">Max CPS</span>, anywhere from 1 to 20.</li>
+      <li><strong>Triggerbot.</strong> Only attacks the moment the cooldown is fully gone &mdash; no early clicks, no wasted swings.</li>
+      <li><strong>Range.</strong> Up to 3.00 blocks, not 2.95. That is the number the server measures against, with a little room for movement between your packet and its check.</li>
+      <li><strong>Hitbox Expand.</strong> Widens the target box for your own selection. With the switch off, the size slider disappears &mdash; a value that is not in use should not be editable.</li>
+      <li><strong>Villagers stay safe.</strong> Kill Aura never targets them, whatever the target filter says.</li>
+    </ul>
+    <p class="guide-note">Extended reach was removed from Kill Aura. A hit distance the server does not believe is rejected silently, which looks like a module that does nothing.</p>
+  </section>
+
+  <section class="guide-section" id="backtrack">
+    <h2>Backtrack</h2>
+    <p class="guide-lead">Backtrack keeps a player's hitbox where it was a moment ago, so you can hit a position they have already left. The window runs from 0 to 5000&nbsp;ms.</p>
+    <div class="guide-grid">
+      <div class="guide-card">
+        <h3>Low window (50&ndash;250&nbsp;ms)</h3>
+        <p>Matches ordinary latency. It feels like the game is being fair to you rather than like a feature, which is exactly why it is the safest setting on a server you care about.</p>
+      </div>
+      <div class="guide-card">
+        <h3>High window (1000&nbsp;ms and up)</h3>
+        <p>You can hit someone who is visibly gone. It is also the setting most likely to look impossible in a recording: your swing lands where nobody is standing. Use it knowingly.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="guide-section" id="packets">
+    <h2>Packet hygiene</h2>
+    <p class="guide-lead">Most &ldquo;the module threw my pearl sideways&rdquo; reports are not aim bugs. They are two packets disagreeing about which way you were looking.</p>
+    <ul class="guide-list">
+      <li><strong>Look and use travel together.</strong> An item-use packet carries the direction the item goes in. Before it leaves, the client makes sure the server's last known rotation is the same angle, so a wind charge and the movement packet that follows cannot disagree.</li>
+      <li><strong>No swings while eating.</strong> A swing sent while you are using an item releases the food first. That swing is held back until the use ends.</li>
+      <li><strong>No double clicks.</strong> A rotation that has already been sent is not sent again, and a hit is only accepted with an angle the server has actually received.</li>
+      <li><strong>One movement packet per tick.</strong> A silent aim is folded into the movement packet the game already built, and a NoFall ground spoof rides on that same packet. Adding a second one doubled the movement rate from 20 to 40 per second, and a server reads that as your game running faster than normal.</li>
+      <li><strong>Your own hooks stay out of it.</strong> The modules that emit their own clicks and rotations run against the same guard, so a silent aim and a pearl catch cannot overwrite each other's angle mid-throw.</li>
+    </ul>
+  </section>
+
+  <section class="guide-section" id="fixes">
+    <h2>When it feels wrong</h2>
+    <div class="guide-grid">
+      <div class="guide-card">
+        <h3>My camera still turns by itself</h3>
+        <p>A visible aim is on somewhere: <span class="guide-kbd">Aim</span> without <span class="guide-kbd">Silent Aim</span>, or <span class="guide-kbd">Aim Assist</span> with smoothing. Silent aim never touches the camera, so if the view moves, look for the module that asked for it.</p>
+      </div>
+      <div class="guide-card">
+        <h3>I drift while walking straight</h3>
+        <p>A module is writing the rotation outside the packet path. Silent aim cannot do that by design; if you see it, note the module and send it in. The report is worth more than a guess.</p>
+      </div>
+      <div class="guide-card">
+        <h3>A throw goes the wrong way</h3>
+        <p>Check whether a second module is holding a silent aim at that moment. Two owners, one angle: the sanitizer resolves it, but the module that started last wins. Turn one off and compare.</p>
+      </div>
+      <div class="guide-card">
+        <h3>A module does nothing</h3>
+        <p>Three usual causes: the module is enabled but no license is active on this PC, the gamemode filter hides it (Mace modules need the Mace tag), or the option it depends on is off and its slider is hidden. Open the module and check the toggles above the slider.</p>
+      </div>
+      <div class="guide-card">
+        <h3>Nothing shows in F5</h3>
+        <p>That is the intended result. A silent rotation is never applied to your body, so there is nothing for F5 to show.</p>
+      </div>
+      <div class="guide-card">
+        <h3>The GUI is blurry behind the panels</h3>
+        <p>That is the designed background: the world is blurred rather than covered by a black sheet. If it looks wrong, check that the game is not running with a mod that replaces the GUI blur pass.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="footer-brand">
+    <div class="footer-logo"><img src="assets/logo-teal.png" alt="Champ">Champ <em>Client</em></div>
+    <p class="footer-blurb">One injector, every module. Built for Minecraft 1.21.11.</p>
+  </div>
+  <div class="footer-col">
+    <h4>Product</h4>
+    <div class="footer-links">
+      <a href="features.html">Features</a>
+      <a href="guide.html">Guide</a>
+      <a href="configs.html">Configs</a>
+      <a href="changelog.html">Changelog</a>
+    </div>
+  </div>
+  <div class="footer-col">
+    <h4>Account</h4>
+    <div class="footer-links">
+      <a href="login.html">Sign in</a>
+      <a href="dashboard.html">Dashboard</a>
+      <a href="index.html#pricing">Pricing</a>
+    </div>
+  </div>
+  <div class="footer-col">
+    <h4>Legal</h4>
+    <div class="footer-links">
+      <a href="privacy.html">Privacy policy</a>
+      <a href="terms.html">Terms of service</a>
+      <a href="support.html">Support</a>
+    </div>
+  </div>
+  <p class="footer-copy">&copy; 2026 <strong>Champ Client</strong>. Not affiliated with Mojang or Microsoft.</p>
+</footer>
+
+<script src="main.js"></script>
+<script src="motion.js"></script>
+</body>
+</html>

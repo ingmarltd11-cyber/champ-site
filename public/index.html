@@ -7,9 +7,8 @@
 <link rel="icon" type="image/png" href="assets/logo-teal.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="site.css">
-<link rel="stylesheet" href="theme.css">
 </head>
 <body>
 
@@ -27,7 +26,8 @@
   </a>
   <ul class="nav-links">
     <li><a href="features.html">Features</a></li>
-<li><a href="configs.html">Configs</a></li>
+    <li><a href="guide.html">Guide</a></li>
+    <li><a href="configs.html">Configs</a></li>
     <li><a href="changelog.html">Changelog</a></li>
     <li><a href="#reviews">Reviews</a></li>
     <li><a href="#pricing">Pricing</a></li>
@@ -45,7 +45,8 @@
 <div class="mobile-menu" id="mobileMenu">
   <a href="index.html" onclick="toggleMenu()">Homepage</a>
   <a href="features.html" onclick="toggleMenu()">Features</a>
-<a href="configs.html" onclick="toggleMenu()">Configs</a>
+  <a href="guide.html" onclick="toggleMenu()">Guide</a>
+  <a href="configs.html" onclick="toggleMenu()">Configs</a>
   <a href="changelog.html" onclick="toggleMenu()">Changelog</a>
   <a href="#reviews" onclick="toggleMenu()">Reviews</a>
   <a href="#pricing" onclick="toggleMenu()">Pricing</a>
@@ -56,16 +57,16 @@
 <!-- HERO -->
 <section class="hero">
   <div class="hero-copy">
-    <p class="hero-eyebrow" id="heroEyebrow">241 modules &middot; Clutch, AI Chat &amp; Kill Aura inside</p>
-    <h1 class="hero-title" id="heroTitle">Play sharper.<br><em>Look effortless.</em></h1>
-    <p class="hero-sub" id="heroSub">
-      A complete 1.21.11 client with silent aim that never touches your friends, a clutch that
-      reads the fall before you hit the ground, and an AI chat that stays on your side. Start the
-      game, run champ.bat, and the menu is there.
+    <p class="hero-eyebrow" id="heroEyebrow">Minecraft 1.21.11 &middot; Windows &amp; Linux injector</p>
+    <h1 class="hero-title" data-site-text="hero_title">Every module.<br><em>One injector.</em></h1>
+    <p class="hero-sub" id="heroSub" data-site-text="hero_sub">
+      Champ runs inside the Minecraft 1.21.11 you already have open. Start the game, run
+      champ.bat, and the menu is there. No jar goes into your mods folder, and you don't have to
+      restart the game afterwards.
     </p>
     <div class="hero-ctas">
       <a href="#pricing" class="btn-hero">Get Started &rarr;</a>
-      <a href="features.html" class="btn-ghost">Explore all 241 modules &rarr;</a>
+      <a href="features.html" class="btn-ghost" style="padding:15px 28px;font-size:14.5px;">Explore features &rarr;</a>
     </div>
     <div class="hero-trust">
       <span class="trust-badge"><span class="trust-dot"></span>champ.bat + champ.exe</span>
@@ -91,27 +92,27 @@
       </div>
       <div class="preview-list">
         <div class="preview-row">
-          <span class="preview-dot on"></span>
-          <span class="preview-name">Aim Assist</span>
+          <span class="preview-dot"></span>
+          <span class="preview-name">Silent Aim</span>
           <span class="preview-cat">Combat</span>
           <span class="preview-switch on"></span>
         </div>
         <div class="preview-row">
-          <span class="preview-dot on"></span>
-          <span class="preview-name">Clutch</span>
-          <span class="preview-cat">Movement</span>
+          <span class="preview-dot"></span>
+          <span class="preview-name">Crystal Aura</span>
+          <span class="preview-cat">Combat</span>
           <span class="preview-switch on"></span>
         </div>
         <div class="preview-row">
-          <span class="preview-dot on"></span>
+          <span class="preview-dot"></span>
           <span class="preview-name">Auto Mace</span>
           <span class="preview-cat">Mace</span>
           <span class="preview-switch on"></span>
         </div>
         <div class="preview-row">
-          <span class="preview-dot on"></span>
-          <span class="preview-name">AI Chat</span>
-          <span class="preview-cat">Donut SMP</span>
+          <span class="preview-dot"></span>
+          <span class="preview-name">Tracers</span>
+          <span class="preview-cat">Visuals</span>
           <span class="preview-switch on"></span>
         </div>
         <div class="preview-row">
@@ -122,12 +123,12 @@
         </div>
       </div>
       <div class="preview-foot">
-        <span>241 modules loaded</span>
+        <span>247 modules loaded</span>
         <span>FPS 312</span>
       </div>
     </div>
-    <div class="floating-badge badge-a"><b>Clutch</b> &middot; armed</div>
-    <div class="floating-badge badge-b"><b>AI Chat</b> &middot; online</div>
+    <div class="floating-badge badge-a"><b>Silent Aim</b> &middot; active</div>
+    <div class="floating-badge badge-b"><b>+18 CPS</b> &middot; triggerbot</div>
   </div>
 </section>
 
@@ -162,38 +163,6 @@
   </div>
 </div>
 
-<!-- WHAT'S NEW -->
-<section class="whats-new" id="new">
-  <div class="whats-new-head">
-    <p class="eyebrow">Fresh in the menu</p>
-    <h2>Three things you'll <em>feel.</em></h2>
-    <p>New this build, and already wired into the rest of the client.</p>
-  </div>
-  <div class="whats-new-grid">
-    <a class="news-card news-card-lime" href="features.html">
-      <span class="news-index">01</span>
-      <span class="news-tag">Movement</span>
-      <h3>Clutch</h3>
-      <p>Predicts the landing, silently aims the bucket or pearl, and pulls you out of the fall. Thirteen settings, including prediction ticks, jitter and auto-disable.</p>
-      <span class="news-link">See every setting &rarr;</span>
-    </a>
-    <a class="news-card" href="features.html">
-      <span class="news-index">02</span>
-      <span class="news-tag">Combat</span>
-      <h3>Friend-safe Aim Assist</h3>
-      <p>Friends are filtered out before a target is picked. Silent rotation still lands on enemies, but a teammate never becomes the crosshair.</p>
-      <span class="news-link">How targets work &rarr;</span>
-    </a>
-    <a class="news-card" href="features.html">
-      <span class="news-index">03</span>
-      <span class="news-tag">Donut SMP</span>
-      <h3>AI Chat</h3>
-      <p>A guarded assistant in chat with your own API key. It answers server questions, keeps history, and stays positive about Champ.</p>
-      <span class="news-link">Open the module list &rarr;</span>
-    </a>
-  </div>
-</section>
-
 <!-- FEATURE PANEL -->
 <section class="undetectable-section" id="features">
   <div class="undetectable-head" data-reveal>
@@ -210,8 +179,8 @@
         </svg>
       </div>
       <h3>Combat that lands.</h3>
-      <p>Aim Assist refuses friends outright, Kill Aura rotates through packets, and Auto Mace opens a shield before the mace hits. Clutch reads your fall and places water or a pearl before the ground does.</p>
-      <span class="pillar-tag">Combat &middot; Clutch &middot; Mace</span>
+      <p>Silent Aim, Kill Aura, Auto Mace and Crystal Aura share the same target and rotation code, so a swap mid-fight doesn't fight the module next to it. Rotations go out as packets and your camera stays where you put it.</p>
+      <span class="pillar-tag">Combat &middot; Mace &middot; Crystal</span>
       <a href="features.html" class="btn-primary feature-box-cta">Explore all features &rarr;</a>
     </div>
     <div class="feature-box-art" aria-hidden="true">
@@ -237,8 +206,8 @@
         </svg>
       </div>
       <h3>Built for Donut SMP.</h3>
-      <p>Base and stash finding, Auto Buy, Auto Sell and AI Chat with your own API key. The assistant answers in chat, knows the server, and never leaks client code or talks down the client.</p>
-      <span class="pillar-tag">Donut SMP &middot; AI Chat &middot; Raid</span>
+      <p>Base and stash finding, Auto Buy, Auto Sell and a schematic builder that places the blocks itself. The raid and trade tools use the same inventory code, so a purchase doesn't trip over a refill.</p>
+      <span class="pillar-tag">Donut SMP &middot; Raid &middot; AutoBuild</span>
     </article>
   </div>
 </section>
@@ -298,7 +267,7 @@
 
   <div class="proof-strip">
     <div class="proof-item">
-      <span class="proof-num" data-count="241">241</span>
+      <span class="proof-num" data-count="247">247</span>
       <span class="proof-label">Modules in the menu</span>
     </div>
     <div class="proof-item">
@@ -471,7 +440,8 @@
     <h4>Product</h4>
     <div class="footer-links">
       <a href="features.html">Features</a>
-<a href="configs.html">Public configs</a>
+      <a href="guide.html">Guide</a>
+      <a href="configs.html">Public configs</a>
       <a href="changelog.html">Changelog</a>
       <a href="index.html#pricing">Pricing</a>
     </div>
@@ -495,13 +465,11 @@
     </div>
   </div>
   <p class="footer-copy">
-    <span>&copy; 2026 <strong>Champ Client</strong>. Not affiliated with Mojang or Microsoft.</span>
-    <span>241 modules &middot; 1.21.11 &middot; Windows &amp; Linux</span>
+    &copy; 2026 <strong>Champ Client</strong>. Not affiliated with Mojang or Microsoft. Minecraft is a trademark of Mojang AB.
   </p>
 </footer>
 
 <script src="main.js"></script>
 <script src="motion.js"></script>
-<script src="sound.js" defer></script>
 </body>
 </html>

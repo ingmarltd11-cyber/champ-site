@@ -7,9 +7,8 @@
 <link rel="icon" type="image/png" href="assets/logo-teal.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="site.css">
-<link rel="stylesheet" href="theme.css">
 </head>
 <body>
 
@@ -22,7 +21,8 @@
   <a class="nav-logo" href="index.html"><img src="assets/logo-teal.png" alt="Champ crab logo"><span>Champ <em>Client</em></span></a>
   <ul class="nav-links">
     <li><a href="features.html">Features</a></li>
-<li><a href="configs.html">Configs</a></li>
+    <li><a href="guide.html">Guide</a></li>
+    <li><a href="configs.html">Configs</a></li>
     <li><a href="changelog.html">Changelog</a></li>
     <li><a href="index.html#pricing">Pricing</a></li>
     <li><a href="support.html">Support</a></li>
@@ -37,7 +37,8 @@
 <div class="mobile-menu" id="mobileMenu">
   <a href="index.html" onclick="toggleMenu()">Homepage</a>
   <a href="features.html" onclick="toggleMenu()">Features</a>
-<a href="configs.html" onclick="toggleMenu()">Configs</a>
+  <a href="guide.html" onclick="toggleMenu()">Guide</a>
+  <a href="configs.html" onclick="toggleMenu()">Configs</a>
   <a href="changelog.html" onclick="toggleMenu()">Changelog</a>
   <a href="index.html#pricing" onclick="toggleMenu()">Pricing</a>
   <a href="support.html" onclick="toggleMenu()">Support</a>
@@ -107,7 +108,8 @@
     <h4>Product</h4>
     <div class="footer-links">
       <a href="features.html">Features</a>
-<a href="configs.html">Configs</a>
+      <a href="guide.html">Guide</a>
+      <a href="configs.html">Configs</a>
       <a href="changelog.html">Changelog</a>
     </div>
   </div>
@@ -198,7 +200,7 @@
         current = c;
         document.getElementById('cfgDetailName').textContent = c.name || 'Config';
         document.getElementById('cfgDetailMeta').textContent = 'by ' + (c.author || 'Champ user') +
-          (c.created_at ? ' &middot; ' + fmtDate(c.created_at) : '') + ' &middot; ' + (c.downloads || 0) + ' downloads';
+          (c.created_at ? ' \u00b7 ' + fmtDate(c.created_at) : '') + ' \u00b7 ' + (c.downloads || 0) + ' downloads';
         document.getElementById('cfgDetailDesc').textContent = c.description || 'No description.';
         document.getElementById('cfgDetailTags').innerHTML = (c.tags || [])
           .map(function (t) { return '<span class="configs-tag">' + esc(t) + '</span>'; }).join('');
@@ -239,6 +241,8 @@
     var overlay = document.getElementById('cfgOverlay');
     overlay.classList.remove('open');
     overlay.setAttribute('aria-hidden', 'true');
+    var link = document.getElementById('cfgDownload');
+    if (link && link.href.indexOf('blob:') === 0) URL.revokeObjectURL(link.href);
     current = null;
   };
 
@@ -261,6 +265,5 @@
 </script>
 <script src="main.js"></script>
 <script src="motion.js"></script>
-<script src="sound.js" defer></script>
 </body>
 </html>
