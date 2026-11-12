@@ -109,7 +109,7 @@ LICENSE_PLANS = (TRIAL_PLAN,) + PLANS
 DIST_CLIENT_FILE = "champ.exe"
 # Bumped whenever public/downloads/champ.exe is replaced, so the dashboard can show which release a
 # customer has and an older injector can notice it is behind. One commit, no admin visit.
-PUBLIC_CLIENT_BUILD = "2026-11-06T15:26:17Z"
+PUBLIC_CLIENT_BUILD = "2026-11-12T09:49:16Z"
 # A challenge is signed by the PC's Ed25519 key and must come back quickly.
 DEVICE_CHALLENGE_SECONDS = 120
 PLAN_PRICES = {

@@ -4,8 +4,8 @@ cd /d "%~dp0"
 
 rem Champ Client for Windows.
 rem Keep this file next to champ.exe. Start Minecraft 1.21.11 first, then
-rem double-click this file (or champ.exe directly). The loader checks your
-rem license and this PC in this window, then puts Champ into the running game.
+rem double-click this file (or champ.exe directly). Champ draws its own window,
+rem checks your license and this PC, then puts the client into the running game.
 
 if not exist "champ.exe" (
     echo.
@@ -16,6 +16,7 @@ if not exist "champ.exe" (
     exit /b 1
 )
 
-start "" /wait /b "champ.exe"
-if errorlevel 1 pause
+rem No /wait: the console belongs to this .bat only, and closing it immediately
+rem leaves just the rounded Champ window on screen.
+start "" "champ.exe"
 exit /b 0
