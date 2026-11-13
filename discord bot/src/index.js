@@ -15,6 +15,7 @@ const { checkEnv, validateTicketConfig, validateGiveawayConfig, auditGuild } = r
 const { getTicketConfig, getGiveawayConfig, getWelcomeDefaults } = require('./config/loadConfig');
 const { getWelcomeConfig } = require('./utils/welcomeSettings');
 const { siteUrl, inviteUrl } = require('./utils/format');
+const { discordToken, applicationId, guildId } = require('./utils/discordEnv');
 const ticketStore = require('./utils/ticketStore');
 const { startAutoClose } = require('./jobs/autoClose');
 const { startGiveawayScheduler } = require('./jobs/giveawayScheduler');
@@ -211,9 +212,9 @@ client.once('ready', async () => {
     for (const warning of warnings) log.warn('audit', `${guild.name}: ${warning}`);
   }
 
-  if (process.env.AUTO_DEPLOY_COMMANDS !== 'false' && process.env.CLIENT_ID) {
+  if (process.env.AUTO_DEPLOY_COMMANDS !== 'false' && applicationId()) {
     try {
-      const result = await registerCommands({ guildId: process.env.GUILD_ID || null });
+      const result = await registerCommands({ guildId: guildId() || null });
       log.info('deploy', `slash commands registered (${result.count}) ${result.scope}`);
     } catch (err) {
       await reportError('deploy', err, { action: 'registerCommands' });
@@ -250,7 +251,7 @@ process.on('uncaughtException', async (err) => {
   await ticketStore.init();
   health = startHealthServer({ client, startedAt, isShuttingDown: () => shuttingDown });
   try {
-    await client.login(process.env.DISCORD_TOKEN);
+    await client.login(discordToken());
   } catch (err) {
     log.error('boot', `login failed: ${err.message}`);
     await health?.close().catch(() => {});

@@ -20,6 +20,8 @@ const { escapeHtml, renderTranscriptHtml } = require('../src/utils/transcript');
 const { saveTranscript } = require('../src/utils/transcriptStore');
 const { endGiveaway, rerollGiveaway } = require('../src/handlers/giveawayInteractions');
 const { checkEnv, validateTicketConfig } = require('../src/utils/preflight');
+const { discordToken, applicationId, guildId } = require('../src/utils/discordEnv');
+const linkCommand = require('../src/commands/link');
 const { buildPayload } = require('../src/health');
 const { formatUptime } = require('../src/utils/format');
 const { parseDuration, formatDuration } = require('../src/utils/moderation');
@@ -86,6 +88,12 @@ const fakeMember = {
     checkEnv({ DISCORD_TOKEN: 'token', SUPABASE_URL: 'https://x.supabase.co' }).warnings.some((w) => w.includes('both')),
     'a half-configured Supabase is warned about'
   );
+  check(discordToken({ DISCORD_BOT_TOKEN: 'site-token' }) === 'site-token', 'the site token name works for the bot');
+  check(discordToken({ DISCORD_TOKEN: 'bot-token' }) === 'bot-token', 'the bot token name still wins');
+  check(applicationId({ DISCORD_CLIENT_ID: '123' }) === '123', 'the site client id is accepted');
+  check(guildId({ DISCORD_GUILD_ID: '456' }) === '456', 'the site guild id is accepted');
+  check(checkEnv({ DISCORD_BOT_TOKEN: 'token' }).errors.length === 0, 'the site token alone boots the bot');
+  check(linkCommand.data.toJSON().name === 'link', 'the /link command is registered in the command set');
   check(formatUptime(90061000) === '1d 1h 1m', 'uptime formatting is stable');
 
   console.log('\nmoderation');

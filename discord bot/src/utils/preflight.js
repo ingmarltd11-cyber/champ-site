@@ -1,6 +1,7 @@
 const { ChannelType, PermissionFlagsBits } = require('discord.js');
 const { resolveSupportRole } = require('./permissions');
 const { isHttpUrl } = require('./format');
+const { discordToken, applicationId, guildId } = require('./discordEnv');
 
 // Startup validation. The bot refuses to boot on a broken required setting, but a placeholder
 // channel id (the normal state before setup) only produces a warning with the exact command to fix it.
@@ -12,9 +13,9 @@ function checkEnv(env = process.env) {
   const errors = [];
   const warnings = [];
 
-  if (!env.DISCORD_TOKEN) errors.push('DISCORD_TOKEN is missing. Copy .env.example to .env or set it on the host.');
-  if (!env.CLIENT_ID) warnings.push('CLIENT_ID is missing, so `npm run deploy` cannot register slash commands.');
-  if (!env.GUILD_ID) warnings.push('GUILD_ID is not set: commands will be registered globally (up to an hour to appear).');
+  if (!discordToken(env)) errors.push('DISCORD_TOKEN (or DISCORD_BOT_TOKEN) is missing. Copy .env.example to .env or set it on the host.');
+  if (!applicationId(env)) warnings.push('CLIENT_ID (or DISCORD_CLIENT_ID) is missing, so `npm run deploy` cannot register slash commands.');
+  if (!guildId(env)) warnings.push('GUILD_ID (or DISCORD_GUILD_ID) is not set: commands will be registered globally (up to an hour to appear).');
 
   if (env.SITE_URL && !isHttpUrl(env.SITE_URL)) {
     warnings.push(`SITE_URL is not a valid http(s) URL (${env.SITE_URL}); the default site link is used instead.`);

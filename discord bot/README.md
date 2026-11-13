@@ -12,6 +12,7 @@ One Node 20 process. No database required; Supabase and a mounted volume are opt
 cd "website/discord bot"
 npm ci
 cp .env.example .env        # fill in DISCORD_TOKEN, CLIENT_ID, GUILD_ID
+# DISCORD_BOT_TOKEN / DISCORD_CLIENT_ID / DISCORD_GUILD_ID work too; use one set for the site.
 npm run deploy              # register the slash commands once
 npm start
 ```
@@ -139,8 +140,9 @@ Set `PORT` (Railway injects it) and the bot serves:
 ### Railway
 
 1. New service from the repository, root directory `website/discord bot`.
-2. Add the variables from `.env.example` (at minimum `DISCORD_TOKEN`, `CLIENT_ID`, `GUILD_ID`,
-   `SITE_URL`).
+2. Add the variables from `.env.example` (at minimum `DISCORD_TOKEN` or `DISCORD_BOT_TOKEN`, a
+   client id and `SITE_URL`; `GUILD_ID` or `DISCORD_GUILD_ID` for instant commands). The site
+   accepts the same values, so one token can serve both services.
 3. Attach a volume and mount it at `/data`; set `DATA_DIR=/data`.
 4. `railway.json` already sets `npm start` and healthcheck `/health`. Railway injects `PORT`.
 5. Deploy, then run `npm run deploy` once locally if you disabled auto registration.
@@ -159,7 +161,7 @@ healthcheck against `/health`.
 
 | Symptom | Fix |
 | --- | --- |
-| `DISCORD_TOKEN is missing` | No `.env` or no variable on the host; copy `.env.example`. |
+| `DISCORD_TOKEN is missing` | No `.env` or no variable on the host; copy `.env.example`. `DISCORD_BOT_TOKEN` is accepted instead. |
 | Slash commands are empty | Set `CLIENT_ID` (and `GUILD_ID` for instant registration) and restart. |
 | Tickets fail with “Manage Channels” | Give the bot role Manage Channels; re-invite if needed. |
 | Transcript DM missing | The member closed DMs; the archive channel and disk copy still have it. |

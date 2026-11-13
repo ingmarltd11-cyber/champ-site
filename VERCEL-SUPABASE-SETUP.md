@@ -62,6 +62,13 @@ The dashboard can link a customer to Discord in two ways: an OAuth app configure
 is configured. The member runs `/link code:<code>`; the bot proves the Discord id and the site stores
 it on that customer. An active license assigns the Champ+ role automatically.
 
+The bot and the site accept the same values under either name: `DISCORD_TOKEN` or
+`DISCORD_BOT_TOKEN` for the bot token, `CLIENT_ID` or `DISCORD_CLIENT_ID` for the application id, and
+`GUILD_ID` or `DISCORD_GUILD_ID` for the server. Set one token on both Railway and Vercel; the site
+uses `CHAMP_PLUS_ROLE_ID` for the role itself. `/api/health` returns a `discord` block with booleans
+for `oauth`, `bot`, `guild`, `role`, `schema` and `linking`, so a missing variable or unapplied
+migration is visible without exposing any value.
+
 ## Supabase database
 
 Connected Supabase project: **Champclient** (`ykmhjkkkskqyvdphzmkw`, `eu-west-1`). The website uses the service key server-side through PostgREST and Storage. Apply `supabase/schema.sql` when setting up the full website schema. Do not run the legacy instructions for creating a new Supabase project or for the Discord bot schema against this site project.

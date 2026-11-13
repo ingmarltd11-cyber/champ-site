@@ -1448,6 +1448,17 @@ def health():
         "database_writable": bool(SUPABASE_URL and SUPABASE_SERVER_KEY),
         "sessions": sessions_ready(),
         "vercel_env": os.getenv("VERCEL_ENV"),
+        # Configuration summary only; no token, client id or guild id is returned.
+        "discord": {
+            "oauth": discord_oauth_configured(),
+            "bot": bool(discord_bot_token()),
+            "guild": bool(discord_guild_id()),
+            "role": bool((os.getenv("CHAMP_PLUS_ROLE_ID") or "").strip()),
+            "schema": discord_schema_ready(),
+            "linking": bool(discord_oauth_configured() or
+                            (discord_bot_token() and discord_guild_id() and
+                             (os.getenv("CHAMP_PLUS_ROLE_ID") or "").strip())),
+        },
         "payments": {
             "crypto": bool(payment_setting("payment_crypto_address")),
             "donut": payment_setting_bool("payment_donut_enabled")
@@ -3656,8 +3667,32 @@ DISCORD_INVITE = "https://discord.gg/6vyQnVjeX"
 LINK_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
 
+def discord_bot_token() -> str:
+    """Accept the Railway/bot name as well as the site-specific one."""
+    return (os.getenv("DISCORD_BOT_TOKEN") or os.getenv("DISCORD_TOKEN") or "").strip()
+
+
+def discord_client_id() -> str:
+    return (os.getenv("DISCORD_CLIENT_ID") or os.getenv("CLIENT_ID") or "").strip()
+
+
+def discord_guild_id() -> str:
+    return (os.getenv("DISCORD_GUILD_ID") or os.getenv("GUILD_ID") or "").strip()
+
+
+def discord_schema_ready() -> bool:
+    """The link columns are a separate migration on an existing database."""
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        return False
+    try:
+        _sb("GET", "users", params={"select": "discord_link_code,discord_link_code_expires_at", "limit": 1})
+        return True
+    except Exception:
+        return False
+
+
 def discord_oauth_configured() -> bool:
-    return bool(os.getenv("DISCORD_CLIENT_ID") and os.getenv("DISCORD_CLIENT_SECRET") and SITE_URL)
+    return bool(discord_client_id() and os.getenv("DISCORD_CLIENT_SECRET") and SITE_URL)
 
 
 def discord_site_url() -> str:
@@ -3706,8 +3741,8 @@ def active_license_for_session(session_token: Optional[str]) -> Optional[dict]:
 
 
 def assign_champ_plus(discord_id: str) -> tuple:
-    token = os.getenv("DISCORD_BOT_TOKEN", "")
-    guild = os.getenv("DISCORD_GUILD_ID", "")
+    token = discord_bot_token()
+    guild = discord_guild_id()
     role = os.getenv("CHAMP_PLUS_ROLE_ID", "")
     if not (token and guild and role):
         return False, "Role assignment is not configured yet."
@@ -3732,7 +3767,7 @@ def discord_link_start(user: dict = Depends(current_user)):
     """Start linking without assuming which OAuth/bot setup the deployment has."""
     if discord_oauth_configured():
         return {"mode": "oauth", "url": "/api/discord/link"}
-    if not os.getenv("DISCORD_BOT_TOKEN"):
+    if not discord_bot_token():
         raise HTTPException(503, "Discord linking is not configured yet.")
     code = create_discord_link_code(user)
     return {
@@ -3749,7 +3784,7 @@ def discord_link(user: dict = Depends(current_user)):
         raise HTTPException(503, "Discord linking is not configured yet.")
     state = make_token(user["email"], "discord_link", 10)
     params = urlencode({
-        "client_id": os.getenv("DISCORD_CLIENT_ID"),
+        "client_id": discord_client_id(),
         "redirect_uri": f"{discord_site_url()}/api/discord/callback",
         "response_type": "code",
         "scope": "identify",
@@ -3770,7 +3805,7 @@ def discord_callback(code: Optional[str] = None, state: Optional[str] = None):
     email = payload["sub"]
     try:
         token_res = requests.post(f"{DISCORD_API}/oauth2/token",
-                                  data={"client_id": os.getenv("DISCORD_CLIENT_ID"),
+                                  data={"client_id": discord_client_id(),
                                         "client_secret": os.getenv("DISCORD_CLIENT_SECRET"),
                                         "grant_type": "authorization_code", "code": code,
                                         "redirect_uri": f"{base}/api/discord/callback"}, timeout=15)
@@ -3812,7 +3847,7 @@ def discord_callback(code: Optional[str] = None, state: Optional[str] = None):
 @app.post("/api/discord/bot/link")
 def discord_bot_link(p: DiscordBotLinkReq, authorization: Optional[str] = Header(None)):
     """Called by the Champ bot after `/link code:...`; the Discord id is proven by the bot."""
-    expected_token = os.getenv("DISCORD_BOT_TOKEN", "")
+    expected_token = discord_bot_token()
     if not expected_token:
         raise HTTPException(503, "Discord bot linking is not configured yet.")
     expected = f"Bot {expected_token}"

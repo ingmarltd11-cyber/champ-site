@@ -1,5 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { siteUrl } = require('../utils/format');
+const { discordToken } = require('../utils/discordEnv');
 
 const data = new SlashCommandBuilder()
   .setName('link')
@@ -24,7 +25,7 @@ async function execute(interaction) {
     });
   }
 
-  const token = process.env.DISCORD_TOKEN;
+  const token = discordToken();
   if (!token) {
     return interaction.reply({
       content: 'Discord linking is unavailable because this bot has no token configured.',

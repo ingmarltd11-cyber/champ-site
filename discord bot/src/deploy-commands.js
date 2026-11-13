@@ -3,6 +3,7 @@ require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 const fs = require('fs');
 const { REST, Routes } = require('discord.js');
+const { discordToken, applicationId, guildId: configuredGuildId } = require('./utils/discordEnv');
 
 function collectCommands() {
   const commands = [];
@@ -18,11 +19,13 @@ function collectCommands() {
 // AUTO_DEPLOY_COMMANDS=false, once by the bot itself on ready so a fresh deploy never shows an
 // empty slash-command list.
 async function registerCommands({
-  token = process.env.DISCORD_TOKEN,
-  clientId = process.env.CLIENT_ID,
-  guildId = process.env.GUILD_ID,
+  token = discordToken(),
+  clientId = applicationId(),
+  guildId = configuredGuildId(),
 } = {}) {
-  if (!token || !clientId) throw new Error('DISCORD_TOKEN and CLIENT_ID are required to register commands.');
+  if (!token || !clientId) {
+    throw new Error('DISCORD_TOKEN (or DISCORD_BOT_TOKEN) and CLIENT_ID (or DISCORD_CLIENT_ID) are required to register commands.');
+  }
   const body = collectCommands().map((command) => command.toJSON());
   const rest = new REST({ version: '10' }).setToken(token);
   const route = guildId
