@@ -785,6 +785,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const statusText = document.getElementById('validation-status-text');
   const authView = document.getElementById('checkout-auth-view');
   const authMsg = document.getElementById('auth-gate-message');
+  const doneView = document.getElementById('checkout-done-view');
+  const paymentStatus = document.getElementById('payment-status');
 
   const fail = (text) => {
     statusText.innerText = text;
@@ -811,6 +813,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const next = encodeURIComponent(`payment.html?uid=${uid}`);
     const switchAccount = me.ok ? '&switch=1' : '';
     document.querySelector('#checkout-auth-view a[href^="login.html"]').href = `login.html?next=${next}${switchAccount}`;
+    const signupLink = document.querySelector('#checkout-auth-view a[href^="signup.html"]');
+    if (signupLink && isChampPlan(link.plan_type)) {
+      signupLink.href = `signup.html?plan=${encodeURIComponent(link.plan_type)}`;
+    }
     authMsg.textContent = me.ok
       ? `This link is for ${link.email}, but you are signed in as ${me.data.email}. Sign in with the right account.`
       : `Sign in (or create an account) with ${link.email} to continue.`;
@@ -818,30 +824,229 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
+  const methodLabels = {
+    crypto: ['Crypto', 'Send the exact amount to the shop wallet'],
+    donut: ['DonutSMP money', 'Pay the Champ bot in-game from your Minecraft account'],
+    giftcard: ['Gift card', 'Steam, Roblox, Apple, Google Play and more'],
+  };
+  const methodsWrap = document.getElementById('paymentMethodsList');
+  const donutFields = document.getElementById('donut-fields');
+  const giftFields = document.getElementById('giftcard-fields');
+  const prep = document.getElementById('payment-prep');
+  const btn = document.getElementById('completePurchaseBtn');
+  const refreshBtn = document.getElementById('refreshPaymentBtn');
+  const footnote = document.getElementById('checkout-footnote');
+  let methods = {};
+  let selected = '';
+  let order = null;
+  let prepared = false;
+  let pollTimer = null;
+
   checkoutForm.style.display = 'block';
   document.getElementById('display-customer-email').innerText = link.email;
-  document.getElementById('display-plan-title').innerHTML = `Get <em>${link.plan_type.toUpperCase()}</em> Access`;
+
+  function money(cents) {
+    return `€${(Number(cents || 0) / 100).toFixed(2)}`;
+  }
+
+  function setStatus(text, error) {
+    paymentStatus.style.display = text ? 'block' : 'none';
+    paymentStatus.style.color = error ? '#ff6b6b' : 'var(--muted)';
+    paymentStatus.textContent = text || '';
+  }
+
+  function showDone() {
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    checkoutForm.style.display = 'none';
+    doneView.style.display = 'block';
+    loadingView.style.display = 'none';
+  }
+
+  function renderMethodButtons() {
+    const available = Object.entries(methods).filter(([, on]) => on);
+    if (!available.length) {
+      methodsWrap.innerHTML = '<p class="no-license-text">No payment method is enabled yet. Please contact support.</p>';
+      btn.disabled = true;
+      return;
+    }
+    methodsWrap.innerHTML = available.map(([key]) => {
+      const [name, desc] = methodLabels[key] || [key, ''];
+      return `<button type="button" class="pay-method${key === selected ? ' selected' : ''}" data-method="${key}">
+        <div class="method-info"><span class="method-name">${name}</span><span class="method-desc">${desc}</span></div>
+      </button>`;
+    }).join('');
+    methodsWrap.querySelectorAll('[data-method]').forEach(el => {
+      el.addEventListener('click', () => { if (!prepared) selectMethod(el.dataset.method); });
+    });
+  }
+
+  function selectMethod(method) {
+    selected = method;
+    methodsWrap.querySelectorAll('[data-method]').forEach(el => el.classList.toggle('selected', el.dataset.method === method));
+    donutFields.style.display = method === 'donut' ? 'block' : 'none';
+    giftFields.style.display = method === 'giftcard' ? 'block' : 'none';
+    btn.innerText = 'Continue';
+    setStatus('');
+  }
+
+  function renderOrder(next) {
+    order = next;
+    const isReset = (next.kind === 'hwid_reset' || next.plan_type === 'hwid_reset');
+    const planName = isReset ? 'Device reset' : String(next.plan_type || '').toUpperCase();
+    document.getElementById('display-plan-title').innerHTML = isReset ? 'Pay for your <em>device reset</em>' : `Get <em>${planName}</em> Access`;
+    document.getElementById('display-plan-sub').textContent = isReset ? 'Unlock one new PC for this license.' : 'Choose a payment method and complete the steps.';
+    document.getElementById('display-amount').textContent = money(next.amount_cents);
+    document.getElementById('display-kind').textContent = isReset ? 'One-time device reset' : `${next.plan_type} plan`;
+    if (next.status === 'paid') return showDone();
+
+    if (next.method && methodLabels[next.method]) {
+      selected = next.method;
+      prepared = true;
+      renderMethodButtons();
+      showPrep(next);
+      if (next.method && !pollTimer) {
+        pollTimer = setInterval(refreshOrder, 7000);
+      }
+    } else {
+      renderMethodButtons();
+      selectMethod(Object.entries(methods).find(([, on]) => on)?.[0] || '');
+    }
+  }
+
+  function showPrep(next) {
+    prep.style.display = 'block';
+    ['crypto-prep', 'donut-prep', 'giftcard-prep'].forEach(id => {
+      document.getElementById(id).style.display = 'none';
+    });
+    document.getElementById('payment-fields').style.display = 'none';
+    const method = next.method;
+    const prepPanel = document.getElementById(`${method}-prep`);
+    if (!prepPanel) return;
+    prepPanel.style.display = 'block';
+    footnote.style.display = 'none';
+    refreshBtn.style.display = 'block';
+    btn.innerText = method === 'crypto' ? 'I have paid' : 'Check status';
+    if (method === 'crypto') {
+      document.getElementById('crypto-amount').textContent = `${next.crypto.amount} ${next.crypto.coin}`;
+      document.getElementById('crypto-coin').textContent = '';
+      document.getElementById('crypto-address').textContent = next.crypto.address;
+      document.getElementById('cryptoTxid').value = next.crypto.txid || '';
+      document.getElementById('prep-title').textContent = 'Send crypto';
+      setStatus(next.crypto.txid ? 'Transaction submitted. Waiting for confirmation.' : 'Send the exact amount, then paste the transaction hash below.');
+    } else if (method === 'donut') {
+      document.getElementById('donut-amount').textContent = String(next.donut.amount);
+      document.getElementById('donut-bot').textContent = next.donut.bot;
+      document.getElementById('donut-username').textContent = next.donut.username;
+      document.getElementById('prep-title').textContent = 'Pay in DonutSMP';
+      setStatus('Waiting for the bot to see your payment. This can take a minute.');
+    } else if (method === 'giftcard') {
+      document.getElementById('giftcard-brand-label').textContent = next.giftcard.brand;
+      document.getElementById('giftcard-value-label').textContent = (Number(next.giftcard.value_cents || 0) / 100).toFixed(2);
+      document.getElementById('giftcard-note').textContent = next.giftcard.note || 'The shop checks this code before unlocking.';
+      document.getElementById('prep-title').textContent = 'Gift card received';
+      setStatus(next.status === 'review' ? 'Your code is waiting for review. You will get access as soon as it is approved.' : 'Checking this gift card…');
+    }
+  }
+
+  async function refreshOrder() {
+    try {
+      const res = await api(`/api/payments/${encodeURIComponent(uid)}`);
+      if (res.ok) renderOrder(res.data);
+      else if (res.status === 410) {
+        prepared = true;
+        btn.disabled = true;
+        setStatus(errorText(res.data, 'This payment is no longer active.'), true);
+      }
+    } catch (_) { /* keep the page usable */ }
+  }
+
+  try {
+    const methodRes = await api('/api/payments/methods');
+    if (methodRes.ok) {
+      methods = methodRes.data.methods || {};
+      const brandSel = document.getElementById('giftBrand');
+      brandSel.innerHTML = (methodRes.data.giftcard_brands || []).map(b => `<option value="${escapeHtml(b)}">${escapeHtml(b)}</option>`).join('');
+      if (methodRes.data.giftcard_note) document.getElementById('giftcard-help').textContent = methodRes.data.giftcard_note;
+    }
+  } catch (_) {}
+
+  const orderRes = await api(`/api/payments/${encodeURIComponent(uid)}`);
+  if (orderRes.ok) renderOrder(orderRes.data);
+  else if (orderRes.status === 410) {
+    checkoutForm.style.display = 'block';
+    renderMethodButtons();
+    btn.disabled = true;
+    setStatus(errorText(orderRes.data, 'This payment is no longer active.'), true);
+  }
+  else {
+    renderMethodButtons();
+    selectMethod(Object.entries(methods).find(([, on]) => on)?.[0] || '');
+  }
+
+  refreshBtn.addEventListener('click', async () => {
+    refreshBtn.disabled = true;
+    await refreshOrder();
+    refreshBtn.disabled = false;
+  });
+
+  document.getElementById('copyCryptoAddress').addEventListener('click', async () => {
+    const address = document.getElementById('crypto-address').textContent;
+    try { await navigator.clipboard.writeText(address); } catch (_) {}
+    setStatus('Address copied.');
+  });
 
   checkoutForm.addEventListener('submit', async function (e) {
     e.preventDefault();
-    const btn = document.getElementById('completePurchaseBtn');
     if (!document.getElementById('tos-checkbox').checked) {
       alert('Please accept the Terms of Service to continue.');
       return;
     }
-    btn.innerText = 'Redirecting to secure payment…';
+    if (!selected) return setStatus('Choose a payment method first.', true);
     btn.disabled = true;
     try {
-      const res = await api('/api/create-stripe-session', { method: 'POST', body: JSON.stringify({ uid }) });
-      if (res.ok && res.data.url) {
-        window.location.href = res.data.url;
+      if (prepared && selected === 'crypto') {
+        const txid = document.getElementById('cryptoTxid').value.trim();
+        if (!txid) {
+          btn.disabled = false;
+          return setStatus('Paste the transaction hash after sending the crypto.', true);
+        }
+        const res = await api(`/api/payments/${encodeURIComponent(uid)}/crypto`, { method: 'POST', body: JSON.stringify({ txid }) });
+        if (!res.ok) {
+          btn.disabled = false;
+          return setStatus(errorText(res.data, 'Could not check that transaction.'), true);
+        }
+        setStatus(res.data.message, false);
+        if (res.data.paid) return showDone();
+        await refreshOrder();
+        btn.disabled = false;
         return;
       }
-      alert(errorText(res.data, 'Could not start checkout.'));
+      if (prepared) {
+        await refreshOrder();
+        btn.disabled = false;
+        return;
+      }
+
+      const payload = { uid, method: selected };
+      if (selected === 'donut') payload.donut_username = document.getElementById('donutUsername').value.trim();
+      if (selected === 'giftcard') {
+        payload.gift_card_brand = document.getElementById('giftBrand').value;
+        payload.gift_card_value = Number(document.getElementById('giftValue').value || 0);
+        payload.gift_card_code = document.getElementById('giftCode').value.trim();
+      }
+      const res = await api('/api/payments/start', { method: 'POST', body: JSON.stringify(payload) });
+      if (!res.ok) {
+        btn.disabled = false;
+        return setStatus(errorText(res.data, 'Could not start this payment.'), true);
+      }
+      if (res.data.paid) return showDone();
+      renderOrder(res.data);
+      if (!pollTimer) {
+        pollTimer = setInterval(refreshOrder, 7000);
+      }
     } catch (_) {
-      alert('Could not reach the payment server.');
+      setStatus('Could not reach the payment server. Please try again.', true);
     }
-    btn.innerText = 'Complete Purchase';
     btn.disabled = false;
   });
 });
@@ -947,13 +1152,6 @@ function renderLicense(kind, lic) {
 
   const billingButton = document.getElementById('manageBillingBtn');
   if (billingButton) billingButton.style.display = 'none';
-  document.getElementById('manageBtn')?.addEventListener('click', openBillingPortal);
-}
-
-async function openBillingPortal() {
-  const res = await api('/api/billing-portal', { method: 'POST' });
-  if (res.ok && res.data.url) window.location.href = res.data.url;
-  else alert(errorText(res.data, 'Could not open the billing portal.'));
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -974,21 +1172,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const query = new URLSearchParams(window.location.search);
   const justPaid = query.get('paid') === '1';
   const paidPlan = query.get('plan');
-  const checkoutSessionId = query.get('session_id');
   const notice = document.getElementById('dash-notice');
-
-  // Stripe returns the checkout session here. If its webhook did not arrive, this
-  // idempotent call still turns the paid session into the customer's license.
-  if (checkoutSessionId) {
-    try {
-      await api(`/api/checkout/confirm?session_id=${encodeURIComponent(checkoutSessionId)}`);
-    } catch (_) { /* the webhook retry remains the fallback */ }
-    try {
-      const clean = new URL(window.location.href);
-      clean.searchParams.delete('session_id');
-      window.history.replaceState({}, '', clean.pathname + clean.search + clean.hash);
-    } catch (_) { /* cosmetic */ }
-  }
 
   // Is the license we are waiting for active yet? (the paid plan if known, else any plan)
   const isActivated = (d) => {
@@ -1099,9 +1283,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     notice.textContent = 'Your free 24-hour trial is active. Download the client and enter the key below.';
   }
 
-  document.getElementById('manageBillingBtn')?.addEventListener('click', openBillingPortal);
-
-  // After paying, the license appears as soon as Stripe confirms (usually seconds)
+  // After paying, the license appears as soon as the payment is confirmed (usually seconds)
   if (justPaid && !isActivated(data) && notice) {
     notice.style.display = 'block';
     notice.textContent = 'Payment received — activating your license…';
@@ -1893,8 +2075,8 @@ async function loadAdminPanel() {
       tab.classList.add('active');
       document.querySelectorAll('.admin-tabpage').forEach(p => { p.style.display = 'none'; });
       document.getElementById(`tab-${tab.dataset.tab}`).style.display = 'block';
-      // Discount codes live in Stripe, so they are fetched when the tab is opened (not on page load).
-      if (tab.dataset.tab === 'discounts') loadDiscounts();
+      // Payment settings and the review queue are fetched when the tab is opened.
+      if (tab.dataset.tab === 'payments') { loadAdminPaymentSettings(); loadAdminPayments(); }
       if (tab.dataset.tab === 'accounts') loadAdminUsers(document.getElementById('adminUserSearch')?.value.trim() || '');
     });
   });
@@ -1916,6 +2098,8 @@ async function loadAdminPanel() {
   loadAdminChangelog();
   loadAdminFeatures();
   loadAdminLoaderChannels();
+  loadAdminPaymentSettings();
+  loadAdminPayments();
 }
 
 // The beta injector is only offered here. It reads the same manifest the exe fetches on start, so
@@ -2021,8 +2205,8 @@ function openLicenseEditor(lic) {
   if (lic.hwid) info.push(`device ${lic.hwid} linked ${fmtDate(lic.hwid_bound_at)}`);
   if (lic.hwid_reset_at) info.push(`device reset ${fmtDate(lic.hwid_reset_at)}`);
   if (lic.last_seen_at) info.push(`last seen ${fmtDate(lic.last_seen_at)}`);
-  if (lic.stripe_customer_id) info.push(`stripe customer ${lic.stripe_customer_id}`);
-  if (lic.stripe_subscription_id) info.push(`subscription ${lic.stripe_subscription_id}`);
+  if (lic.payment_provider) info.push(`paid via ${lic.payment_provider}`);
+  if (lic.payment_ref) info.push(`reference ${lic.payment_ref}`);
   document.getElementById('licEditorInfo').textContent = info.join(' • ');
   const msg = document.getElementById('licEditorMsg');
   if (msg) { msg.style.display = 'none'; msg.textContent = ''; }
@@ -2237,67 +2421,124 @@ document.getElementById('bulkExtendBtn')?.addEventListener('click', async () => 
 });
 
 // ============================================================
-// Admin: discount codes (Stripe coupons + promotion codes)
+// Admin: payment methods and the review queue
 // ============================================================
-function showAddDiscountForm() {
-  const box = document.getElementById('addDiscountContainer');
-  if (!box) return;
-  box.style.display = box.style.display === 'none' ? 'block' : 'none';
-}
-
-async function loadDiscounts() {
-  const wrap = document.getElementById('adminDiscounts');
-  if (!wrap) return;
+async function loadAdminPaymentSettings() {
+  const form = document.getElementById('adminPaymentsForm');
+  if (!form) return;
   try {
-    const res = await api('/api/admin/discounts');
-    if (!res.ok) {
-      wrap.innerHTML = `<p class="no-license-text">${escapeHtml(errorText(res.data, 'Could not load discount codes.'))}</p>`;
-      return;
-    }
-    const rows = res.data.discounts || [];
+    const res = await api('/api/admin/payment-settings');
+    if (!res.ok) return;
+    const s = res.data.settings || {};
+    document.getElementById('payCryptoEnabled').checked = !!s.crypto_enabled;
+    document.getElementById('payCryptoCoin').value = s.crypto_coin || 'BTC';
+    document.getElementById('payCryptoAddress').value = s.crypto_address || '';
+    document.getElementById('payCryptoRate').value = s.crypto_rate || '';
+    document.getElementById('payDonutEnabled').checked = !!s.donut_enabled;
+    document.getElementById('payDonutBot').value = s.donut_bot || '';
+    document.getElementById('payDonutRate').value = s.donut_rate || '';
+    document.getElementById('payDonutWeekly').value = s.donut_weekly || '';
+    document.getElementById('payDonutMonthly').value = s.donut_monthly || '';
+    document.getElementById('payDonutLifetime').value = s.donut_lifetime || '';
+    document.getElementById('payGiftcardEnabled').checked = !!s.giftcard_enabled;
+    document.getElementById('payGiftcardBrands').value = s.giftcard_brands || '';
+    document.getElementById('payGiftcardNote').value = s.giftcard_note || '';
+  } catch (_) {}
+}
+
+function paymentBadge(status) {
+  const cls = status === 'paid' ? 'status-active' : (status === 'rejected' ? 'status-none' : '');
+  return `<span class="status-badge ${cls}">${escapeHtml(status || 'pending')}</span>`;
+}
+
+function paymentDetails(o) {
+  if (o.method === 'crypto') {
+    return `${escapeHtml(o.crypto?.coin || '')} ${escapeHtml(o.crypto?.amount || '')} to <code>${escapeHtml(o.crypto?.address || '')}</code>`
+      + (o.txid ? `<br>txid: <code>${escapeHtml(o.txid)}</code>` : '');
+  }
+  if (o.method === 'donut') {
+    return `from <b>${escapeHtml(o.donut?.username || '')}</b> — ${escapeHtml(String(o.donut?.amount || 0))} Donut money to ${escapeHtml(o.donut?.bot || '')}`;
+  }
+  if (o.method === 'giftcard') {
+    return `${escapeHtml(o.giftcard?.brand || '')} €${((o.giftcard?.value_cents || 0) / 100).toFixed(2)}<br>code: <code>${escapeHtml(o.gift_card_code || '')}</code>`;
+  }
+  return '—';
+}
+
+async function loadAdminPayments() {
+  const wrap = document.getElementById('adminPaymentsList');
+  if (!wrap) return;
+  const status = document.getElementById('adminPaymentsFilter')?.value || 'all';
+  const msg = document.getElementById('adminPaymentsMsg');
+  try {
+    const res = await api(`/api/admin/payments?status=${encodeURIComponent(status)}`);
+    if (!res.ok) throw new Error('payments');
+    const rows = res.data.orders || [];
     if (!rows.length) {
-      wrap.innerHTML = '<p class="no-license-text">No discount codes yet — create one with “+ New code”.</p>';
+      wrap.innerHTML = '<p class="no-license-text">No payment orders in this view.</p>';
       return;
     }
-    wrap.innerHTML = `<table class="admin-table"><thead><tr><th>Code</th><th>Discount</th><th>Used</th><th>Expires</th><th>Status</th><th></th></tr></thead><tbody>` +
-      rows.map(d => {
-        const off = d.percent_off ? `${d.percent_off}% off` : (d.amount_off != null ? `€${Number(d.amount_off).toFixed(2)} off` : '—');
-        const used = `${d.uses || 0}${d.max_uses ? ' / ' + d.max_uses : ''}`;
-        return `<tr><td><code>${escapeHtml(d.code)}</code></td><td>${escapeHtml(off)}</td><td>${escapeHtml(used)}</td><td>${d.expires_at ? fmtDate(d.expires_at) : 'never'}</td><td>${d.active ? '<span class="status-badge status-active">active</span>' : '<span class="status-badge status-none">paused</span>'}</td><td><button class="btn-ghost" type="button" data-promo="${escapeHtml(d.id)}" data-active="${d.active ? '1' : '0'}">${d.active ? 'Pause' : 'Resume'}</button></td></tr>`;
-      }).join('') + `</tbody></table>`;
-    wrap.querySelectorAll('[data-promo]').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const active = btn.dataset.active !== '1';
-        const res = await api(`/api/admin/discounts/${btn.dataset.promo}`, { method: 'POST', body: JSON.stringify({ active }) });
-        if (!res.ok) { alert(errorText(res.data, 'Could not update the code.')); return; }
-        loadDiscounts();
-      });
-    });
+    wrap.innerHTML = `<table class="admin-table"><thead><tr><th>Created</th><th>Customer</th><th>Plan</th><th>Method</th><th>Amount</th><th>Status</th><th>Details</th><th></th></tr></thead><tbody>` +
+      rows.map(o => `<tr>
+        <td>${fmtDate(o.created_at)}</td>
+        <td>${escapeHtml(o.email || '')}</td>
+        <td>${escapeHtml(o.kind === 'hwid_reset' ? 'device reset' : (o.plan_type || ''))}</td>
+        <td>${escapeHtml(o.method || '—')}</td>
+        <td>€${(Number(o.amount_cents || 0) / 100).toFixed(2)}</td>
+        <td>${paymentBadge(o.status)}</td>
+        <td style="font-size:12px;max-width:280px">${paymentDetails(o)}${o.admin_note ? `<br><span style="color:var(--danger,#f87171)">${escapeHtml(o.admin_note)}</span>` : ''}</td>
+        <td style="white-space:nowrap">${o.status !== 'paid' && o.status !== 'rejected' ? `<button class="btn-primary" type="button" data-approve="${escapeHtml(o.uid)}">Approve</button> <button class="btn-ghost" type="button" data-reject="${escapeHtml(o.uid)}" data-gift="${o.method === 'giftcard' ? '1' : '0'}">Reject</button>` : '—'}</td>
+      </tr>`).join('') + '</tbody></table>';
+    wrap.querySelectorAll('[data-approve]').forEach(btn => btn.addEventListener('click', async () => {
+      if (!confirm('Approve this payment and unlock the license?')) return;
+      btn.disabled = true;
+      const r = await api(`/api/admin/payments/${btn.dataset.approve}/approve`, { method: 'POST' });
+      if (!r.ok) { alert(errorText(r.data, 'Could not approve this payment.')); btn.disabled = false; return; }
+      if (msg) { msg.style.display = 'block'; msg.style.color = 'var(--ok, #4ade80)'; msg.textContent = 'Payment approved and license unlocked.'; }
+      loadAdminPayments();
+    }));
+    wrap.querySelectorAll('[data-reject]').forEach(btn => btn.addEventListener('click', async () => {
+      const fallback = btn.dataset.gift === '1' ? 'Gift card code is used' : 'Payment could not be verified.';
+      const reason = prompt('Reason shown to the customer:', fallback);
+      if (reason === null) return;
+      btn.disabled = true;
+      const r = await api(`/api/admin/payments/${btn.dataset.reject}/reject`, { method: 'POST', body: JSON.stringify({ reason }) });
+      if (!r.ok) { alert(errorText(r.data, 'Could not reject this payment.')); btn.disabled = false; return; }
+      if (msg) { msg.style.display = 'block'; msg.style.color = 'var(--ok, #4ade80)'; msg.textContent = 'Payment rejected.'; }
+      loadAdminPayments();
+    }));
   } catch (_) {
-    wrap.innerHTML = '<p class="no-license-text">Could not load discount codes.</p>';
+    wrap.innerHTML = '<p class="no-license-text">Could not load payment orders.</p>';
   }
 }
 
-document.getElementById('adminCreateDiscountForm')?.addEventListener('submit', async function (e) {
+document.getElementById('adminPaymentsReload')?.addEventListener('click', loadAdminPayments);
+document.getElementById('adminPaymentsFilter')?.addEventListener('change', loadAdminPayments);
+document.getElementById('adminPaymentsForm')?.addEventListener('submit', async function (e) {
   e.preventDefault();
-  const f = e.target.elements;
-  const msg = document.getElementById('adminCreateDiscountMsg');
+  const msg = document.getElementById('paySettingsMsg');
+  const btn = this.querySelector('button[type="submit"]');
+  btn.disabled = true;
   const body = {
-    code: f.code.value.trim().toUpperCase(),
-    kind: f.kind.value,
-    value: Number(f.value.value),
-    max_uses: Number(f.max_uses.value || 0),
-    expires_at: f.expires_at.value.trim(),
+    crypto_enabled: document.getElementById('payCryptoEnabled').checked,
+    crypto_coin: document.getElementById('payCryptoCoin').value,
+    crypto_address: document.getElementById('payCryptoAddress').value.trim(),
+    crypto_rate: Number(document.getElementById('payCryptoRate').value || 0),
+    donut_enabled: document.getElementById('payDonutEnabled').checked,
+    donut_bot: document.getElementById('payDonutBot').value.trim(),
+    donut_rate: Number(document.getElementById('payDonutRate').value || 0),
+    donut_weekly: Number(document.getElementById('payDonutWeekly').value || 0),
+    donut_monthly: Number(document.getElementById('payDonutMonthly').value || 0),
+    donut_lifetime: Number(document.getElementById('payDonutLifetime').value || 0),
+    giftcard_enabled: document.getElementById('payGiftcardEnabled').checked,
+    giftcard_brands: document.getElementById('payGiftcardBrands').value.trim(),
+    giftcard_note: document.getElementById('payGiftcardNote').value.trim(),
   };
-  if (msg) { msg.style.display = 'block'; msg.textContent = 'Creating…'; msg.style.color = 'inherit'; }
-  const res = await api('/api/admin/discounts', { method: 'POST', body: JSON.stringify(body) });
-  if (!res.ok) {
-    if (msg) { msg.textContent = errorText(res.data, 'Could not create the code.'); msg.style.color = 'var(--danger, #f87171)'; }
-    return;
-  }
-  if (msg) { msg.textContent = `Code ${res.data.code} is live on the checkout page.`; msg.style.color = 'var(--ok, #4ade80)'; }
-  e.target.reset();
-  loadDiscounts();
+  const res = await api('/api/admin/payment-settings', { method: 'POST', body: JSON.stringify(body) });
+  msg.style.display = 'block';
+  msg.style.color = res.ok ? 'var(--ok, #4ade80)' : 'var(--danger, #f87171)';
+  msg.textContent = res.ok ? 'Payment settings saved.' : errorText(res.data, 'Could not save the payment settings.');
+  btn.disabled = false;
 });
 
 async function loadAdminReferrals() {

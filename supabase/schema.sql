@@ -1,5 +1,5 @@
 -- Champ Client database schema.
-Run this once in Supabase: SQL Editor -> New query -> paste -> Run
+-- Run this once in Supabase: SQL Editor -> New query -> paste -> Run
 
 create table if not exists public.users (
   id              bigint generated always as identity primary key,
@@ -26,11 +26,34 @@ alter table public.users add column if not exists is_admin boolean not null defa
 create table if not exists public.pending_payments (
   uid         uuid primary key,
   email       text not null,
-  plan_type   text not null check (plan_type in ('weekly', 'monthly', 'lifetime')),
+  plan_type   text not null check (plan_type in ('weekly', 'monthly', 'lifetime', 'hwid_reset')),
   status      text not null default 'pending',
+  kind        text not null default 'license',
+  method      text not null default '',
+  amount_cents integer not null default 0,
+  currency    text not null default 'EUR',
+  license_id  bigint,
+  crypto_coin text,
+  crypto_address text,
+  crypto_amount text,
+  crypto_rate text,
+  crypto_txid text,
+  donut_username text,
+  donut_bot text,
+  donut_amount integer,
+  gift_card_brand text,
+  gift_card_code text,
+  gift_card_code_hash text,
+  gift_card_value_cents integer,
+  provider    text,
+  provider_ref text,
+  admin_note  text,
+  paid_at     timestamptz,
+  updated_at  timestamptz not null default now(),
   created_at  timestamptz not null default now()
 );
 create index if not exists pending_payments_email_idx on public.pending_payments (email, created_at desc);
+create index if not exists pending_payments_status_idx on public.pending_payments (status, created_at desc);
 
 create table if not exists public.licenses (
   id                      bigint generated always as identity primary key,
@@ -39,15 +62,13 @@ create table if not exists public.licenses (
   license_key             text not null unique,
   status                  text not null default 'active',
   expires_at              timestamptz,
-  stripe_customer_id      text,
-  stripe_subscription_id  text,
-  stripe_payment_intent   text,
+  payment_provider        text,
+  payment_ref             text,
   created_at              timestamptz not null default now(),
   updated_at              timestamptz not null default now(),
   unique (email, plan_type)
 );
-create index if not exists licenses_sub_idx on public.licenses (stripe_subscription_id);
-create index if not exists licenses_pi_idx  on public.licenses (stripe_payment_intent);
+create index if not exists licenses_payment_ref_idx on public.licenses (payment_ref);
 alter table public.licenses add column if not exists redeemed_at timestamptz;
 
 -- Hardware binding: one PC per key. The injector sends a hashed hardware ID and the key is bound to
@@ -88,7 +109,7 @@ create table if not exists public.hwid_resets (
   license_key    text not null,
   old_hwid       text not null default '',
   reason         text not null default 'free' check (reason in ('free', 'paid', 'admin')),
-  payment_intent text,
+  payment_ref    text,
   created_at     timestamptz not null default now()
 );
 create index if not exists hwid_resets_license_idx on public.hwid_resets (license_id, created_at desc);
@@ -146,12 +167,6 @@ create table if not exists public.public_configs (
 );
 create unique index if not exists public_configs_owner_name on public.public_configs (license_id, lower(name));
 create index if not exists public_configs_listing on public.public_configs (hidden, created_at desc);
-
-create table if not exists public.stripe_events (
-  id          text primary key,
-  type        text not null,
-  created_at  timestamptz not null default now()
-);
 
 -- Site Settings (announcements, links, showcase videos, etc.)
 create table if not exists public.site_settings (
@@ -244,7 +259,49 @@ alter table public.texture_packs enable row level security;
 -- Allow plans
 alter table public.pending_payments drop constraint if exists pending_payments_plan_type_check;
 alter table public.pending_payments add constraint pending_payments_plan_type_check
-  check (plan_type in ('weekly', 'monthly', 'lifetime'));
+  check (plan_type in ('weekly', 'monthly', 'lifetime', 'hwid_reset'));
+
+-- Existing deployments: add the payment-hub columns without recreating the table.
+alter table public.pending_payments add column if not exists kind text not null default 'license';
+alter table public.pending_payments add column if not exists method text not null default '';
+alter table public.pending_payments add column if not exists amount_cents integer not null default 0;
+alter table public.pending_payments add column if not exists currency text not null default 'EUR';
+alter table public.pending_payments add column if not exists license_id bigint;
+alter table public.pending_payments add column if not exists crypto_coin text;
+alter table public.pending_payments add column if not exists crypto_address text;
+alter table public.pending_payments add column if not exists crypto_amount text;
+alter table public.pending_payments add column if not exists crypto_rate text;
+alter table public.pending_payments add column if not exists crypto_txid text;
+alter table public.pending_payments add column if not exists donut_username text;
+alter table public.pending_payments add column if not exists donut_bot text;
+alter table public.pending_payments add column if not exists donut_amount integer;
+alter table public.pending_payments add column if not exists gift_card_brand text;
+alter table public.pending_payments add column if not exists gift_card_code text;
+alter table public.pending_payments add column if not exists gift_card_code_hash text;
+alter table public.pending_payments add column if not exists gift_card_value_cents integer;
+alter table public.pending_payments add column if not exists provider text;
+alter table public.pending_payments add column if not exists provider_ref text;
+alter table public.pending_payments add column if not exists admin_note text;
+alter table public.pending_payments add column if not exists paid_at timestamptz;
+alter table public.pending_payments add column if not exists updated_at timestamptz not null default now();
+create index if not exists pending_payments_status_idx on public.pending_payments (status, created_at desc);
+create unique index if not exists pending_payments_gift_hash_uniq on public.pending_payments (gift_card_code_hash)
+  where gift_card_code_hash is not null;
+create unique index if not exists pending_payments_crypto_txid_uniq on public.pending_payments (crypto_txid)
+  where crypto_txid is not null and crypto_txid <> '';
+
+alter table public.licenses add column if not exists payment_provider text;
+alter table public.licenses add column if not exists payment_ref text;
+alter table public.hwid_resets add column if not exists payment_ref text;
+
+-- The old provider is gone. These columns and its event table are no longer read anywhere.
+drop index if exists licenses_sub_idx;
+drop index if exists licenses_pi_idx;
+alter table public.licenses drop column if exists stripe_customer_id;
+alter table public.licenses drop column if exists stripe_subscription_id;
+alter table public.licenses drop column if exists stripe_payment_intent;
+alter table public.hwid_resets drop column if exists payment_intent;
+drop table if exists public.stripe_events;
 
 alter table public.licenses drop constraint if exists licenses_plan_type_check;
 alter table public.licenses add constraint licenses_plan_type_check
@@ -254,7 +311,6 @@ alter table public.licenses add constraint licenses_plan_type_check
 alter table public.users            enable row level security;
 alter table public.pending_payments enable row level security;
 alter table public.licenses         enable row level security;
-alter table public.stripe_events    enable row level security;
 alter table public.referrals        enable row level security;
 alter table public.referral_uses    enable row level security;
 alter table public.base_finds       enable row level security;
@@ -299,13 +355,34 @@ where slug in ('fabric-mod', 'combat', 'movement', 'render', 'donut')
 -- Default settings
 insert into public.site_settings (key, value)
 values
-  ('Product, plans, installation, accounts, customer support', 'Champ Client is a Windows injector for Minecraft Java 1.21.11. It is not a mod and not a jar: nothing is placed in the mods folder. The customer keeps their own Fabric Loader profile, starts the game, and runs one .exe that signs in to their Champ account and injects the client into the game that is already running. Free trial: one 24-hour trial per account, PC and network, claimed from the pricing page. VPN, proxy, Tor and datacenter connections are refused. Plans: EUR 2.99 weekly (7 days), EUR 9.99 lifetime and EUR 6.99 monthly. Customers register with username, password, and email, then verify a 6-digit email code valid for 10 minutes; the email provider must be configured on Vercel before sending works. Purchases use Stripe Checkout, licenses are assigned by a Stripe webhook, and the injector is downloaded from the customer dashboard. Texture packs are public or customer-only. Site administration can manage announcements, Discord links, homepage and feature videos, features, reviews, texture pack files, orders, referrals and community finds. Only report facts confirmed by current records/site; do not invent features, user reviews, downloads, compatibility, guarantees or legal claims. If a detail is not found in the knowledge, say you do not have verified information and direct to the support link. Never disclose or request credentials, license keys or private account data.'),
-'announcement_text', '🔥 Champ Client 0.9.9.1 is out for Minecraft 1.21.11 Fabric Loader! Weekly €2.99, Monthly €6.99 or Lifetime €9.99.'),
+  ('Product, plans, installation, accounts, customer support', 'Champ Client is a Windows injector for Minecraft Java 1.21.11. It is not a mod and not a jar: nothing is placed in the mods folder. The customer keeps their own Fabric Loader profile, starts the game, and runs one .exe that signs in to their Champ account and injects the client into the game that is already running. Free trial: one 24-hour trial per account, PC and network, claimed from the pricing page. VPN, proxy, Tor and datacenter connections are refused. Plans: EUR 2.99 weekly (7 days), EUR 9.99 lifetime and EUR 6.99 monthly. Customers register with username, password, and email, then verify a 6-digit email code valid for 10 minutes; the email provider must be configured on Vercel before sending works. Purchases use crypto, DonutSMP money or gift cards; licenses are assigned when the payment clears, and the injector is downloaded from the customer dashboard. Texture packs are public or customer-only. Site administration can manage announcements, Discord links, homepage and feature videos, features, reviews, texture pack files, orders, referrals and community finds. Only report facts confirmed by current records/site; do not invent features, user reviews, downloads, compatibility, guarantees or legal claims. If a detail is not found in the knowledge, say you do not have verified information and direct to the support link. Never disclose or request credentials, license keys or private account data.'),
+  ('announcement_text', '🔥 Champ Client 0.9.9.1 is out for Minecraft 1.21.11 Fabric Loader! Weekly €2.99, Monthly €6.99 or Lifetime €9.99.'),
   ('announcement_enabled', 'true'),
   ('discord_link', 'https://discord.gg/6vyQnVjeX'),
   ('youtube_video_url', ''),
   ('hero_tagline', 'The Ultimate Minecraft 1.21.11 Injector')
 on conflict (key) do nothing;
+
+-- Payment hub defaults. The admin panel switches methods on and sets the live values.
+insert into public.site_settings (key, value)
+values
+  ('payment_crypto_enabled', 'false'),
+  ('payment_crypto_coin', 'BTC'),
+  ('payment_crypto_address', ''),
+  ('payment_crypto_rate', '0'),
+  ('payment_donut_enabled', 'false'),
+  ('payment_donut_bot', ''),
+  ('payment_donut_rate', '1000'),
+  ('payment_donut_weekly', '0'),
+  ('payment_donut_monthly', '0'),
+  ('payment_donut_lifetime', '0'),
+  ('payment_giftcard_enabled', 'false'),
+  ('payment_giftcard_brands', 'Steam,Roblox,Apple,Google Play,PlayStation,Xbox'),
+  ('payment_giftcard_note', 'Enter the code and the full value of the card. We check it before unlocking.')
+on conflict (key) do nothing;
+
+-- Card checkout was removed; drop the old switch if a previous run created it.
+delete from public.site_settings where key = 'payment_card_enabled';
 
 -- Default reviews
 insert into public.reviews (author, rating, text, tag, status, sort_order)
@@ -319,8 +396,8 @@ on conflict do nothing;
 -- Default texture packs
 insert into public.ai_knowledge (title, body)
 values
-  ('Product, plans, installation, accounts, customer support', 'Champ Client is a Windows injector for Minecraft Java 1.21.11. It is not a mod and not a jar: nothing is placed in the mods folder. The customer keeps their own Fabric Loader profile, starts the game, and runs one .exe that signs in to their Champ account and injects the client into the game that is already running. Free trial: one 24-hour trial per account, PC and network, claimed from the pricing page. VPN, proxy, Tor and datacenter connections are refused. Plans: EUR 2.99 weekly (7 days), EUR 9.99 lifetime and EUR 6.99 monthly. Customers register with username, password, and email, then verify a 6-digit email code valid for 10 minutes; the email provider must be configured on Vercel before sending works. Purchases use Stripe Checkout, licenses are assigned by a Stripe webhook, downloads are authorized from the customer dashboard. Texture packs are public or customer-only. Site administration can manage announcements, Discord links, homepage and feature videos, features, reviews, texture pack files, orders, referrals and community finds. Only report facts confirmed by current records/site; do not invent features, user reviews, downloads, compatibility, guarantees or legal claims. If a detail is not found in the knowledge, say you do not have verified information and direct to the support link. Never disclose or request credentials, license keys or private account data.'),
+  ('Product, plans, installation, accounts, customer support', 'Champ Client is a Windows injector for Minecraft Java 1.21.11. It is not a mod and not a jar: nothing is placed in the mods folder. The customer keeps their own Fabric Loader profile, starts the game, and runs one .exe that signs in to their Champ account and injects the client into the game that is already running. Free trial: one 24-hour trial per account, PC and network, claimed from the pricing page. VPN, proxy, Tor and datacenter connections are refused. Plans: EUR 2.99 weekly (7 days), EUR 9.99 lifetime and EUR 6.99 monthly. Customers register with username, password, and email, then verify a 6-digit email code valid for 10 minutes; the email provider must be configured on Vercel before sending works. Purchases use crypto, DonutSMP money or gift cards; licenses are assigned when the payment clears, downloads are authorized from the customer dashboard. Texture packs are public or customer-only. Site administration can manage announcements, Discord links, homepage and feature videos, features, reviews, texture pack files, orders, referrals and community finds. Only report facts confirmed by current records/site; do not invent features, user reviews, downloads, compatibility, guarantees or legal claims. If a detail is not found in the knowledge, say you do not have verified information and direct to the support link. Never disclose or request credentials, license keys or private account data.'),
   ('Installation', 'The install is the injector, not a jar. Order matters: (1) start Minecraft 1.21.11 on the Fabric profile the customer normally plays and wait in the main menu; (2) run the .exe downloaded from the dashboard; (3) sign in with the Champ account inside the splash and press inject; (4) Windows may ask for permission, which is the injection itself; (5) the splash says Champ is running and closes itself. Minecraft does not have to be restarted, and nothing is ever placed in the mods folder. Every download gets a random file name, so never tell a customer a fixed file name. Keep the file: the session is remembered and later sessions only need Minecraft open plus the same file. A newer release is a new download that replaces the old one. If the game is not running the splash says so and offers Retry. Do not claim support for other Minecraft versions unless documented by the current release notes.'),
   ('Licence keys by e-mail', 'Every purchase, and every key that support hands out or edits, is e-mailed automatically to the customer address with the key in the message plus a thank-you note; the same key is shown in the customer dashboard. Keys look like CHAMP-XXXX-XXXX-XXXX-XXXX. Never ask a customer to post a key in chat and never repeat a key back.'),
-  ('Billing', 'The site lists EUR 2.99 weekly (one-time, 7 days), EUR 9.99 lifetime (one-time) and EUR 6.99 monthly. Weekly passes do not renew; monthly plans can be managed/cancelled through the customer dashboard when billing is configured. Support handles purchase and account problems.')
+  ('Billing', 'The site lists EUR 2.99 weekly (one-time, 7 days), EUR 9.99 lifetime (one-time) and EUR 6.99 monthly. Weekly and monthly passes are prepaid and do not renew automatically; there is no subscription to cancel. Support handles purchase and account problems.')
 on conflict do nothing;

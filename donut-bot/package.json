@@ -1,0 +1,17 @@
+{
+  "name": "champ-donut-pay-bot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "24/7 DonutSMP payment watcher for Champ Client",
+  "main": "index.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "mineflayer": "^4.23.0"
+  }
+}

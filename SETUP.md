@@ -1,6 +1,6 @@
-# Champ Client — live zetten (Vercel + Supabase + Stripe + Resend)
+# Champ Client — live zetten (Vercel + Supabase + betalingen + Resend)
 
-Volgorde: **Supabase → Stripe → Resend → Vercel → testen.**
+Volgorde: **Supabase → betalingen → Resend → Vercel → bot → testen.**
 Alles wat je in Vercel moet invullen staat in `.env.example`.
 
 Mapstructuur: `public/` = de website (HTML, `main.js`, `style.css`, `assets/`), `api/` = de backend,
@@ -20,28 +20,40 @@ Mapstructuur: `public/` = de website (HTML, `main.js`, `style.css`, `assets/`), 
    - Project URL → `SUPABASE_URL`
    - de **secret / service_role key** → `SUPABASE_SERVICE_KEY` (NOOIT de publieke/anon key, en nooit in je frontend zetten)
 
-## 2. Stripe (betalingen)
-Het live product **Champ Client** en de drie prijzen staan al in Stripe:
+## 2. Betalingen
 
-- *Weekly* — €2.99, one-time voor 7 dagen — `price_1UZD6c5Fx5xxUyLlLjRADgyo` → `STRIPE_PRICE_WEEKLY_ID`
-- *Monthly* — €6.99, one-time voor 30 dagen — `price_1UZZr85Fx5xxUyLlThdgui7Q` → `STRIPE_PRICE_MONTHLY_ID`
-- *Lifetime* — €9.99, one-time — `price_1UX6cT5Fx5xxUyLlZwvkbXiq` → `STRIPE_PRICE_LIFETIME_ID`
+De checkout is één hub met drie methodes. Beheer ze in **Admin → Payments**.
 
-De drie prijs-ID's en `SITE_URL` staan al in Vercel (production + preview). Wat nog ontbreekt:
+### Crypto
+1. Zet een walletadres en de koers **EUR per 1 coin** in **Admin → Payments**.
+2. Kies BTC voor automatische controle via Blockstream (geen API-key nodig), of LTC/ETH voor
+   controle door de admin.
+3. De klant ziet het exacte coinbedrag en het adres. Na betalen plakt hij de txid; BTC wordt
+   automatisch gecontroleerd, andere coins komen in de reviewwachtrij.
 
-1. **Developers → API keys** → secret key → `STRIPE_SECRET_KEY` in Vercel (begin met `sk_test_...` om te testen).
-2. **Geen customer portal nodig**: monthly is een eenmalige 30-dagenpas; er is niets op te zeggen.
-3. **Webhook** (doe dit NA de Vercel-deploy, je hebt je domein nodig):
-   **Developers → Webhooks → Add endpoint**
-   - URL: `https://JOUW-DOMEIN/api/stripe-webhook`
-   - Events: `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
-     `charge.refunded`, `charge.dispute.created`
-   - Kopieer de *Signing secret* (`whsec_...`) → `STRIPE_WEBHOOK_SECRET`
-4. **Settings → Payment methods**: zet aan wat je wilt (kaart, iDEAL, Apple Pay...). Checkout toont
-   automatisch wat past bij land/valuta. Crypto en PayPal-knoppen zijn van de site gehaald: Stripe
-   ondersteunt crypto niet in Checkout.
-5. LET OP: Stripe heeft een lijst met verboden bedrijfstypes en game-cheat software kan daar onder
-   vallen. Lees hun beleid, anders riskeer je een bevroren account met vastgehouden geld.
+### DonutSMP money
+1. Zet de botnaam en de koers **Donut money per EUR 1** in **Admin → Payments**. Je kunt per plan
+   ook een **exact Donut-bedrag** vastzetten; dat bedrag controleert de bot dan, ongeacht de koers.
+2. Deploy `donut-bot/` als aparte 24/7-service (Railway of een VPS) en zet daar dezelfde
+   `DONUT_BOT_TOKEN` als in Vercel. Zie `donut-bot/README.md`.
+3. De klant voert zijn Minecraft-username in en betaalt het exacte bedrag aan de bot. De bot
+   leest de betaling in chat en stuurt een bevestiging naar de site.
+
+### Cadeaubonnen
+1. Zet de merken en de instructie in **Admin → Payments**.
+2. De klant kiest een merk, vult de waarde en de code in. De code wordt opgeslagen voor
+   handmatige controle; dezelfde code kan niet twee keer worden ingediend.
+3. De order komt in **Admin → Payments → Waiting for review**. Klopt de code, dan keur je
+   hem goed en wordt de licentie direct aangemaakt. Is de code al gebruikt, dan afkeuren met
+   als reden “Gift card code is used”; de klant krijgt die melding.
+
+Er is geen algemene publieke API waarmee je elke cadeaubon automatisch kunt valideren. Daarom
+is dit bewust een beveiligde handmatige controle in plaats van een pseudo-check.
+
+### Belangrijk
+- Zet geen betaalgeheimen in de frontend of in de database.
+- Draai `supabase/schema.sql` opnieuw: het voegt de betaalkolommen toe en verwijdert de oude
+  providerkolommen en -tabel.
 
 ## 3. Resend (e-mail: verificatie, reset, betaallink, licentie)
 1. resend.com → **Domains** → voeg je domein toe en zet de DNS-records (zonder eigen domein kun je
@@ -58,29 +70,30 @@ De drie prijs-ID's en `SITE_URL` staan al in Vercel (production + preview). Wat 
    `python -c "import secrets; print(secrets.token_urlsafe(48))"`
    `SITE_URL` = je echte domein (met https, zonder `/` erachter).
 4. Deploy. Voeg daarna je domein toe onder **Settings → Domains**, zet `SITE_URL` goed en **redeploy**.
-5. Doe nu stap 2.4 (Stripe webhook) en zet de `whsec_...` in Vercel → **redeploy** nog een keer.
+5. Zet de betaalinstellingen in **Admin → Payments**. Zonder wallet/bot blijven crypto en
+   DonutSMP uit; cadeaubonnen hebben alleen de merken en instructie nodig.
 6. Aanrader: **Firewall → rate limit** op `/api/auth/*` en `/api/request-payment-link` (beschikbaarheid
    hangt van je Vercel-plan af).
 
-## 5. Testen (eerst met Stripe TEST-keys)
+## 5. Testen
 - [ ] `https://JOUW-DOMEIN/api/health` geeft `{"ok":true}`
 - [ ] Account maken → mail ontvangen → verifiëren → inloggen
 - [ ] Wachtwoord vergeten → mail → nieuw wachtwoord
 - [ ] Plan kiezen op de homepage → mail met betaallink → inloggen → checkout
-- [ ] Betalen met testkaart `4242 4242 4242 4242` (willekeurige toekomstige datum + CVC)
-- [ ] Dashboard toont licentiesleutel + download werkt (Stripe → Webhooks toont dan 200 OK)
+- [ ] Dashboard toont licentiesleutel + download werkt
+- [ ] Crypto-order maakt een adres en coinbedrag; txid invullen geeft de juiste status
+- [ ] DonutSMP-order verschijnt bij de bot en de bot kan hem bevestigen
+- [ ] Cadeaubon komt in de reviewwachtrij; goedkeuren geeft een licentie, afkeuren geeft “code is used”
 - [ ] Monthly pass → dashboard toont een 30-dagenvervaldatum; er is geen automatische verlenging
-- [ ] Daarna: live keys (`sk_live_...`, live prijzen, live webhook) invullen en opnieuw deployen
 
 ---
 
 ## Hoe het werkt
-- Betalen → Stripe stuurt een webhook → licentie wordt aangemaakt → mail met sleutel → dashboard toont download.
+- Betalen → blockchain/bot/admin bevestigt → licentie wordt aangemaakt → mail met sleutel → dashboard toont download.
 - Downloads gaan via een **signed URL die 60 seconden geldig is**, alleen voor ingelogde gebruikers met een actieve licentie.
 - Weekly: eenmalige betaling voor 7 dagen; daarna stopt de toegang, zonder automatische verlenging.
 - Monthly: eenmalige betaling voor 30 dagen; daarna stopt de toegang, zonder automatische verlenging.
-- Lifetime: bij volledige terugbetaling of dispute wordt de licentie automatisch ingetrokken.
-  Bij monthly-refunds wordt de licentie via de webhook ingetrokken.
+- Lifetime: bij een terugbetaling of geschil kan een admin de licentie intrekken via **Admin → Licenses**.
 
 ## Belangrijk om te weten
 - De injector is een statisch bestand: wie 'm eenmaal gedownload heeft, kan 'm blijven gebruiken.
@@ -95,7 +108,7 @@ De drie prijs-ID's en `SITE_URL` staan al in Vercel (production + preview). Wat 
 
 ## New registration + verification flow
 
-Buy Monthly/Lifetime now sends the visitor to `signup.html?plan=...`. Registration requires a matching email twice and a matching password twice. A 6-digit code is sent through Resend and expires after 10 minutes. `verify.html` supports resend and changing the email address. After successful verification, the backend creates the existing `pending_payments` checkout record and redirects to the current Stripe checkout page.
+Buy Monthly/Lifetime now sends the visitor to `signup.html?plan=...`. Registration requires a matching email twice and a matching password twice. A 6-digit code is sent through Resend and expires after 10 minutes. `verify.html` supports resend and changing the email address. After successful verification, the backend creates the existing `pending_payments` checkout record and redirects to the payment hub.
 
 Run the updated `supabase/schema.sql` once to add the verification-code columns. Existing rows are preserved.
 
@@ -130,17 +143,17 @@ The admin panel lets you edit each feature's:
 
 For YouTube, use an embed URL such as `https://www.youtube.com/embed/VIDEO_ID`.
 
-### Stripe plans
+### Payment plans
 The site sells three products plus a free trial:
 
-- `trial` — free, 24 hours, once per account, PC and network — no Stripe price
-- `weekly` — €2.99 one-time, 7 days — `STRIPE_PRICE_WEEKLY_ID`
-- `monthly` — €6.99 one-time, 30 dagen — `STRIPE_PRICE_MONTHLY_ID`
-- `lifetime` — €9.99 one-time — `STRIPE_PRICE_LIFETIME_ID`
+- `trial` — free, 24 hours, once per account, PC and network
+- `weekly` — €2.99 one-time, 7 days
+- `monthly` — €6.99 one-time, 30 dagen
+- `lifetime` — €9.99 one-time
 
 The `inject`, `mod10` and `mod5` plans have been removed entirely.
 
-Create the corresponding Stripe Prices and put their IDs into Vercel Environment Variables.
+Prices live in `PLAN_PRICES` in `api/index.py`; the payment methods are configured in the admin panel.
 
 ### Supabase
 Run the complete `supabase/schema.sql` again. It now also creates/seeds the `features` table.

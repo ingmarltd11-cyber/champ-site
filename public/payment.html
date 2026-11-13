@@ -26,9 +26,9 @@
 
 <main class="checkout-shell">
   <aside class="checkout-summary">
-    <span class="checkout-badge">Stripe secured</span>
+    <span class="checkout-badge">Protected checkout</span>
     <h2>Champ Client access</h2>
-    <p>Everything below unlocks the moment the payment clears. No waiting, no manual key delivery.</p>
+    <p>Choose how you want to pay. The license is added to your dashboard as soon as the payment is confirmed.</p>
     <ul class="plan-features">
       <li>Every module on Minecraft 1.21.11</li>
       <li>Windows &amp; Linux injector</li>
@@ -36,20 +36,18 @@
       <li>Base finds &amp; public configs</li>
       <li>Discord Champ+ rank</li>
     </ul>
-    <p class="checkout-note">Payments are handled by Stripe. Champ never stores your card details. Weekly and monthly are one-time passes for 7 or 30 days; lifetime never expires.</p>
+    <p class="checkout-note">Crypto, DonutSMP money and gift cards are checked before the license unlocks.</p>
   </aside>
 
   <section class="checkout-card">
-    <!-- 1. LOADING & VALIDATION VIEW -->
     <div id="checkout-loading-view">
-      <h3 id="validation-status-text">Verifying security reference link&hellip;</h3>
+      <h3 id="validation-status-text">Verifying checkout link&hellip;</h3>
     </div>
 
-    <!-- 2. AUTHENTICATION GATE VIEW -->
     <div id="checkout-auth-view" style="display: none;">
       <div class="checkout-header" style="text-align:center;margin-bottom:18px;">
         <h2 class="checkout-title">Authentication <em>required</em></h2>
-        <p class="checkout-sub">You need an active account to link this purchase to your license.</p>
+        <p class="checkout-sub">Sign in with the account that owns this checkout.</p>
       </div>
       <p id="auth-gate-message" style="color:var(--muted);font-size:13px;text-align:center;">Checking login session state&hellip;</p>
       <div class="auth-actions">
@@ -58,11 +56,18 @@
       </div>
     </div>
 
-    <!-- 3. ACTIVE CHECKOUT FORM -->
+    <div id="checkout-done-view" style="display:none;text-align:center;">
+      <div class="checkout-header">
+        <h2 class="checkout-title">Payment <em>received.</em></h2>
+        <p class="checkout-sub" id="done-message">Your license is active on this account.</p>
+      </div>
+      <a href="dashboard.html?paid=1" class="btn-submit" style="display:inline-block;text-decoration:none;">Open dashboard</a>
+    </div>
+
     <form id="activeCheckoutForm" style="display: none;">
       <div class="checkout-header" style="margin-bottom:22px;">
         <h2 class="checkout-title" id="display-plan-title">Secure checkout</h2>
-        <p class="checkout-sub" id="display-plan-sub">Confirm your transaction details below.</p>
+        <p class="checkout-sub" id="display-plan-sub">Choose a payment method and complete the steps.</p>
       </div>
 
       <div class="field">
@@ -70,13 +75,53 @@
         <div class="static-email-box" id="display-customer-email">loading&hellip;</div>
       </div>
 
+      <div class="field">
+        <label class="input-label">Amount</label>
+        <div class="static-email-box"><b id="display-amount">€0.00</b> <span id="display-kind" style="color:var(--muted);font-size:12px;"></span></div>
+      </div>
+
       <label class="input-label">Payment method</label>
-      <div class="pay-methods-list">
-        <div class="pay-method selected">
-          <div class="method-info">
-            <span class="method-name">Secure checkout by Stripe</span>
-            <span class="method-desc">Card, iDEAL and local payment methods for your country</span>
+      <div class="pay-methods-list" id="paymentMethodsList">
+        <p class="no-license-text">Loading payment methods&hellip;</p>
+      </div>
+
+      <div id="payment-prep" class="payment-prep" style="display:none;margin-top:16px;">
+        <h3 id="prep-title">Complete the payment</h3>
+        <div id="crypto-prep" style="display:none;">
+          <p class="no-license-text">Send exactly this amount to the address below. Use the network shown.</p>
+          <div class="static-email-box" style="font-family:'JetBrains Mono',monospace;word-break:break-all;">
+            <b id="crypto-amount">&mdash;</b> <span id="crypto-coin"></span>
           </div>
+          <div class="static-email-box" style="margin-top:8px;word-break:break-all;" id="crypto-address">&mdash;</div>
+          <button class="btn-ghost" type="button" id="copyCryptoAddress" style="margin-top:8px;">Copy address</button>
+          <label class="input-label" style="margin-top:16px;">Transaction hash (txid)</label>
+          <input class="pay-input" id="cryptoTxid" autocomplete="off" placeholder="Paste the transaction hash after sending">
+          <p class="no-license-text">BTC payments are checked automatically on the blockchain. Other coins are checked by the admin.</p>
+        </div>
+        <div id="donut-prep" style="display:none;">
+          <p class="no-license-text">Pay the amount below to the Champ DonutSMP bot from your Minecraft account. Keep the exact amount.</p>
+          <div class="static-email-box"><b id="donut-amount">&mdash;</b> Donut money to <b id="donut-bot">&mdash;</b></div>
+          <p class="no-license-text">Your username: <b id="donut-username">&mdash;</b>. The bot checks the payment automatically; this page refreshes when it arrives.</p>
+        </div>
+        <div id="giftcard-prep" style="display:none;">
+          <p class="no-license-text" id="giftcard-note">The gift card is checked by the shop before the license unlocks.</p>
+          <div class="static-email-box"><b id="giftcard-brand-label">&mdash;</b> &middot; €<span id="giftcard-value-label">0.00</span></div>
+        </div>
+      </div>
+
+      <div id="payment-fields">
+        <div id="donut-fields" style="display:none;">
+          <label class="input-label">Your DonutSMP username</label>
+          <input class="pay-input" id="donutUsername" autocomplete="off" placeholder="Your Minecraft username">
+        </div>
+        <div id="giftcard-fields" style="display:none;">
+          <label class="input-label">Gift card brand</label>
+          <select class="pay-input" id="giftBrand"></select>
+          <label class="input-label" style="margin-top:12px;">Card value (EUR)</label>
+          <input class="pay-input" id="giftValue" type="number" min="0.01" step="0.01" placeholder="10.00">
+          <label class="input-label" style="margin-top:12px;">Gift card code</label>
+          <input class="pay-input" id="giftCode" autocomplete="off" placeholder="Enter the code">
+          <p class="no-license-text" id="giftcard-help">Enter the full value of the card. The code is checked before the license unlocks.</p>
         </div>
       </div>
 
@@ -87,8 +132,10 @@
         </label>
       </div>
 
-      <button type="submit" class="btn-submit" id="completePurchaseBtn">Complete purchase</button>
-      <p class="checkout-note">You'll be redirected to Stripe to finish payment, then straight back to your dashboard.</p>
+      <button type="submit" class="btn-submit" id="completePurchaseBtn">Continue</button>
+      <button type="button" class="btn-ghost" id="refreshPaymentBtn" style="display:none;width:100%;margin-top:10px;">Check payment status</button>
+      <p id="payment-status" class="checkout-note" style="display:none;" role="status"></p>
+      <p class="checkout-note" id="checkout-footnote">The license is added to your dashboard when the payment clears.</p>
     </form>
   </section>
 </main>

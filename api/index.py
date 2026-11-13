@@ -2,8 +2,8 @@
 Champ Client backend
 ====================
 FastAPI on Vercel (serverless).  Supabase = database + private file storage,
-Stripe = payments, Resend = e-mail.  Everything external is called over plain
-REST with `requests`, so there are no heavy SDKs to break on deploy.
+Resend = e-mail.  Everything external is called
+over plain REST with `requests`, so there are no heavy SDKs to break on deploy.
 
 All routes live under /api/... (see vercel.json).  The website is served from
 the same domain, so no CORS is needed and the login cookie is first-party.
@@ -14,6 +14,7 @@ import hashlib
 import hmac
 import html
 import json
+import math
 import os
 import re
 import secrets
@@ -35,7 +36,6 @@ import requests
 from fastapi import Cookie, Depends, FastAPI, Header, HTTPException, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, EmailStr
-from starlette.concurrency import run_in_threadpool
 
 # --------------------------------------------------------------------------
 # Config (all from Vercel environment variables)
@@ -99,7 +99,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
 GRACE_HOURS = 0  # prepaid passes end exactly on their expiry; no renewal grace
 
 PLANS = ("weekly", "monthly", "lifetime")
-# A free trial is a license, not a purchase: it never enters pending_payments or Stripe.
+# A free trial is a license, not a purchase: it never enters pending_payments.
 TRIAL_PLAN = "trial"
 TRIAL_HOURS = 24
 LICENSE_PLANS = (TRIAL_PLAN,) + PLANS
@@ -113,16 +113,17 @@ PUBLIC_CLIENT_BUILD = "2026-11-12T09:49:16Z"
 # A challenge is signed by the PC's Ed25519 key and must come back quickly.
 DEVICE_CHALLENGE_SECONDS = 120
 PLAN_PRICES = {
-    "weekly": "STRIPE_PRICE_WEEKLY_ID",
-    "monthly": "STRIPE_PRICE_MONTHLY_ID",
-    "lifetime": "STRIPE_PRICE_LIFETIME_ID",
+    "weekly": 299,
+    "monthly": 699,
+    "lifetime": 999,
 }
 # Prepaid access: weekly and monthly are one-time passes, lifetime has no expiry.
 PLAN_DAYS = {"weekly": 7, "monthly": 30, "lifetime": None}
 # One device per key. The first reset is free, then one more every 7 days; after that a reset is a
-# one-off payment. 500 = EUR 5.00, Stripe works in cents.
+# one-off payment of EUR 5.00.
 HWID_FREE_RESET_DAYS = 7
 HWID_RESET_PRICE_CENTS = 500
+PENDING_PLAN_TYPES = PLANS + ("hwid_reset",)
 USERNAME_RE = re.compile(r"^[A-Za-z0-9_]{3,16}$")
 
 app = FastAPI(title="Champ Client API", docs_url=None, redoc_url=None, openapi_url=None)
@@ -447,56 +448,119 @@ def send_verification_code(user: dict) -> None:
 
 
 # --------------------------------------------------------------------------
-# Stripe (REST)
+# Payments: crypto, DonutSMP money and gift cards
 # --------------------------------------------------------------------------
-def stripe_request(method: str, path: str, data: Optional[dict] = None) -> dict:
-    key = os.getenv("STRIPE_SECRET_KEY")
-    if not key:
-        raise HTTPException(500, "Payments are not configured.")
-    r = requests.request(method, f"https://api.stripe.com/v1/{path}", data=data, auth=(key, ""), timeout=20)
-    body = r.json()
-    if r.status_code >= 400:
-        print("Stripe error:", r.status_code, body)
-        raise HTTPException(502, "Payment provider error. Please try again.")
-    return body
+PAYMENT_METHODS = ("crypto", "donut", "giftcard")
+PAYMENT_SETTING_DEFAULTS = {
+    "payment_crypto_enabled": "false",
+    "payment_crypto_coin": "BTC",
+    "payment_crypto_address": "",
+    "payment_crypto_rate": "0",          # EUR per 1 coin, set by the admin
+    "payment_donut_enabled": "false",
+    "payment_donut_bot": "",
+    "payment_donut_rate": "1000",        # Donut money per EUR 1
+    "payment_donut_weekly": "0",         # optional exact amount per plan, 0 = use the rate
+    "payment_donut_monthly": "0",
+    "payment_donut_lifetime": "0",
+    "payment_giftcard_enabled": "false",
+    "payment_giftcard_brands": "Steam,Roblox,Apple,Google Play,PlayStation,Xbox",
+    "payment_giftcard_note": "Enter the code and the full value of the card. We check it before unlocking.",
+}
 
 
-def verify_stripe_signature(payload: bytes, header: str, secret: str, tolerance: int = 300) -> bool:
-    if not secret or not header:
-        return False
-    timestamp, signatures = None, []
-    for part in header.split(","):
-        k, _, v = part.strip().partition("=")
-        if k == "t":
-            timestamp = v
-        elif k == "v1":
-            signatures.append(v)
-    if not timestamp or not signatures:
+def payment_setting(key: str) -> str:
+    try:
+        row = db_get("site_settings", {"key": eq(key)})
+        if row and row.get("value") is not None:
+            return str(row["value"])
+    except Exception as exc:
+        print("Payment setting unavailable:", key, type(exc).__name__)
+    return PAYMENT_SETTING_DEFAULTS.get(key, "")
+
+
+def payment_setting_bool(key: str) -> bool:
+    return payment_setting(key).strip().lower() in ("1", "true", "yes", "on")
+
+
+def payment_brands() -> list:
+    raw = payment_setting("payment_giftcard_brands")
+    brands = [b.strip() for b in re.split(r"[,\n]", raw) if b.strip()]
+    return brands[:24] or ["Steam", "Roblox", "Apple", "Google Play"]
+
+
+def payment_coin() -> str:
+    coin = payment_setting("payment_crypto_coin").strip().upper()
+    return coin if coin in ("BTC", "LTC", "ETH") else "BTC"
+
+
+def payment_rate(key: str) -> float:
+    try:
+        value = float(payment_setting(key).replace(",", "."))
+    except (TypeError, ValueError):
+        return 0.0
+    return value if value > 0 else 0.0
+
+
+def order_price_cents(row: dict) -> int:
+    if row.get("kind") == "hwid_reset" or row.get("plan_type") == "hwid_reset":
+        return HWID_RESET_PRICE_CENTS
+    return int(PLAN_PRICES.get(row.get("plan_type") or "", 0))
+
+
+def donut_amount_for(row: dict) -> int:
+    """An admin can pin an exact Donut amount per plan; otherwise the EUR rate is used."""
+    fixed = payment_rate(f"payment_donut_{row.get('plan_type') or ''}")
+    if fixed > 0:
+        return int(fixed)
+    rate = payment_rate("payment_donut_rate")
+    return max(1, math.ceil(order_price_cents(row) / 100 * rate))
+
+
+def order_ref() -> str:
+    return "CH-" + secrets.token_hex(5).upper()
+
+
+def gift_code_hash(code: str) -> str:
+    secret = os.getenv("PAYMENT_CODE_SECRET") or os.getenv("JWT_SECRET") or "champ-gift-codes"
+    return hmac.new(secret.encode(), code.strip().upper().encode(), hashlib.sha256).hexdigest()
+
+
+def public_payment_methods() -> dict:
+    donut_ready = bool(payment_setting("payment_donut_bot").strip()) and (
+        payment_rate("payment_donut_rate") > 0
+        or any(payment_rate(f"payment_donut_{plan}") > 0 for plan in PLANS)
+    )
+    return {
+        "methods": {
+            "crypto": payment_setting_bool("payment_crypto_enabled") and bool(payment_setting("payment_crypto_address").strip())
+                      and payment_rate("payment_crypto_rate") > 0,
+            "donut": payment_setting_bool("payment_donut_enabled") and donut_ready,
+            "giftcard": payment_setting_bool("payment_giftcard_enabled"),
+        },
+        "crypto_coin": payment_coin(),
+        "donut_rate": payment_rate("payment_donut_rate"),
+        "giftcard_brands": payment_brands(),
+        "giftcard_note": payment_setting("payment_giftcard_note"),
+    }
+
+
+def btc_received(coin: str, address: str, txid: str, minimum: float) -> bool:
+    """Check a Bitcoin transaction without a wallet or an API key (Blockstream)."""
+    if (coin or "").upper() != "BTC" or not address or not txid:
         return False
     try:
-        if abs(time.time() - int(timestamp)) > tolerance:
+        r = requests.get(f"https://blockstream.info/api/tx/{quote(txid, safe='')}", timeout=15)
+        if r.status_code != 200:
             return False
-    except ValueError:
+        tx = r.json()
+        if not tx.get("status", {}).get("confirmed"):
+            return False
+        paid = sum(int(v.get("value") or 0) for v in tx.get("vout") or []
+                   if v.get("scriptpubkey_address") == address)
+        return paid >= int(round(minimum * 100000000)) and paid > 0
+    except Exception as exc:
+        print("Crypto check failed:", type(exc).__name__)
         return False
-    expected = hmac.new(secret.encode(), f"{timestamp}.".encode() + payload, hashlib.sha256).hexdigest()
-    return any(hmac.compare_digest(expected, s) for s in signatures)
-
-
-def period_end(sub: dict) -> Optional[datetime]:
-    """current_period_end lives on the subscription (old API) or its items (new API)."""
-    ts = sub.get("current_period_end")
-    if not ts:
-        items = (sub.get("items") or {}).get("data") or []
-        ts = max((i.get("current_period_end") or 0 for i in items), default=0) or None
-    return datetime.fromtimestamp(ts, tz=timezone.utc) if ts else None
-
-
-def invoice_subscription_id(invoice: dict) -> Optional[str]:
-    sid = invoice.get("subscription")
-    if not sid:
-        details = ((invoice.get("parent") or {}).get("subscription_details") or {})
-        sid = details.get("subscription")
-    return sid if isinstance(sid, str) else None
 
 
 # --------------------------------------------------------------------------
@@ -567,7 +631,7 @@ def normalize_hwid(value: str) -> str:
 
 
 def public_site() -> str:
-    """Absolute site URL for links the injector and Stripe have to follow."""
+    """Absolute site URL for links the injector and payment pages have to follow."""
     return (os.getenv("SITE_URL") or "https://champ-site-psi.vercel.app").rstrip("/")
 
 
@@ -752,7 +816,7 @@ def next_free_reset_at(lic: dict) -> Optional[str]:
     return iso(last + timedelta(days=HWID_FREE_RESET_DAYS))
 
 
-def reset_license_hwid(lic: dict, reason: str, payment_intent: Optional[str] = None) -> dict:
+def reset_license_hwid(lic: dict, reason: str, payment_ref: Optional[str] = None) -> dict:
     old = lic.get("hwid") or ""
     rows = db_update("licenses", {"id": eq(lic["id"])}, {
         "hwid": "",
@@ -769,21 +833,21 @@ def reset_license_hwid(lic: dict, reason: str, payment_intent: Optional[str] = N
             "license_key": lic["license_key"],
             "old_hwid": old,
             "reason": reason,
-            "payment_intent": payment_intent,
+            "payment_ref": payment_ref,
         })
     except Exception as exc:
         print("HWID reset log failed:", type(exc).__name__)
     return rows[0] if rows else lic
 
 
-def grant_license(email: str, plan: str, expires_at: Optional[datetime], customer=None,
-                  subscription=None, payment_intent=None) -> dict:
+def grant_license(email: str, plan: str, expires_at: Optional[datetime],
+                  payment_provider: Optional[str] = None,
+                  payment_ref: Optional[str] = None) -> dict:
     fields = {
         "status": "active",
         "expires_at": iso(expires_at) if expires_at else None,
-        "stripe_customer_id": customer,
-        "stripe_subscription_id": subscription,
-        "stripe_payment_intent": payment_intent,
+        "payment_provider": payment_provider,
+        "payment_ref": payment_ref,
         "updated_at": iso(now()),
     }
     existing = db_get("licenses", {"email": eq(email), "plan_type": eq(plan)})
@@ -813,105 +877,105 @@ def ensure_admin_license(user: Optional[dict]) -> Optional[dict]:
         return None
 
 
-def sync_subscription(sub: dict) -> None:
-    lic = db_get("licenses", {"stripe_subscription_id": eq(sub["id"])})
-    if not lic:
-        return
-    if sub.get("status") in ("active", "trialing", "past_due"):
-        end = period_end(sub)
-        values = {"status": "active", "expires_at": iso(end + timedelta(hours=GRACE_HOURS)) if end else None}
-    else:
-        values = {"status": "inactive", "expires_at": iso(now())}
-    values["updated_at"] = iso(now())
-    db_update("licenses", {"id": eq(lic["id"])}, values)
+def complete_payment_order(uid: str, provider: str = "manual", provider_ref: str = "") -> dict:
+    """Turn a paid order into a license (or a paid device reset), exactly once."""
+    row = db_get("pending_payments", {"uid": eq(str(uid))})
+    if not row:
+        raise HTTPException(404, "Payment order not found.")
+    if row.get("status") == "paid":
+        return row
+    if row.get("status") == "rejected":
+        raise HTTPException(409, "This payment was rejected. Please start a new checkout.")
 
+    # Guard the transition atomically: two webhook deliveries (or an admin click racing a
+    # webhook) must not both create a license for the same order.
+    changed = db_update("pending_payments", {"uid": eq(str(uid)), "status": "in.(pending,review)"}, {
+        "status": "paid",
+        "provider": provider,
+        "provider_ref": provider_ref or row.get("provider_ref") or "",
+        "paid_at": iso(now()),
+        "updated_at": iso(now()),
+    })
+    if not changed:
+        current = db_get("pending_payments", {"uid": eq(str(uid))})
+        if current and current.get("status") == "paid":
+            return current
+        raise HTTPException(503, "Could not save this payment. Please try again.")
+    row = changed[0]
 
-def revoke_by_payment_intent(payment_intent: Optional[str]) -> None:
-    if payment_intent:
-        db_update("licenses", {"stripe_payment_intent": eq(payment_intent)},
-                  {"status": "revoked", "updated_at": iso(now())})
-
-
-def on_checkout_completed(session: dict) -> None:
-    if session.get("payment_status") not in ("paid", "no_payment_required"):
-        return  # delayed payment methods fire checkout.session.async_payment_succeeded later
-    meta = session.get("metadata") or {}
-    if meta.get("kind") == "hwid_reset":
-        # Paid hardware reset: the payment clears the device binding, nothing else changes.
+    if row.get("kind") == "hwid_reset" or row.get("plan_type") == "hwid_reset":
         try:
-            lic_id = int(meta.get("license_id") or 0)
+            lic_id = int(row.get("license_id") or 0)
         except (TypeError, ValueError):
             lic_id = 0
         rows = db_list("licenses", {"id": eq(lic_id)}, limit=1) if lic_id else []
         if rows:
-            reset_license_hwid(rows[0], "paid", session.get("payment_intent"))
+            reset_license_hwid(rows[0], "paid", provider_ref or str(uid))
         else:
-            print("Paid HWID reset without a license:", session.get("id"), lic_id)
-        return
-    email = (meta.get("email") or session.get("customer_email") or "").lower()
-    plan = meta.get("plan_type")
-    if not email or plan not in PLANS:
-        print("Checkout without usable metadata:", session.get("id"))
-        return
+            print("Paid device reset without a license:", uid, lic_id)
+        return row
 
-    expires = None
+    plan = row.get("plan_type")
+    if plan not in PLANS:
+        raise HTTPException(400, "This order has no usable plan.")
     days = PLAN_DAYS.get(plan)
-    if days:
-        expires = now() + timedelta(days=days)
-    subscription = None
-    existing = db_get("licenses", {"email": eq(email), "plan_type": eq(plan)})
-    already_granted = bool(
-        existing
-        and license_active(existing)
-        and session.get("payment_intent")
-        and existing.get("stripe_payment_intent") == session.get("payment_intent")
-    )
-    lic = grant_license(email, plan, expires, session.get("customer"), None, session.get("payment_intent"))
-
-    uid = session.get("client_reference_id")
-    if uid:
-        db_update("pending_payments", {"uid": eq(uid)}, {"status": "paid"})
-        try:
-            pending = db_get("pending_payments", {"uid": eq(uid)})
-            credit_referral(pending.get("referral_code") if pending else None, email, plan)
-        except Exception as exc:
-            print("Referral credit failed:", exc)
-    if already_granted:
-        return
+    expires = now() + timedelta(days=days) if days else None
+    lic = grant_license(row["email"], plan, expires, provider, provider_ref or str(uid))
     try:
-        send_email(email, "Your Champ license",
+        credit_referral(row.get("referral_code"), row["email"], plan)
+    except Exception as exc:
+        print("Referral credit failed:", exc)
+    try:
+        send_email(row["email"], "Your Champ license",
                    email_html("Thanks for your purchase!",
                               f"Your {plan} license key:<br><b style='font-size:18px'>{html.escape(lic['license_key'])}</b><br><br>"
                               "Log in to your dashboard to download the client.",
                               f"{SITE_URL}/dashboard.html", "Open dashboard"))
-    except Exception as exc:  # the license is already saved; never fail the webhook over an e-mail
+    except Exception as exc:  # the license is already saved; never fail a payment over an e-mail
         print("Confirmation e-mail failed:", exc)
+    return row
 
 
-def handle_stripe_event(event: dict) -> None:
-    if db_get("stripe_events", {"id": eq(event["id"])}):
-        return  # already processed (Stripe retries)
-    etype, obj = event["type"], event["data"]["object"]
-
-    if etype in ("checkout.session.completed", "checkout.session.async_payment_succeeded"):
-        on_checkout_completed(obj)
-    elif etype == "invoice.paid":
-        sid = invoice_subscription_id(obj)
-        if sid:
-            sync_subscription(stripe_request("GET", f"subscriptions/{sid}"))
-    elif etype in ("customer.subscription.updated", "customer.subscription.deleted"):
-        sync_subscription(obj)
-    elif etype == "charge.refunded":
-        if obj.get("refunded"):  # fully refunded
-            revoke_by_payment_intent(obj.get("payment_intent"))
-    elif etype == "charge.dispute.created":
-        revoke_by_payment_intent(obj.get("payment_intent"))
-
-    try:
-        db_insert("stripe_events", {"id": event["id"], "type": etype})
-    except DBError as e:
-        if e.status != 409:
-            raise
+def order_json(row: dict) -> dict:
+    amount = int(row.get("amount_cents") or order_price_cents(row) or 0)
+    data = {
+        "uid": str(row["uid"]),
+        "email": row.get("email"),
+        "plan_type": row.get("plan_type"),
+        "kind": row.get("kind") or "license",
+        "status": row.get("status"),
+        "method": row.get("method") or "",
+        "amount_cents": amount,
+        "amount_eur": round(amount / 100, 2),
+        "currency": row.get("currency") or "EUR",
+        "created_at": row.get("created_at"),
+        "expires_at": row.get("expires_at") or iso(parse_dt(row["created_at"]) + timedelta(hours=24)),
+        "paid_at": row.get("paid_at"),
+        "admin_note": row.get("admin_note") or "",
+    }
+    if row.get("method") == "crypto":
+        data["crypto"] = {
+            "coin": row.get("crypto_coin") or payment_coin(),
+            "address": row.get("crypto_address") or "",
+            "amount": row.get("crypto_amount") or "",
+            "rate": row.get("crypto_rate") or "",
+            "txid": row.get("crypto_txid") or "",
+        }
+    if row.get("method") == "donut":
+        data["donut"] = {
+            "bot": row.get("donut_bot") or payment_setting("payment_donut_bot"),
+            "username": row.get("donut_username") or "",
+            "amount": row.get("donut_amount") or 0,
+        }
+    if row.get("method") == "giftcard":
+        code = row.get("gift_card_code") or ""
+        data["giftcard"] = {
+            "brand": row.get("gift_card_brand") or "",
+            "value_cents": row.get("gift_card_value_cents") or 0,
+            "last4": code[-4:] if code else "",
+            "note": payment_setting("payment_giftcard_note"),
+        }
+    return data
 
 
 # --------------------------------------------------------------------------
@@ -969,9 +1033,37 @@ class StartCheckoutReq(BaseModel):
     referral_code: Optional[str] = None
 
 
-class CheckoutReq(BaseModel):
+class PaymentStartReq(BaseModel):
     uid: uuid.UUID
-    payment_method: Optional[str] = None  # ignored: Stripe shows the methods enabled in your dashboard
+    method: str
+    donut_username: Optional[str] = None
+    gift_card_brand: Optional[str] = None
+    gift_card_code: Optional[str] = None
+    gift_card_value: Optional[float] = None
+
+
+class CryptoProofReq(BaseModel):
+    txid: str
+
+
+class AdminPaymentReviewReq(BaseModel):
+    reason: Optional[str] = None
+
+
+class PaymentSettingsReq(BaseModel):
+    crypto_enabled: Optional[bool] = None
+    crypto_coin: Optional[str] = None
+    crypto_address: Optional[str] = None
+    crypto_rate: Optional[float] = None
+    donut_enabled: Optional[bool] = None
+    donut_bot: Optional[str] = None
+    donut_rate: Optional[float] = None
+    donut_weekly: Optional[float] = None
+    donut_monthly: Optional[float] = None
+    donut_lifetime: Optional[float] = None
+    giftcard_enabled: Optional[bool] = None
+    giftcard_brands: Optional[str] = None
+    giftcard_note: Optional[str] = None
 
 
 class ValidateReq(BaseModel):
@@ -1089,18 +1181,6 @@ class AdminUserGrantReq(BaseModel):
 class AdminExtendReq(BaseModel):
     days: int = 7
     plan_type: Optional[str] = None      # empty = every plan
-
-
-class AdminDiscountReq(BaseModel):
-    code: str
-    kind: str = "percent"                  # percent | amount
-    value: float = 0                       # percent off, or euros off
-    max_uses: int = 0                      # 0 = unlimited
-    expires_at: Optional[str] = ""
-
-
-class AdminDiscountToggleReq(BaseModel):
-    active: bool = True
 
 
 class AdminFindUpdateReq(BaseModel):
@@ -1303,12 +1383,8 @@ def health():
     # Deployment diagnostics without values: which transport can send mail and whether
     # this deployment can reach its database. "database": false means the Vercel
     # environment is missing SUPABASE_URL / SUPABASE_SERVICE_KEY.
-    # booleans only: never expose a key, a price id or a webhook secret.
-    stripe_secret = bool(os.getenv("STRIPE_SECRET_KEY"))
-    stripe_weekly = bool(os.getenv("STRIPE_PRICE_WEEKLY_ID"))
-    stripe_monthly = bool(os.getenv("STRIPE_PRICE_MONTHLY_ID"))
-    stripe_lifetime = bool(os.getenv("STRIPE_PRICE_LIFETIME_ID"))
-    stripe_webhook = bool(os.getenv("STRIPE_WEBHOOK_SECRET"))
+    # booleans only: never expose a key or a webhook secret.
+    donut_bot = bool(os.getenv("DONUT_BOT_TOKEN"))
     return {
         "ok": True,
         "email": email_transport(),
@@ -1321,15 +1397,10 @@ def health():
         "sessions": sessions_ready(),
         "ai": "llm" if any(provider_keys()) else "built-in",
         "vercel_env": os.getenv("VERCEL_ENV"),
-        # checkout needs a secret key and all three prices; the webhook also needs its signing secret.
-        "stripe": {
-            "secret_key": stripe_secret,
-            "price_weekly": stripe_weekly,
-            "price_monthly": stripe_monthly,
-            "price_lifetime": stripe_lifetime,
-            "webhook_secret": stripe_webhook,
-            "checkout_ready": stripe_secret and stripe_weekly and stripe_monthly and stripe_lifetime,
-            "webhook_ready": stripe_webhook,
+        "payments": {
+            "crypto": bool(payment_setting("payment_crypto_address")),
+            "donut": donut_bot and bool(payment_setting("payment_donut_bot")),
+            "giftcard": payment_setting_bool("payment_giftcard_enabled"),
         },
     }
 
@@ -1817,9 +1888,11 @@ def load_pending(uid) -> dict:
     row = db_get("pending_payments", {"uid": eq(str(uid))})
     if not row:
         raise HTTPException(404, "Invalid or expired link.")
-    if row["status"] != "pending":
-        raise HTTPException(410, "This payment link was already used.")
-    if parse_dt(row["created_at"]) < now() - timedelta(hours=24):
+    if row["status"] == "rejected":
+        raise HTTPException(410, row.get("admin_note") or "This payment was rejected. Please start a new checkout.")
+    if row["status"] == "expired":
+        raise HTTPException(410, "This payment link is no longer active. Please start a new checkout.")
+    if row["status"] != "paid" and parse_dt(row["created_at"]) < now() - timedelta(hours=24):
         raise HTTPException(410, "This payment link has expired. Please request a new one.")
     return row
 
@@ -1869,75 +1942,288 @@ def start_checkout(p: StartCheckoutReq, user: dict = Depends(current_user)):
     return {"checkout_url": url, "plan_type": plan}
 
 
-@app.post("/api/create-stripe-session")
-def create_stripe_session(p: CheckoutReq, user: dict = Depends(current_user)):
+@app.get("/api/payments/methods")
+def payment_methods():
+    return public_payment_methods()
+
+
+@app.post("/api/payments/start")
+def start_payment(p: PaymentStartReq, user: dict = Depends(current_user)):
+    """Pick a payment method for an existing order and return its instructions."""
     row = load_pending(p.uid)
     if user["email"] != row["email"]:
         raise HTTPException(403, f"This link belongs to {row['email']}. Sign in with that account.")
-    plan = row["plan_type"]
-    if license_active(db_get("licenses", {"email": eq(user["email"]), "plan_type": eq(plan)})):
-        raise HTTPException(409, f"You already have an active {plan} license.")
-    price = os.getenv(PLAN_PRICES.get(plan, "")) if PLAN_PRICES.get(plan) else None
-    if not price:
-        raise HTTPException(500, "This plan is not configured yet.")
+    if row.get("status") == "paid":
+        return {**order_json(row), "paid": True}
+    if row.get("status") == "review":
+        raise HTTPException(409, "This payment is already waiting for review. Please wait for the admin to check it.")
+    if row.get("method") and row.get("status") == "pending" and row.get("method") != p.method:
+        # A customer may change their mind while nothing has arrived yet.
+        pass
 
-    data = {
-        "mode": "payment",
-        "customer_email": row["email"],
-        "client_reference_id": str(p.uid),
-        "line_items[0][price]": price,
-        "line_items[0][quantity]": "1",
-        "allow_promotion_codes": "true",
-        "success_url": f"{SITE_URL}/dashboard.html?paid=1&plan={plan}&session_id={{CHECKOUT_SESSION_ID}}",
-        "cancel_url": f"{SITE_URL}/payment.html?uid={p.uid}",
-        "metadata[email]": row["email"],
-        "metadata[plan_type]": plan,
-        "customer_creation": "always",
-    }
-    session = stripe_request("POST", "checkout/sessions", data)
-    return {"url": session["url"]}
+    method = (p.method or "").strip().lower()
+    if method not in PAYMENT_METHODS:
+        raise HTTPException(400, "Unknown payment method.")
+    enabled = public_payment_methods()["methods"]
+    if not enabled.get(method):
+        raise HTTPException(409, "That payment method is not available right now.")
+
+    kind = row.get("kind") or ("hwid_reset" if row.get("plan_type") == "hwid_reset" else "license")
+    amount = order_price_cents(row)
+    if amount <= 0:
+        raise HTTPException(400, "This order has no price.")
+    values = {"method": method, "amount_cents": amount, "currency": "EUR",
+              "kind": kind, "updated_at": iso(now()), "status": "pending"}
+
+    if method == "crypto":
+        values.update({"provider": None, "provider_ref": None})
+        address = payment_setting("payment_crypto_address").strip()
+        rate = payment_rate("payment_crypto_rate")
+        if not address or rate <= 0:
+            raise HTTPException(503, "Crypto payments are not configured yet.")
+        coin = payment_coin()
+        coin_amount = amount / 100 / rate
+        values.update({"crypto_coin": coin, "crypto_address": address,
+                       "crypto_rate": str(rate), "crypto_amount": f"{coin_amount:.8f}".rstrip("0").rstrip(".")})
+        updated = db_update("pending_payments", {"uid": eq(str(p.uid))}, values)
+        return {**order_json(updated[0] if updated else row), "paid": False}
+
+    if method == "donut":
+        values.update({"provider": None, "provider_ref": None})
+        username = (p.donut_username or "").strip()
+        if not USERNAME_RE.match(username):
+            raise HTTPException(400, "Enter your Minecraft username (3-16 letters, numbers or _).")
+        rate = payment_rate("payment_donut_rate")
+        bot = payment_setting("payment_donut_bot").strip()
+        fixed = payment_rate(f"payment_donut_{row.get('plan_type') or ''}")
+        if not bot or (rate <= 0 and fixed <= 0):
+            raise HTTPException(503, "DonutSMP payments are not configured yet.")
+        donut_amount = donut_amount_for(row)
+        values.update({"donut_username": username, "donut_amount": donut_amount, "donut_bot": bot})
+        updated = db_update("pending_payments", {"uid": eq(str(p.uid))}, values)
+        return {**order_json(updated[0] if updated else row), "paid": False}
+
+    # Gift card: store the code for the admin check, and a one-way hash for duplicate detection.
+    values.update({"provider": None, "provider_ref": None})
+    brand = (p.gift_card_brand or "").strip()
+    code = re.sub(r"\s+", "", p.gift_card_code or "").upper()
+    raw_value = float(p.gift_card_value or 0)
+    if not math.isfinite(raw_value) or raw_value > 10000:
+        raise HTTPException(400, "Enter a valid gift card value.")
+    value_cents = int(round(raw_value * 100))
+    allowed = {b.lower(): b for b in payment_brands()}
+    if brand.lower() not in allowed:
+        raise HTTPException(400, "Choose a gift card brand first.")
+    brand = allowed[brand.lower()]
+    if value_cents < amount:
+        raise HTTPException(400, f"The gift card value must be at least EUR {amount / 100:.2f}.")
+    if value_cents > 1000000:
+        raise HTTPException(400, "The gift card value is too high.")
+    if len(code) < 6 or len(code) > 80 or not re.match(r"^[A-Z0-9_-]+$", code):
+        raise HTTPException(400, "Enter a valid gift card code (letters, numbers, - and _).")
+    code_hash = gift_code_hash(code)
+    try:
+        duplicate = db_list("pending_payments", {"gift_card_code_hash": eq(code_hash)}, limit=1)
+    except Exception:
+        duplicate = []
+    if duplicate:
+        raise HTTPException(409, "Gift card code is used.")
+    values.update({"gift_card_brand": brand, "gift_card_code": code,
+                   "gift_card_code_hash": code_hash, "gift_card_value_cents": value_cents,
+                   "status": "review"})
+    updated = db_update("pending_payments", {"uid": eq(str(p.uid))}, values)
+    return {**order_json(updated[0] if updated else row), "paid": False}
 
 
-@app.get("/api/checkout/confirm")
-def confirm_checkout(session_id: str):
-    """Finish a paid checkout when the Stripe webhook was missed.
-
-    The session id is the unguessable receipt the customer returns with. The
-    Stripe API is the authority on payment status, and the metadata decides which
-    account gets the license. Calling it twice is safe.
-    """
-    sid = (session_id or "").strip()
-    if not sid.startswith("cs_") or len(sid) > 240:
-        raise HTTPException(400, "Invalid checkout session.")
-    session = stripe_request("GET", f"checkout/sessions/{sid}")
-    if session.get("status") != "complete" or session.get("payment_status") not in ("paid", "no_payment_required"):
-        raise HTTPException(409, "The payment is not complete yet.")
-    meta = session.get("metadata") or {}
-    email = (meta.get("email") or session.get("customer_email") or "").lower()
-    plan = meta.get("plan_type")
-    if not email or plan not in PLANS:
-        raise HTTPException(400, "This checkout has no usable license details.")
-    on_checkout_completed(session)
-    return {"ok": True, "email": email, "plan": plan}
+@app.get("/api/payments/bot/pending")
+def donut_bot_pending(x_bot_token: str = Header(default="")):
+    expected = os.getenv("DONUT_BOT_TOKEN", "")
+    if not expected or not hmac.compare_digest(x_bot_token, expected):
+        raise HTTPException(401, "Invalid bot token.")
+    rows = db_list("pending_payments", {"method": eq("donut"), "status": eq("pending")}, limit=100)
+    return {"orders": [{"uid": str(r["uid"]), "username": r.get("donut_username"),
+                        "amount": r.get("donut_amount"),
+                        "created_at": r.get("created_at")} for r in rows]}
 
 
-@app.post("/api/stripe-webhook")
-async def stripe_webhook(request: Request):
-    payload = await request.body()
-    if not verify_stripe_signature(payload, request.headers.get("stripe-signature", ""), os.getenv("STRIPE_WEBHOOK_SECRET", "")):
-        raise HTTPException(400, "Invalid signature.")
-    await run_in_threadpool(handle_stripe_event, json.loads(payload))
-    return {"received": True}  # an exception above -> HTTP 500 -> Stripe retries automatically
+@app.post("/api/payments/webhook/donut")
+async def donut_webhook(request: Request, x_bot_token: str = Header(default="")):
+    expected = os.getenv("DONUT_BOT_TOKEN", "")
+    if not expected or not hmac.compare_digest(x_bot_token, expected):
+        raise HTTPException(401, "Invalid bot token.")
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON.")
+    uid = str(body.get("order_id") or "")
+    sender = str(body.get("sender") or "").strip()
+    try:
+        paid = int(body.get("amount") or 0)
+    except (TypeError, ValueError):
+        raise HTTPException(400, "Invalid amount.")
+    row = db_get("pending_payments", {"uid": eq(uid)})
+    if not row or row.get("method") != "donut":
+        raise HTTPException(404, "Unknown DonutSMP order.")
+    if row.get("status") != "pending":
+        return {"ok": True, "status": row.get("status")}
+    if sender.lower() != str(row.get("donut_username") or "").lower():
+        raise HTTPException(409, "The paying username does not match this order.")
+    expected_amount = int(row.get("donut_amount") or 0)
+    if paid < expected_amount:
+        raise HTTPException(409, f"Not enough Donut money: {paid} of {expected_amount} received.")
+    complete_payment_order(uid, "donut-bot", f"donut:{sender}:{paid}")
+    return {"ok": True, "status": "paid"}
 
 
-@app.post("/api/billing-portal")
-def billing_portal(user: dict = Depends(current_user)):
-    lic = db_get("licenses", {"email": eq(user["email"]), "plan_type": eq("monthly")})
-    if not lic or not lic.get("stripe_customer_id"):
-        raise HTTPException(404, "No subscription found.")
-    session = stripe_request("POST", "billing_portal/sessions",
-                             {"customer": lic["stripe_customer_id"], "return_url": f"{SITE_URL}/dashboard.html"})
-    return {"url": session["url"]}
+@app.get("/api/payments/{uid}")
+def get_payment(uid: uuid.UUID, user: dict = Depends(current_user)):
+    row = load_pending(uid)
+    if user["email"] != row["email"]:
+        raise HTTPException(403, "This payment belongs to another account.")
+    return {**order_json(row), "paid": row.get("status") == "paid"}
+
+
+@app.post("/api/payments/{uid}/crypto")
+def submit_crypto_proof(uid: uuid.UUID, p: CryptoProofReq, user: dict = Depends(current_user)):
+    row = load_pending(uid)
+    if user["email"] != row["email"]:
+        raise HTTPException(403, "This payment belongs to another account.")
+    if row.get("status") == "paid":
+        return {"ok": True, "paid": True, "message": "This payment is already confirmed."}
+    if row.get("status") == "review":
+        raise HTTPException(409, "This transaction is already waiting for the admin to check it.")
+    if row.get("method") != "crypto":
+        raise HTTPException(400, "This is not a crypto order.")
+    txid = re.sub(r"[^A-Za-z0-9]", "", p.txid or "")[:128]
+    if len(txid) < 16:
+        raise HTTPException(400, "Enter a valid transaction hash.")
+    try:
+        used = db_list("pending_payments", {"crypto_txid": eq(txid), "status": eq("paid")}, limit=1)
+    except Exception:
+        used = []
+    if used and str(used[0].get("uid")) != str(uid):
+        raise HTTPException(409, "This transaction hash is already used for another order.")
+    updated = db_update("pending_payments", {"uid": eq(str(uid))},
+                        {"crypto_txid": txid, "status": "pending", "updated_at": iso(now())})
+    row = updated[0] if updated else row
+    if btc_received(row.get("crypto_coin") or "BTC", row.get("crypto_address") or "", txid,
+                    float(row.get("crypto_amount") or 0)):
+        complete_payment_order(str(uid), "crypto", txid)
+        return {"ok": True, "paid": True, "message": "Payment confirmed. Your license is active."}
+    if (row.get("crypto_coin") or "BTC") != "BTC":
+        db_update("pending_payments", {"uid": eq(str(uid))}, {"status": "review", "updated_at": iso(now())})
+        return {"ok": True, "paid": False, "message": "Transaction received. The admin will check it manually."}
+    return {"ok": True, "paid": False, "message": "The transaction is not confirmed yet. Try again in a few minutes."}
+
+
+@app.get("/api/admin/payments")
+def admin_payments(status: str = "all", admin: dict = Depends(current_admin)):
+    filters = {}
+    if status in ("pending", "review", "paid", "rejected"):
+        filters["status"] = eq(status)
+    rows = db_list("pending_payments", filters, limit=100, order="created_at.desc")
+    orders = []
+    for row in rows:
+        item = order_json(row)
+        item["gift_card_code"] = row.get("gift_card_code") or ""
+        item["provider_ref"] = row.get("provider_ref") or ""
+        item["txid"] = row.get("crypto_txid") or ""
+        orders.append(item)
+    return {"orders": orders}
+
+
+@app.post("/api/admin/payments/{uid}/approve")
+def admin_approve_payment(uid: uuid.UUID, admin: dict = Depends(current_admin)):
+    row = db_get("pending_payments", {"uid": eq(str(uid))})
+    if not row:
+        raise HTTPException(404, "Payment order not found.")
+    if row.get("status") == "paid":
+        return {"ok": True, "status": "paid"}
+    complete_payment_order(str(uid), "admin", f"admin:{admin.get('email') or admin.get('username')}")
+    return {"ok": True, "status": "paid"}
+
+
+@app.post("/api/admin/payments/{uid}/reject")
+def admin_reject_payment(uid: uuid.UUID, p: AdminPaymentReviewReq, admin: dict = Depends(current_admin)):
+    row = db_get("pending_payments", {"uid": eq(str(uid))})
+    if not row:
+        raise HTTPException(404, "Payment order not found.")
+    if row.get("status") == "paid":
+        raise HTTPException(409, "A paid order cannot be rejected. Revoke the license instead.")
+    reason = (p.reason or "Payment could not be verified.").strip()[:240]
+    db_update("pending_payments", {"uid": eq(str(uid))}, {
+        "status": "rejected", "admin_note": reason, "updated_at": iso(now()),
+    })
+    return {"ok": True, "status": "rejected", "reason": reason}
+
+
+@app.get("/api/admin/payment-settings")
+def admin_payment_settings(admin: dict = Depends(current_admin)):
+    return {"settings": {
+        "crypto_enabled": payment_setting_bool("payment_crypto_enabled"),
+        "crypto_coin": payment_coin(),
+        "crypto_address": payment_setting("payment_crypto_address"),
+        "crypto_rate": payment_setting("payment_crypto_rate"),
+        "donut_enabled": payment_setting_bool("payment_donut_enabled"),
+        "donut_bot": payment_setting("payment_donut_bot"),
+        "donut_rate": payment_setting("payment_donut_rate"),
+        "donut_weekly": payment_setting("payment_donut_weekly"),
+        "donut_monthly": payment_setting("payment_donut_monthly"),
+        "donut_lifetime": payment_setting("payment_donut_lifetime"),
+        "giftcard_enabled": payment_setting_bool("payment_giftcard_enabled"),
+        "giftcard_brands": payment_setting("payment_giftcard_brands"),
+        "giftcard_note": payment_setting("payment_giftcard_note"),
+    }}
+
+
+@app.post("/api/admin/payment-settings")
+def update_payment_settings(p: PaymentSettingsReq, admin: dict = Depends(current_admin)):
+    updates = {}
+    if p.crypto_enabled is not None:
+        updates["payment_crypto_enabled"] = "true" if p.crypto_enabled else "false"
+    if p.crypto_coin is not None:
+        coin = p.crypto_coin.strip().upper()
+        if coin not in ("BTC", "LTC", "ETH"):
+            raise HTTPException(400, "Crypto coin must be BTC, LTC or ETH.")
+        updates["payment_crypto_coin"] = coin
+    if p.crypto_address is not None:
+        updates["payment_crypto_address"] = p.crypto_address.strip()[:160]
+    if p.crypto_rate is not None:
+        if not math.isfinite(p.crypto_rate) or p.crypto_rate < 0:
+            raise HTTPException(400, "The crypto rate cannot be negative.")
+        updates["payment_crypto_rate"] = f"{p.crypto_rate:.8f}".rstrip("0").rstrip(".")
+    if p.donut_enabled is not None:
+        updates["payment_donut_enabled"] = "true" if p.donut_enabled else "false"
+    if p.donut_bot is not None:
+        bot = p.donut_bot.strip()
+        if bot and not USERNAME_RE.match(bot):
+            raise HTTPException(400, "The DonutSMP bot name must be a Minecraft username.")
+        updates["payment_donut_bot"] = bot
+    if p.donut_rate is not None:
+        if not math.isfinite(p.donut_rate) or p.donut_rate < 0:
+            raise HTTPException(400, "The Donut money rate cannot be negative.")
+        updates["payment_donut_rate"] = f"{p.donut_rate:.2f}".rstrip("0").rstrip(".")
+    for plan, value in (("weekly", p.donut_weekly), ("monthly", p.donut_monthly),
+                        ("lifetime", p.donut_lifetime)):
+        if value is None:
+            continue
+        if not math.isfinite(value) or value < 0:
+            raise HTTPException(400, "A fixed Donut amount cannot be negative.")
+        updates[f"payment_donut_{plan}"] = f"{int(value)}" if value else "0"
+    if p.giftcard_enabled is not None:
+        updates["payment_giftcard_enabled"] = "true" if p.giftcard_enabled else "false"
+    if p.giftcard_brands is not None:
+        updates["payment_giftcard_brands"] = p.giftcard_brands.strip()[:600]
+    if p.giftcard_note is not None:
+        updates["payment_giftcard_note"] = p.giftcard_note.strip()[:500]
+
+    for key, value in updates.items():
+        existing = db_get("site_settings", {"key": eq(key)})
+        if existing:
+            db_update("site_settings", {"key": eq(key)}, {"value": value, "updated_at": iso(now())})
+        else:
+            db_insert("site_settings", {"key": key, "value": value, "updated_at": iso(now())})
+    return {"message": "Payment settings saved.", "settings": updates}
 
 
 # --------------------------------------------------------------------------
@@ -2579,22 +2865,18 @@ def account_device_reset_checkout(user: dict = Depends(current_user)):
         raise HTTPException(403, "A free trial stays on the PC it first starts on. Upgrade to move it.")
     if not lic.get("hwid"):
         raise HTTPException(400, "No device is linked to this key yet.")
-
-    data = {
-        "mode": "payment",
-        "customer_email": user["email"],
-        "line_items[0][price_data][currency]": "eur",
-        "line_items[0][price_data][unit_amount]": str(HWID_RESET_PRICE_CENTS),
-        "line_items[0][price_data][product_data][name]": "Champ Client - Hardware ID reset",
-        "line_items[0][quantity]": "1",
-        "success_url": f"{public_site()}/dashboard.html?device_reset=paid#device",
-        "cancel_url": f"{public_site()}/dashboard.html#device",
-        "metadata[kind]": "hwid_reset",
-        "metadata[license_id]": str(lic["id"]),
-        "metadata[email]": user["email"],
-    }
-    session = stripe_request("POST", "checkout/sessions", data)
-    return {"url": session["url"]}
+    rows = db_list("pending_payments", {"email": eq(user["email"]), "plan_type": eq("hwid_reset"),
+                                        "status": eq("pending")}, limit=1)
+    if rows:
+        uid = rows[0]["uid"]
+    else:
+        uid = str(uuid.uuid4())
+        db_insert("pending_payments", {
+            "uid": uid, "email": user["email"], "plan_type": "hwid_reset", "kind": "hwid_reset",
+            "license_id": lic["id"], "status": "pending", "amount_cents": HWID_RESET_PRICE_CENTS,
+            "currency": "EUR",
+        })
+    return {"url": f"{SITE_URL}/payment.html?uid={uid}", "checkout_url": f"{SITE_URL}/payment.html?uid={uid}"}
 
 
 # --------------------------------------------------------------------------
@@ -3383,8 +3665,8 @@ def admin_license_json(r: dict) -> dict:
         "hwid_bound_at": r.get("hwid_bound_at"),
         "hwid_reset_at": r.get("hwid_reset_at"),
         "last_seen_at": r.get("last_seen_at"),
-        "stripe_customer_id": r.get("stripe_customer_id") or "",
-        "stripe_subscription_id": r.get("stripe_subscription_id") or "",
+        "payment_provider": r.get("payment_provider") or "",
+        "payment_ref": r.get("payment_ref") or "",
     }
 
 
@@ -3448,7 +3730,7 @@ def admin_licenses(search: str = "", limit: int = 50, admin: dict = Depends(curr
 
 @app.post("/api/admin/licenses")
 def admin_create_license(p: AdminLicenseCreateReq, admin: dict = Depends(current_admin)):
-    """Hand out a key without Stripe: unclaimed, or already tied to a customer."""
+    """Hand out a key directly: unclaimed, or already tied to a customer."""
     plan = (p.plan_type or "").strip().lower()
     if plan not in LICENSE_PLANS:
         raise HTTPException(400, "Plan must be trial, weekly, monthly or lifetime.")
@@ -3814,95 +4096,6 @@ def admin_extend_all(p: AdminExtendReq, admin: dict = Depends(current_admin)):
     return {"message": message, "extended": extended, "skipped": skipped, "failures": failures}
 
 
-# --------------------------------------------------------------------------
-# Admin: discount codes
-# --------------------------------------------------------------------------
-# A discount is a Stripe coupon with one promotion code: Stripe is the checkout, so it also enforces
-# the code, the expiry and the usage limit, and the checkout page already accepts promotion codes.
-DISCOUNT_CODE_RE = re.compile(r"^[A-Z0-9][A-Z0-9_-]{2,31}$")
-
-
-def stripe_timestamp(value: Optional[str]) -> Optional[int]:
-    """A date from the panel (2026-12-31) or a full timestamp, as a unix time for Stripe."""
-    text = (value or "").strip()
-    if not text:
-        return None
-    try:
-        dt = parse_dt(text if ("T" in text or " " in text) else text + "T23:59:59")
-    except ValueError:
-        raise HTTPException(400, "Use a date like 2026-12-31, or a full timestamp.")
-    return int(dt.timestamp()) if dt else None
-
-
-def discount_json(promo: dict) -> dict:
-    coupon = ((promo.get("promotion") or {}).get("coupon") or {})
-    if not isinstance(coupon, dict):
-        coupon = {}
-    amount_off = coupon.get("amount_off")
-    return {
-        "id": promo.get("id"),
-        "code": promo.get("code") or "",
-        "active": bool(promo.get("active")),
-        "uses": promo.get("times_redeemed") or 0,
-        "max_uses": promo.get("max_redemptions") or 0,
-        "expires_at": (datetime.fromtimestamp(promo["expires_at"], tz=timezone.utc).isoformat()
-                       if promo.get("expires_at") else None),
-        "created_at": (datetime.fromtimestamp(promo["created"], tz=timezone.utc).isoformat()
-                       if promo.get("created") else None),
-        "percent_off": coupon.get("percent_off"),
-        "amount_off": (amount_off / 100) if amount_off else None,
-        "currency": (coupon.get("currency") or "eur").upper(),
-    }
-
-
-@app.get("/api/admin/discounts")
-def admin_discounts(admin: dict = Depends(current_admin)):
-    body = stripe_request("GET", "promotion_codes?limit=100&expand[]=data.promotion.coupon")
-    return {"discounts": [discount_json(p) for p in body.get("data") or []]}
-
-
-@app.post("/api/admin/discounts", status_code=201)
-def admin_create_discount(p: AdminDiscountReq, admin: dict = Depends(current_admin)):
-    code = (p.code or "").strip().upper()
-    if not DISCOUNT_CODE_RE.match(code):
-        raise HTTPException(400, "A code is 3-32 characters: letters, digits, - and _.")
-    kind = (p.kind or "percent").strip().lower()
-    if kind not in ("percent", "amount"):
-        raise HTTPException(400, "Type must be percent or amount.")
-    coupon = {"duration": "once", "name": f"Champ {code}"}
-    if kind == "percent":
-        value = float(p.value or 0)
-        if not 0 < value <= 100:
-            raise HTTPException(400, "A percentage is between 0.1 and 100.")
-        coupon["percent_off"] = value
-    else:
-        cents = int(round(float(p.value or 0) * 100))
-        if not 0 < cents <= 100000:
-            raise HTTPException(400, "An amount is between 0.01 and 1000 euros.")
-        coupon["amount_off"] = cents
-        coupon["currency"] = "eur"
-    created = stripe_request("POST", "coupons", coupon)
-    promo = {"coupon": created["id"], "code": code}
-    max_uses = max(0, int(p.max_uses or 0))
-    if max_uses:
-        promo["max_redemptions"] = max_uses
-    expires = stripe_timestamp(p.expires_at)
-    if expires:
-        promo["expires_at"] = expires
-    saved = stripe_request("POST", "promotion_codes", promo)
-    expanded = stripe_request("GET", f"promotion_codes/{saved['id']}?expand[]=promotion.coupon")
-    return discount_json(expanded)
-
-
-@app.post("/api/admin/discounts/{promo_id}")
-def admin_toggle_discount(promo_id: str, p: AdminDiscountToggleReq, admin: dict = Depends(current_admin)):
-    """Pause or resume a code. Stripe keeps the redemptions, so the history stays intact."""
-    saved = stripe_request("POST", f"promotion_codes/{promo_id}",
-                           {"active": "true" if p.active else "false"})
-    expanded = stripe_request("GET", f"promotion_codes/{saved['id']}?expand[]=promotion.coupon")
-    return discount_json(expanded)
-
-
 @app.get("/api/admin/referrals")
 def admin_referrals(admin: dict = Depends(current_admin)):
     refs = db_list("referrals", {}, limit=100, order="earnings_cents.desc")
@@ -3962,7 +4155,7 @@ def get_site_settings():
         "hero_title": "Every module.|*One injector.*",
         "hero_sub": "Champ runs inside the Minecraft 1.21.11 you already have open. Start the game, run champ.bat, and the menu is there. No jar goes into your mods folder, and you don't have to restart the game afterwards.",
         "pricing_title": "Three plans, *same client.*",
-        "pricing_sub": "Start with a free 24-hour trial, then weekly, monthly or lifetime. VPNs and proxies cannot claim it. Stripe handles the payment, the license lands in your dashboard as soon as it clears.",
+        "pricing_sub": "Start with a free 24-hour trial, then weekly, monthly or lifetime. VPNs and proxies cannot claim it. Pay with crypto, DonutSMP money or a gift card; the license lands in your dashboard as soon as the payment clears.",
         "features_title": "Every module, *listed.*",
         "features_sub": "The full list, grouped by category: combat, mace, spear, movement, misc, visuals and Donut SMP. Filter one group or scroll the lot, then open a card for its settings and a clip.",
         "support_title": "Need *help?*",
@@ -4283,11 +4476,11 @@ Scope: the website advertises 247 modules, custom Dear ImGui render overlays, cr
 
 Free trial: a signed-in account can claim one 24-hour trial from the pricing page. It is free, includes every module, and is limited to one trial per account, one per PC and one per network. The key is linked to the first PC that runs it and cannot be moved to another PC; it expires 24 hours after it is claimed. VPN, proxy, Tor and datacenter connections are refused.
 
-Plans and delivery: Weekly costs EUR 2.99 for 7 days as a one-time payment and does not renew. Monthly costs EUR 6.99 and can be cancelled anytime from the dashboard. Lifetime costs EUR 9.99 as a one-time payment and includes future 1.21.x updates. Checkout uses Stripe, which supports credit cards, debit cards, iDEAL and country-specific local payment methods. After successful payment the product is available in the customer's dashboard immediately, and a licence e-mail with the key is sent. Downloads require an active license. PayPal, crypto and other payment providers are not available in this shop; never suggest them.
+Plans and delivery: Weekly costs EUR 2.99 for 7 days as a one-time payment and does not renew. Monthly costs EUR 6.99 for a prepaid 30-day pass and does not renew automatically. Lifetime costs EUR 9.99 as a one-time payment and includes future 1.21.x updates. Checkout supports crypto, DonutSMP money and gift cards; availability depends on what the shop has enabled. After successful payment the product is available in the customer's dashboard immediately, and a licence e-mail with the key is sent. Downloads require an active license. Never promise a payment method that is not shown on the checkout page.
 
 Licence keys by e-mail: every purchase and every key that support hands out or edits is e-mailed automatically to the customer address, with the key in the message and a thank-you note; the same key is shown in the dashboard. Keys look like CHAMP-XXXX-XXXX-XXXX-XXXX. Advice on where to find the key, check the inbox and spam folder for the licence mail and then the dashboard. Never ask a customer to post a key in chat and never repeat a key back.
 
-Refunds and billing: a Weekly pass ends after its 7 days and does not renew. A Monthly plan can be cancelled at any time and stays active until the paid period ends. Refund terms are not confirmed here, so for refunds or billing mistakes say a staff member must review the order and point to Discord support. Never promise a refund.
+Refunds and billing: a Weekly pass ends after its 7 days and does not renew. A Monthly pass is prepaid for 30 days and does not renew automatically. Refund terms are not confirmed here, so for refunds or billing mistakes say a staff member must review the order and point to Discord support. Never promise a refund.
 
 Compatibility and versions: the current client build is 0.9.9.1 for Minecraft Java 1.21.11 with Fabric Loader 0.16 or newer. There is no separate loader version to install any more: the launcher carries the client inside it, so a new release means downloading the launcher again from the dashboard. Forge and OptiFine are not supported. There is no support for Minecraft versions outside the 1.21.x line. Sodium, Lithium, FerriteCore and Iris shaders are the tested companions.
 
@@ -4373,29 +4566,30 @@ SITE_LINKS = {
 def _answer_pricing() -> str:
     return (
         "Champ Client has a free 24-hour trial and three paid plans: Weekly is EUR 2.99 for 7 days as a "
-        "one-time payment, Monthly is EUR 6.99 and you can cancel it any time from your dashboard, and "
+        "one-time payment, Monthly is EUR 6.99 for a prepaid 30-day pass, and "
         "Lifetime is EUR 9.99 as a one-time payment and includes future 1.21.x updates.\n\n"
-        "The trial gives every module for one day, needs no card, and is limited to one per account, PC "
+        "The trial gives every module for one day, needs no payment, and is limited to one per account, PC "
         "and network; VPNs and proxies cannot claim it. Every plan includes the same modules and texture "
         "packs; only how long access lasts changes. The weekly pass does not renew automatically.\n\n"
-        "Checkout runs through Stripe, which accepts credit cards, debit cards, iDEAL and several local "
-        "payment methods. Your download and licence appear in your dashboard right after payment.\n\n"
+        "Checkout accepts crypto, DonutSMP money and gift cards; the checkout page "
+        "shows which methods the shop has enabled. Your download and licence appear in your dashboard right "
+        "after payment.\n\n"
         f"Plans and pricing: {SITE_LINKS['pricing']}"
     )
 
 
 def _answer_payment_methods() -> str:
     return (
-        "Payments go through Stripe: credit cards, debit cards, iDEAL and country-specific local methods all work. "
-        "PayPal and crypto are not confirmed for this shop, so please do not count on them.\n\n"
+        "The checkout shows the payment methods this shop has enabled: crypto, "
+        "DonutSMP money and gift cards. Gift cards are checked by the shop before the license unlocks.\n\n"
         f"Plans and pricing: {SITE_LINKS['pricing']}"
     )
 
 
 def _answer_billing_change() -> str:
     return (
-        "A Weekly pass simply ends after its 7 days and does not renew. A Monthly plan can be cancelled any "
-        "time from your dashboard; access stays active until the paid period ends. Refunds are not something "
+        "A Weekly pass simply ends after its 7 days and does not renew. A Monthly pass is prepaid for 30 "
+        "days and does not renew automatically. Refunds are not something "
         "I can confirm here, so for a billing question a staff member should look at your order with you.\n\n"
         f"Dashboard: {SITE_LINKS['dashboard']}\nDiscord support: {SITE_LINKS['discord']}"
     )
@@ -4523,7 +4717,7 @@ def _answer_order_issue() -> str:
     return (
         "Sign in with the same email address you used at checkout: after a successful payment the download and "
         "licence appear in your dashboard right away. If they are still missing, a staff member needs your order "
-        "email and roughly when you paid, so open a ticket on Discord. Never send card details or your password.\n\n"
+        "email and roughly when you paid, so open a ticket on Discord. Never send payment details or your password.\n\n"
         f"Dashboard: {SITE_LINKS['dashboard']}\nDiscord support: {SITE_LINKS['discord']}"
     )
 
@@ -4595,8 +4789,8 @@ SUPPORT_TOPICS = (
     ("discount", re.compile(r"\b(discount|korting|coupon|promo ?code|voucher|goedkoper)\b", re.I), _answer_discount),
     ("billing", re.compile(r"\b(cancel|opzeg\w*|refund|money back|terugbetaling|chargeback|downgrade)\b", re.I), _answer_billing_change),
     ("pricing", re.compile(r"\b(price|prices|pricing|cost|costs|costly|how much|hoeveel|kost\w*|prijs|plans?|abonnement\w*|subscription|weekly|monthly|lifetime|buy|kopen|purchase|checkout|betalen|order|bestellen)\b", re.I), _answer_pricing),
-    # After pricing, because that answer already covers iDEAL and card payments.
-    ("payment_methods", re.compile(r"\b(ideal|paypal|credit ?card|debit ?card|betaalmethod\w*|payment method\w*|stripe|crypto|bitcoin|apple pay|google pay)\b", re.I), _answer_payment_methods),
+    # After pricing, because that answer already covers the main checkout options.
+    ("payment_methods", re.compile(r"\b(betaalmethod\w*|payment method\w*|crypto|bitcoin|donut\w*|gift ?card\w*|cadeaubon\w*)\b", re.I), _answer_payment_methods),
     ("download", re.compile(r"\b(download\w*|licen[cs]e key|licentie|my key|serial|dashboard)\b", re.I), _answer_download),
     ("install", re.compile(r"\b(install\w*|set ?up|setup|fabric|mods? folder|forge|optifine|loader)\b", re.I), _answer_install),
     ("requirements", re.compile(r"\b(version|versie|1\.\d{1,2}(\.\d+)?|requirements?|vereisten|java|minecraft|which mc|supported mc)\b", re.I), _answer_requirements),
@@ -4633,7 +4827,7 @@ TOPIC_HINTS = {
     "discount": ("discount", "coupon", "promo", "korting", "voucher"),
     "billing": ("cancel", "refund", "cancellation", "opzeggen", "terugbetaling"),
     "pricing": ("price", "pricing", "cost", "costs", "prijs", "kosten", "plans", "subscription", "weekly", "monthly", "lifetime"),
-    "payment_methods": ("ideal", "stripe", "paypal", "card", "bitcoin", "betalen"),
+    "payment_methods": ("crypto", "bitcoin", "donut", "giftcard", "cadeaubon", "betalen"),
     "download": ("download", "downloads", "downloaden", "dashboard"),
     "install": ("install", "installeren", "installed", "fabric", "setup", "mods"),
     "requirements": ("version", "versie", "requirements", "vereisten", "java", "minecraft"),
@@ -4755,7 +4949,7 @@ LINK_PATTERN = re.compile(r"https?://[^\s<>\"']+")
 # When the model forgets a link, point customers at the page that matches the question.
 LINK_TARGETS = (
     (r"\b(discord|ticket|staff|human support)\b", "Discord support", DISCORD_INVITE),
-    (r"\b(price|pricing|cost|costs|buy|purchase|payment|pay|stripe|ideal|subscription|monthly|lifetime|refund|plans?)\b", "Plans and pricing", OFFICIAL_SITE + "/index.html#pricing"),
+    (r"\b(price|pricing|cost|costs|buy|purchase|payment|pay|crypto|bitcoin|donut|gift ?card|cadeaubon|subscription|monthly|lifetime|refund|plans?)\b", "Plans and pricing", OFFICIAL_SITE + "/index.html#pricing"),
     (r"\b(download|downloads|dashboard|licen[cs]e|texture|base finds|account|log ?in|sign ?in)\b", "Dashboard, downloads and licence", OFFICIAL_SITE + "/dashboard.html"),
     (r"\b(verif\w*|email|password|reset|sign ?up|creat\w* an account)\b", "Support and account help", OFFICIAL_SITE + "/support.html"),
     (r"\b(install|installing|installation|fabric|sodium|iris|lithium|ferritecore|crash|error|bug|broken|not working)\b", "Support and setup help", OFFICIAL_SITE + "/support.html"),
@@ -4886,7 +5080,7 @@ def ai_chat(p: AIChatReq):
     asked_hidden_host = mentions_hidden_host(user_msg)
     user_msg = hide_hidden_hosts(user_msg)
     lowered = user_msg.lower()
-    if any(k in lowered for k in ["admin password", "supabase_key", "stripe_secret", "jwt_secret", "leak token", "api key", "service role"]):
+    if any(k in lowered for k in ["admin password", "supabase_key", "jwt_secret", "leak token", "api key", "service role"]):
         return {"reply": "I cannot help expose secrets or private account information. If you need account help, please contact our support team on Discord: https://discord.gg/6vyQnVjeX", "escalation_url": "https://discord.gg/6vyQnVjeX", "needs_escalation": True}
 
     # The assistant is customer support, never a code or internals assistant.
