@@ -1437,6 +1437,9 @@ def health():
     # booleans only: never expose a key or a webhook secret.
     donut_mode = payment_donut_mode()
     donut_bot = bool(os.getenv("DONUT_BOT_TOKEN"))
+    discord_schema = discord_schema_ready()
+    discord_oauth = discord_oauth_configured()
+    discord_role = bool((os.getenv("CHAMP_PLUS_ROLE_ID") or "").strip())
     return {
         "ok": True,
         "email": email_transport(),
@@ -1450,14 +1453,14 @@ def health():
         "vercel_env": os.getenv("VERCEL_ENV"),
         # Configuration summary only; no token, client id or guild id is returned.
         "discord": {
-            "oauth": discord_oauth_configured(),
+            "oauth": discord_oauth,
             "bot": bool(discord_bot_token()),
             "guild": bool(discord_guild_id()),
-            "role": bool((os.getenv("CHAMP_PLUS_ROLE_ID") or "").strip()),
-            "schema": discord_schema_ready(),
-            "linking": bool(discord_oauth_configured() or
-                            (discord_bot_token() and discord_guild_id() and
-                             (os.getenv("CHAMP_PLUS_ROLE_ID") or "").strip())),
+            "role": discord_role,
+            "schema": discord_schema,
+            "linking": bool(discord_schema and
+                            (discord_oauth or
+                             (discord_bot_token() and discord_guild_id() and discord_role))),
         },
         "payments": {
             "crypto": bool(payment_setting("payment_crypto_address")),
