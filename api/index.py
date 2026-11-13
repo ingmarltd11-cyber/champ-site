@@ -4300,6 +4300,11 @@ def get_site_settings():
         "signup_max_per_ip": "3",
     }
     for r in rows:
+        # Old deployments stored card-checkout copy in this row. Never display it
+        # again; the admin can save a fresh subtitle from the panel at any time.
+        if r.get("key") == "pricing_sub" and re.search(
+                r"\b(stripe|mollie|credit\s*card|card\s+payment)\b", str(r.get("value") or ""), re.I):
+            continue
         settings[r["key"]] = r["value"]
     return {"settings": settings}
 

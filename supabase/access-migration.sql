@@ -20,3 +20,9 @@ update public.site_settings
 set value = 'Weekly, monthly or lifetime. Pay with crypto, DonutSMP money or a gift card; the license lands in your dashboard as soon as the payment clears.'
 where key = 'pricing_sub'
   and value like 'Start with a free 24-hour trial%';
+
+-- Remove card-processor copy left by the old checkout.
+update public.site_settings
+set value = 'Weekly, monthly or lifetime. Pay with crypto, DonutSMP money or a gift card; the license lands in your dashboard as soon as the payment clears.'
+where key = 'pricing_sub'
+  and value ~* '(stripe|mollie|credit[[:space:]]+card|card[[:space:]]+payment)';
