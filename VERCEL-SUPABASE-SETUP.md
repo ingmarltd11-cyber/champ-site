@@ -69,6 +69,21 @@ uses `CHAMP_PLUS_ROLE_ID` for the role itself. `/api/health` returns a `discord`
 for `oauth`, `bot`, `guild`, `role`, `schema` and `linking`, so a missing variable or unapplied
 migration is visible without exposing any value.
 
+### Discord linking setup
+
+1. In the Discord Developer Portal, open the application used by the bot, add the redirect
+   `https://champ-site-psi.vercel.app/api/discord/callback` under OAuth2 -> Redirects, and copy the
+   application id and client secret.
+2. In Vercel -> champ-site -> Settings -> Environment Variables, add `DISCORD_CLIENT_ID`,
+   `DISCORD_CLIENT_SECRET`, `DISCORD_BOT_TOKEN`, `DISCORD_GUILD_ID` and `CHAMP_PLUS_ROLE_ID` for
+   Production. `DISCORD_BOT_TOKEN` must be the same bot token the Railway bot uses. Redeploy after
+   saving them.
+3. In Supabase -> SQL Editor, run the latest `supabase/schema.sql` (or at least the
+   `discord_link_code` columns and indexes near the top of that file).
+4. Open `/api/health`: `discord.oauth`, `discord.bot`, `discord.guild`, `discord.role` and
+   `discord.schema` should all be `true`. Then generate a code in the dashboard and run
+   `/link code:<code>` in Discord.
+
 ## Supabase database
 
 Connected Supabase project: **Champclient** (`ykmhjkkkskqyvdphzmkw`, `eu-west-1`). The website uses the service key server-side through PostgREST and Storage. Apply `supabase/schema.sql` when setting up the full website schema. Do not run the legacy instructions for creating a new Supabase project or for the Discord bot schema against this site project.
