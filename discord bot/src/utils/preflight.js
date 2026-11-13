@@ -193,7 +193,14 @@ function auditGuild(guild, { ticketConfig, welcomeConfig, giveawayConfig } = {})
 
   const welcomeChannel = welcomeConfig?.channelId;
   if (welcomeConfig?.enabled && placeholderId(welcomeChannel)) {
-    warnings.push('welcome channel is not configured (/welcome channel welcome:#…); joins post nothing');
+    const fallback = guild.systemChannel || guild.channels?.cache?.find?.(
+      (channel) => channel?.isTextBased?.() && /(^|[-_])welcome|welkom/i.test(channel.name || '')
+    );
+    if (fallback) {
+      warnings.push(`welcome channel is automatic; using #${fallback.name}. Run /welcome setup to keep it explicit`);
+    } else {
+      warnings.push('welcome channel is not configured and no system/welcome channel exists (/welcome setup)');
+    }
   } else if (welcomeConfig?.enabled && !guild.channels?.cache?.get(welcomeChannel)?.isTextBased()) {
     warnings.push(`welcome channel ${welcomeChannel} is missing or not text`);
   }

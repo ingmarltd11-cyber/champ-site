@@ -6,7 +6,7 @@ const {
 } = require('discord.js');
 const { getWelcomeConfig, updateWelcomeConfig, resetWelcomeConfig } = require('../utils/welcomeSettings');
 const { buildWelcomeMessage, buildGoodbyeMessage, PLACEHOLDERS } = require('../utils/welcome');
-const { toEmbed, linkRow } = require('../handlers/welcomeEvents');
+const { toEmbed, linkRow, findWelcomeChannel } = require('../handlers/welcomeEvents');
 const { getGiveawayConfig } = require('../config/loadConfig');
 
 function canManage(member) {
@@ -50,6 +50,11 @@ const data = new SlashCommandBuilder()
           .setDescription('Channel for members who leave')
           .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
       )
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName('setup')
+      .setDescription('Use or create a welcome channel automatically')
   )
   .addSubcommand((sub) =>
     sub
@@ -129,7 +134,7 @@ async function execute(interaction) {
         { name: 'Enabled', value: config.enabled ? 'yes' : 'no', inline: true },
         {
           name: 'Welcome channel',
-          value: config.channelId ? `<#${config.channelId}>` : 'not set',
+          value: config.channelId ? `<#${config.channelId}>` : 'automatic (system/welcome channel)',
           inline: true,
         },
         {
@@ -192,6 +197,18 @@ async function execute(interaction) {
       content: `✅ ${welcome ? `Welcome channel: ${welcome}. ` : ''}${goodbye ? `Goodbye channel: ${goodbye}.` : ''}`,
       ephemeral: true,
     });
+  }
+
+  if (sub === 'setup') {
+    await interaction.deferReply({ ephemeral: true });
+    const channel = await findWelcomeChannel(interaction.guild, config, { create: true });
+    if (!channel) {
+      return interaction.editReply({
+        content: 'No usable welcome channel found. Give me **Manage Channels**, or pick one with `/welcome channel welcome:#…`.',
+      });
+    }
+    await updateWelcomeConfig({ channelId: channel.id });
+    return interaction.editReply({ content: `✅ Welcome messages will be posted in ${channel}.` });
   }
 
   if (sub === 'autorole') {

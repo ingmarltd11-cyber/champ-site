@@ -2,13 +2,11 @@
  "pages": {
   "admin.html": {
    "ids": [
-    "addAIKnowledgeContainer",
     "addChangelogContainer",
     "addFeatureContainer",
     "addKeyContainer",
     "addReviewContainer",
     "addTexturePackContainer",
-    "adminAIKnowledgeList",
     "adminBetaDownload",
     "adminBetaNote",
     "adminBetaVersion",
@@ -50,8 +48,6 @@
     "bulkExtendDays",
     "bulkExtendMsg",
     "bulkExtendPlan",
-    "createAIKnowledgeForm",
-    "createAIKnowledgeMsg",
     "createChangelogForm",
     "createChangelogMsg",
     "createFeatureForm",
@@ -116,7 +112,6 @@
     "settingYoutubeUrl",
     "settingsSaveMsg",
     "tab-accounts",
-    "tab-ai-knowledge",
     "tab-changelog",
     "tab-downloads",
     "tab-features",
@@ -216,6 +211,10 @@
     "device",
     "deviceContent",
     "deviceMessage",
+    "discordCode",
+    "discordCodeBox",
+    "discordCodeHint",
+    "discordCopyCode",
     "discordLinkBtn",
     "discordMessage",
     "discordRoleBtn",
@@ -263,7 +262,9 @@
     "twofaStatus"
    ],
    "apis": [
-    "/api/discord/link"
+    "/api/discord/bot/link",
+    "/api/discord/link",
+    "/api/discord/link/start"
    ],
    "forms": 4
   },
@@ -469,12 +470,10 @@
  "js": {
   "ids": [
    "activeCheckoutForm",
-   "addAIKnowledgeContainer",
    "addChangelogContainer",
    "addFeatureContainer",
    "addReviewContainer",
    "addTexturePackContainer",
-   "adminAIKnowledgeList",
    "adminBetaDownload",
    "adminBetaNote",
    "adminBetaVersion",
@@ -531,8 +530,6 @@
    "content-trial",
    "content-trial-copy",
    "copyCryptoAddress",
-   "createAIKnowledgeForm",
-   "createAIKnowledgeMsg",
    "createChangelogForm",
    "createFeatureForm",
    "createPackMsg",
@@ -739,8 +736,6 @@
    "/api/account/device/reset",
    "/api/account/device/reset/checkout",
    "/api/account/device/reset/ip",
-   "/api/admin/ai-knowledge",
-   "/api/admin/ai-knowledge/",
    "/api/admin/base-finds",
    "/api/admin/base-finds/",
    "/api/admin/changelog",

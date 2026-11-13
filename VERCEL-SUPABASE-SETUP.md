@@ -51,28 +51,36 @@ Gmail SMTP is suitable for low-volume verification mail but has daily sending li
 
 Vercel blocks outbound port 25 but allows 465 (implicit TLS) and 587 (STARTTLS), so Gmail SMTP works from a Vercel function. Verify the active transport with `/api/health`: `{"ok":true,"email":"smtp"}` means the SMTP variables were picked up, `"resend"` means `RESEND_API_KEY` wins, and `"none"` means verification mail cannot be sent yet.
 
-## Support assistant
+## Support and Discord linking
 
-The assistant has two layers. The built-in layer runs first and needs no key, no admin knowledge and no network: it answers pricing, plans, payment methods, cancelling, installation, downloads and licences, account and password help, supported versions and compatibility, updates, texture packs, Base Finds, Discord linking, order problems, safety and contact questions, in English and for common Dutch phrasing. It returns the same answers on the website and through the Discord bot.
+The AI support assistant has been removed from both the site and the Discord bot. Support runs through
+the Discord ticket system and the site dashboard. Mentioning the bot gives the dashboard, ticket and
+Discord links; it does not call an AI provider.
 
-The public website assistant is retired. The Discord support bot still calls `/api/ai/chat` with `channel=discord`; with `GROQ_API_KEY` set it uses Groq (`openai/gpt-oss-120b`, falling back to `llama-3.1-8b-instant`) with the product facts, live site settings, features and admin knowledge as context. If the key is missing, invalid or rate limited, it falls back to the built-in answer.
+The dashboard can link a customer to Discord in two ways: an OAuth app configured with
+`DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET`, or an 8-character, 10-minute code when the Discord bot
+is configured. The member runs `/link code:<code>`; the bot proves the Discord id and the site stores
+it on that customer. An active license assigns the Champ+ role automatically.
 
 ## Supabase database
 
 Connected Supabase project: **Champclient** (`ykmhjkkkskqyvdphzmkw`, `eu-west-1`). The website uses the service key server-side through PostgREST and Storage. Apply `supabase/schema.sql` when setting up the full website schema. Do not run the legacy instructions for creating a new Supabase project or for the Discord bot schema against this site project.
 
-The `ai_knowledge` table was added to the connected project for the admin-managed assistant knowledge feature. The shared assistant conversation tables and private texture-pack table/bucket are also provisioned; they are included in `supabase/schema.sql`.
+The private texture-pack table and bucket are included in `supabase/schema.sql`. Apply the latest
+schema once so the Discord link-code columns exist on `public.users`.
 
 ## Verification checklist
 
 1. Confirm `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` and `JWT_SECRET` are set for the environment currently deployed.
 2. Open `/api/health` and confirm it returns `{"ok":true}` with `"database":true`. A deployment that reports `"database":false` is missing `SUPABASE_URL` / `SUPABASE_SERVICE_KEY` in that environment; check the Preview/Production boxes when adding them.
-3. Check `/api/health` and confirm `"ai":"built-in"` or `"ai":"llm"`.
+3. Check `/api/health` and confirm the database and mail diagnostics look correct.
 4. Create an account on `/signup.html` and confirm you land signed in (dashboard, or checkout when a plan was chosen).
-5. Ask the assistant a pricing question and confirm it answers with the pricing link.
+5. Open the dashboard Discord tab, generate a link code and finish `/link code:<code>` in Discord.
 6. Test the crypto checkout, gift-card review and manual DonutSMP review against a staging order before enabling live payments.
 7. Never log or share passwords, API keys or Supabase service keys.
-8. The Discord support bot answers from its built-in knowledge. Add `GROQ_API_KEY` (or `OPENAI_API_KEY`) only for free-form answers to everything else; `/api/health` shows `"ai":"built-in"` or `"ai":"llm"`. The bot calls `/api/ai/chat` with `channel=discord` and uses the same database-backed knowledge and per-ticket conversation history.
+8. The Discord bot does not use an AI service. Generate a link code, run `/link code:<code>` and
+   confirm the dashboard shows the linked Discord username. Check `/welcome setup` or
+   `/welcome channel` and `/welcome preview` for the welcome flow.
 
 Vercel CLI authentication on this workstation was not available during setup. To connect the CLI persistently, install Vercel CLI and run `vercel login` in a terminal where you can complete the browser sign-in; then link the project with `vercel link`. This does not require sharing a token in chat. GitHub deployments normally trigger Vercel automatically when the Git integration is connected to this repository.
 

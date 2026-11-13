@@ -14,9 +14,8 @@ const { log, setClient, reportError } = require('./utils/logger');
 const { checkEnv, validateTicketConfig, validateGiveawayConfig, auditGuild } = require('./utils/preflight');
 const { getTicketConfig, getGiveawayConfig, getWelcomeDefaults } = require('./config/loadConfig');
 const { getWelcomeConfig } = require('./utils/welcomeSettings');
-const { siteUrl } = require('./utils/format');
+const { siteUrl, inviteUrl } = require('./utils/format');
 const ticketStore = require('./utils/ticketStore');
-const { handleSupportMessage } = require('./utils/siteSupport');
 const { startAutoClose } = require('./jobs/autoClose');
 const { startGiveawayScheduler } = require('./jobs/giveawayScheduler');
 const giveawayInteractions = require('./handlers/giveawayInteractions');
@@ -47,6 +46,7 @@ for (const [name, result] of [
 }
 
 const startedAt = Date.now();
+const supportCooldowns = new Map();
 let shuttingDown = false;
 let health = null;
 let stopAutoClose = null;
@@ -143,7 +143,17 @@ client.on('messageCreate', async (message) => {
       }
     }
     if (client.user && message.mentions.has(client.user)) {
-      await handleSupportMessage(message, ticket);
+      // Support mentions are deliberately not answered by an AI. Point the member at the
+      // dashboard/ticket flow, with a short cooldown so a mention cannot be used to spam.
+      const now = Date.now();
+      for (const [id, at] of supportCooldowns) if (now - at > 60000) supportCooldowns.delete(id);
+      if (!supportCooldowns.has(message.author.id)) {
+        supportCooldowns.set(message.author.id, now);
+        await message.reply({
+          content: `Need a hand? Link your Discord on the dashboard (${siteUrl()}/dashboard.html), open a ticket here, or ask in ${inviteUrl()}.`,
+          allowedMentions: { repliedUser: false },
+        });
+      }
     }
   } catch (err) {
     log.warn('message', `could not handle a message: ${err.message}`);
@@ -184,6 +194,9 @@ client.on('shardError', (err) => reportError('shard', err));
 
 client.once('ready', async () => {
   log.info('boot', `logged in as ${client.user.tag} in ${client.guilds.cache.size} guild(s)`);
+  if (!client.options.intents.has(GatewayIntentBits.GuildMembers)) {
+    log.warn('welcome', 'Guild Members intent is not enabled; join/leave welcome messages cannot fire.');
+  }
   client.user.setPresence({
     activities: [{ name: siteUrl().replace(/^https?:\/\//, ''), type: ActivityType.Watching }],
     status: 'online',

@@ -30,6 +30,13 @@ async function execute(interaction) {
     .setColor('#2EC4B6')
     .addFields(
       {
+        name: '🔗 Account',
+        value: [
+          '`/link code:<code>` — connect Discord to your Champ dashboard account',
+          `Link code: ${siteUrl()}/dashboard.html`,
+        ].join('\n'),
+      },
+      {
         name: '🎫 Tickets',
         value: [
           '`/ticket-panel` **staff** — post the support dropdown',

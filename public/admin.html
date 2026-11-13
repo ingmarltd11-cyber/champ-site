@@ -58,7 +58,6 @@
     <button class="sidebar-link admin-tab active" data-tab="settings" type="button"><span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-sliders"></use></svg></span><span>Site settings</span></button>
     <button class="sidebar-link admin-tab" data-tab="features" type="button"><span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-grid"></use></svg></span><span>Features &amp; videos</span></button>
     <button class="sidebar-link admin-tab" data-tab="reviews" type="button"><span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-star"></use></svg></span><span>Reviews</span></button>
-    <button class="sidebar-link admin-tab" data-tab="ai-knowledge" type="button"><span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-message"></use></svg></span><span>Discord knowledge</span></button>
     <button class="sidebar-link admin-tab" data-tab="changelog" type="button"><span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-zap"></use></svg></span><span>Changelog</span></button>
 
     <div class="sidebar-label">Shop</div>
@@ -522,34 +521,6 @@
         </div>
 
         <div id="adminReviewsList" class="admin-table-wrap"><p class="no-license-text">Loading reviews…</p></div>
-      </article>
-    </section>
-
-    <!-- ======================================================== AI KNOWLEDGE -->
-    <section class="admin-tabpage" id="tab-ai-knowledge" style="display:none">
-      <article class="dash-card">
-        <div class="admin-section-head">
-          <div>
-            <h2>Discord assistant knowledge</h2>
-            <p class="no-license-text">Maintain verified product facts used by the Discord support bot. Never add secrets or private customer data.</p>
-          </div>
-          <button class="btn-primary" type="button" onclick="showAddAIKnowledgeForm()">+ Add knowledge</button>
-        </div>
-
-        <div id="addAIKnowledgeContainer" class="admin-form-panel" style="display:none">
-          <h3>New knowledge entry</h3>
-          <form id="createAIKnowledgeForm" class="admin-editor">
-            <label>Title<input name="title" required maxlength="120"></label>
-            <label>Verified answer facts<textarea name="body" required maxlength="8000" rows="6"></textarea></label>
-            <div style="display:flex;gap:10px">
-              <button class="btn-primary" type="submit">Save knowledge</button>
-              <button class="btn-ghost" type="button" onclick="document.getElementById('addAIKnowledgeContainer').style.display='none'">Cancel</button>
-            </div>
-            <p id="createAIKnowledgeMsg" class="save-message" style="display:none" role="status"></p>
-          </form>
-        </div>
-
-        <div id="adminAIKnowledgeList" class="admin-table-wrap"><p class="no-license-text">Loading AI knowledge…</p></div>
       </article>
     </section>
 

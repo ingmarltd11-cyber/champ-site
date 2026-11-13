@@ -348,8 +348,16 @@
         <div class="card-title"><span class="title-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-message"></use></svg></span>Account link</div>
         <p class="no-license-text" id="discordStatus">Connect your Discord account to get the Champ+ rank when you own a license.</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <a class="btn-discord" id="discordLinkBtn" href="/api/discord/link">Link Discord account</a>
+          <button class="btn-discord" id="discordLinkBtn" type="button">Link Discord account</button>
           <button class="btn-ghost" id="discordRoleBtn" type="button" style="display:none">Retry rank sync</button>
+        </div>
+        <div id="discordCodeBox" style="display:none;margin-top:14px">
+          <p class="no-license-text">Your one-time code (valid for 10 minutes):</p>
+          <div class="license-box"><code id="discordCode"></code></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+            <button class="btn-ghost" id="discordCopyCode" type="button">Copy code</button>
+            <span class="no-license-text" id="discordCodeHint"></span>
+          </div>
         </div>
         <p id="discordMessage" style="display:none;margin-top:12px;font-size:13px" role="status"></p>
         <p class="dash-note">Join the server before syncing the rank — the role can only be assigned to a member.</p>

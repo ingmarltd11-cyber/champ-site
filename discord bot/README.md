@@ -2,7 +2,7 @@
 
 Production bot for the Champ Client Discord: support tickets with transcripts and ratings,
 giveaways that survive restarts, a welcome/goodbye system with auto roles and link buttons,
-AI support on mention, and a health endpoint for the host.
+Dashboard account linking, and a health endpoint for the host.
 
 One Node 20 process. No database required; Supabase and a mounted volume are optional upgrades.
 
@@ -46,6 +46,7 @@ server never shows an empty slash-command list.
 | `/giveaway create` | staff | Prize, minutes, winners, channel, role and account-age requirements |
 | `/giveaway end [id]` · `reroll id [winners]` · `list` · `entries id` · `delete id` | staff | Manage giveaways |
 | `/welcome status` · `preview` · `test` · `channel` · `autorole` · `dm` · `message` · `title` · `reset` | staff | Configure joins and leaves |
+| `/link code:<code>` | everyone | Connect the Discord account to the Champ site account |
 | `/announce` | staff | Branded announcement with optional @here/@everyone, image and link button |
 | `/rules [channel]` | staff | Post the rules from `config/rules.json` with a terms button |
 | `/mod timeout user duration [reason]` | staff | Timeout for `10m` / `2h` / `1d` (max 28 days) |
@@ -97,12 +98,16 @@ the DM when enabled. The three link buttons come from `links` in `config/welcome
 replaced, non-http links are dropped, and at most five are shown. On leave it posts the goodbye
 embed in the goodbye channel, or the welcome channel if none is set.
 
-## AI support
+## Account linking
 
-When a member mentions the bot, the question goes to `SUPPORT_API_URL` (default
-`SITE_URL/api/ai/chat`) with the channel id as the Discord session. Answers are capped at 1800
-characters, the bot shows a typing indicator, and failures fall back to a ticket invite. There is
-an 8 second per-member cooldown.
+The site dashboard creates an 8-character, 10-minute code for the signed-in customer. The
+member runs `/link code:<code>`; the bot calls `SITE_URL/api/discord/bot/link` with its bot token,
+and the site stores the Discord id on that customer account. The Discord id comes from the command
+author, never from a value the member types. If the account has an active license the bot also
+assigns the Champ+ role.
+
+Mentioning the bot no longer calls an AI service. It replies once per minute with the dashboard,
+ticket and Discord support links.
 
 ## Storage
 
@@ -173,6 +178,7 @@ healthcheck against `/health`.
 - [ ] `/ticket-panel` posted in `#support`; `ticketCategoryId`, `logChannelId` and
       `transcriptChannelId` filled in.
 - [ ] Support role name matches `defaultSupportRoleName` (or `supportRoleId` set).
-- [ ] `/welcome channel` and auto roles configured; `/welcome preview` looks right.
+- [ ] `/welcome setup` (or `/welcome channel`) run and auto roles configured; `/welcome preview` looks right.
+- [ ] Dashboard Discord link tested with `/link code:<code>`.
 - [ ] `/status` answers and `/health` returns `ready: true`.
 - [ ] `npm run verify && npm run check` pass.

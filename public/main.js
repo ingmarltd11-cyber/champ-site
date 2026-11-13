@@ -1417,12 +1417,13 @@ function initDashboardExtras(data) {
   if (dq && discordMsg) {
     const texts = {
       linked: 'Discord linked — Champ+ rank assigned!',
-      pending: 'Discord linked! Join our Discord server first, then press "Retry Champ+ rank".',
+      pending: 'Discord linked! Join our Discord server first, then press "Retry rank sync".',
       nolicense: 'Discord linked! The Champ+ rank unlocks as soon as you own a license.',
+      already: 'That Discord account is already linked to another Champ account.',
       error: 'Discord linking failed. Please try again.',
     };
     discordMsg.style.display = 'block';
-    discordMsg.style.color = dq === 'error' ? '#ff6b6b' : '#4ade80';
+    discordMsg.style.color = dq === 'error' || dq === 'already' ? '#ff6b6b' : '#4ade80';
     discordMsg.textContent = texts[dq] || '';
   }
 
@@ -1517,8 +1518,44 @@ function initDashboardExtras(data) {
       dStatus.innerHTML = `Linked as <b>${escapeHtml(data.discord_username || 'unknown')}</b>. Own a license? The Champ+ rank is assigned automatically.`;
       const retry = document.getElementById('discordRoleBtn');
       if (retry) retry.style.display = 'inline-flex';
+      const link = document.getElementById('discordLinkBtn');
+      if (link) link.style.display = 'none';
     }
   }
+  document.getElementById('discordLinkBtn')?.addEventListener('click', async function () {
+    const msg = document.getElementById('discordMessage');
+    const box = document.getElementById('discordCodeBox');
+    this.disabled = true;
+    try {
+      const res = await api('/api/discord/link/start');
+      if (!res.ok) throw new Error(errorText(res.data, 'Discord linking is not available right now.'));
+      if (res.data.mode === 'oauth') {
+        window.location.href = res.data.url;
+        return;
+      }
+      document.getElementById('discordCode').textContent = res.data.code || '';
+      document.getElementById('discordCodeHint').textContent = `Run ${res.data.command || '/link code:<code>'} in Discord`;
+      if (box) box.style.display = 'block';
+      if (msg) {
+        msg.style.display = 'block';
+        msg.style.color = '#4ade80';
+        msg.textContent = 'Code generated. Run the command in Discord to finish linking.';
+      }
+    } catch (error) {
+      if (msg) {
+        msg.style.display = 'block';
+        msg.style.color = '#ff6b6b';
+        msg.textContent = error.message || 'Could not start Discord linking.';
+      }
+    }
+    this.disabled = false;
+  });
+  document.getElementById('discordCopyCode')?.addEventListener('click', async function () {
+    const code = document.getElementById('discordCode')?.textContent || '';
+    if (!code) return;
+    try { await navigator.clipboard.writeText(code); this.textContent = 'Copied'; }
+    catch (_) { /* clipboard is optional */ }
+  });
   document.getElementById('discordRoleBtn')?.addEventListener('click', async function () {
     const msg = document.getElementById('discordMessage');
     this.disabled = true;
@@ -2141,7 +2178,6 @@ async function loadAdminPanel() {
   loadAdminSettings();
   loadAdminTexturePacks();
   loadAdminReviews();
-  loadAdminAIKnowledge();
   loadAdminChangelog();
   loadAdminFeatures();
   loadAdminLoaderChannels();
@@ -3251,50 +3287,6 @@ async function loadAdminReviews() {
     list.innerHTML = '<p class="no-license-text">Could not load reviews.</p>';
   }
 }
-
-function showAddAIKnowledgeForm() {
-  const container = document.getElementById('addAIKnowledgeContainer');
-  if (container) container.style.display = 'block';
-}
-
-async function loadAdminAIKnowledge() {
-  const list = document.getElementById('adminAIKnowledgeList');
-  if (!list) return;
-  try {
-    const res = await api('/api/admin/ai-knowledge');
-    if (!res.ok) throw new Error('knowledge');
-    const entries = res.data.knowledge || [];
-    list.innerHTML = entries.length
-      ? `<table class="admin-table"><thead><tr><th>Title</th><th>Verified facts</th><th>Updated</th><th></th></tr></thead><tbody>${entries.map(item => `<tr><td><b>${escapeHtml(item.title)}</b></td><td>${escapeHtml(item.body)}</td><td>${fmtDate(item.updated_at)}</td><td><button class="btn-ghost" type="button" onclick="deleteAdminAIKnowledge(${item.id})">Delete</button></td></tr>`).join('')}</tbody></table>`
-      : '<p class="no-license-text">No custom knowledge entries.</p>';
-  } catch (_) {
-    list.innerHTML = '<p class="no-license-text">Could not load AI knowledge. Apply the latest Supabase schema first.</p>';
-  }
-}
-
-async function deleteAdminAIKnowledge(id) {
-  if (!confirm('Delete this AI knowledge entry?')) return;
-  const res = await api(`/api/admin/ai-knowledge/${id}`, { method: 'DELETE' });
-  if (res.ok) loadAdminAIKnowledge();
-  else alert(errorText(res.data, 'Could not delete knowledge.'));
-}
-
-document.getElementById('createAIKnowledgeForm')?.addEventListener('submit', async function(e) {
-  e.preventDefault();
-  const btn = this.querySelector('button[type="submit"]');
-  const msg = document.getElementById('createAIKnowledgeMsg');
-  btn.disabled = true;
-  const res = await api('/api/admin/ai-knowledge', { method: 'POST', body: JSON.stringify({ title: this.elements.title.value, body: this.elements.body.value }) });
-  msg.style.display = 'block';
-  msg.style.color = res.ok ? '#4ade80' : '#ff6b6b';
-  msg.textContent = res.ok ? 'Knowledge saved.' : errorText(res.data, 'Could not save knowledge.');
-  if (res.ok) {
-    this.reset();
-    loadAdminAIKnowledge();
-    setTimeout(() => { document.getElementById('addAIKnowledgeContainer').style.display = 'none'; }, 800);
-  }
-  btn.disabled = false;
-});
 
 async function deleteAdminReview(id) {
   if (!confirm('Are you sure you want to delete this review?')) return;

@@ -2,10 +2,11 @@ const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  ChannelType,
   EmbedBuilder,
   PermissionFlagsBits,
 } = require('discord.js');
-const { getWelcomeConfig } = require('../utils/welcomeSettings');
+const { getWelcomeConfig, updateWelcomeConfig } = require('../utils/welcomeSettings');
 const { buildWelcomeMessage, buildGoodbyeMessage } = require('../utils/welcome');
 
 function linkRow(links = []) {
@@ -38,6 +39,34 @@ async function resolveChannel(guild, channelId) {
   }
 }
 
+// A configured id wins. Otherwise use the server's system channel, then a channel named
+// welcome/welkom. `/welcome setup` can create one when the server has none.
+async function findWelcomeChannel(guild, config = {}, { create = false } = {}) {
+  const configured = await resolveChannel(guild, config.channelId);
+  if (configured) return configured;
+
+  const system = guild?.systemChannel;
+  if (system?.isTextBased?.()) return system;
+
+  const named = guild?.channels?.cache?.find?.(
+    (channel) => channel?.isTextBased?.() && /(^|[-_])welcome|welkom/i.test(channel.name || '')
+  );
+  if (named) return named;
+
+  if (!create) return null;
+  const me = guild?.members?.me;
+  if (!me?.permissions?.has?.(PermissionFlagsBits.ManageChannels)) return null;
+  try {
+    return await guild.channels.create({
+      name: 'welcome',
+      type: ChannelType.GuildText,
+      reason: 'Champ welcome setup',
+    });
+  } catch {
+    return null;
+  }
+}
+
 async function addAutoRoles(member, config) {
   const me = member.guild.members.me;
   if (me && !me.permissions.has(PermissionFlagsBits.ManageRoles)) {
@@ -62,7 +91,10 @@ async function onGuildMemberAdd(member) {
   const payload = buildWelcomeMessage(member, config, {
     memberCount: member.guild.memberCount,
   });
-  const channel = await resolveChannel(member.guild, config.channelId);
+  const channel = await findWelcomeChannel(member.guild, config, { create: true });
+  if (channel && !config.channelId) {
+    await updateWelcomeConfig({ channelId: channel.id }).catch(() => {});
+  }
   const row = linkRow(payload.links);
   if (channel) {
     await channel
@@ -88,7 +120,9 @@ async function onGuildMemberRemove(member) {
   const config = getWelcomeConfig();
   if (!config.enabled || !member?.guild || config.goodbye?.enabled === false) return;
 
-  const channel = await resolveChannel(member.guild, config.goodbyeChannelId || config.channelId);
+  const channel = config.goodbyeChannelId
+    ? await resolveChannel(member.guild, config.goodbyeChannelId)
+    : await findWelcomeChannel(member.guild, config);
   if (!channel) return;
 
   const payload = buildGoodbyeMessage(member, config, {
@@ -99,4 +133,4 @@ async function onGuildMemberRemove(member) {
     .catch((err) => console.error('[welcome] could not post the goodbye message:', err.message));
 }
 
-module.exports = { onGuildMemberAdd, onGuildMemberRemove, toEmbed, linkRow };
+module.exports = { onGuildMemberAdd, onGuildMemberRemove, toEmbed, linkRow, findWelcomeChannel };

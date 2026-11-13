@@ -11,6 +11,7 @@ delete process.env.SUPABASE_SERVICE_KEY;
 
 const { getTicketConfig, getGiveawayConfig } = require('../src/config/loadConfig');
 const { getWelcomeConfig, updateWelcomeConfig, resetWelcomeConfig } = require('../src/utils/welcomeSettings');
+const { findWelcomeChannel } = require('../src/handlers/welcomeEvents');
 const { pickWinners, giveawayEmbedData, isTooNew } = require('../src/utils/giveaway');
 const giveawayStore = require('../src/utils/giveawayStore');
 const ticketStore = require('../src/utils/ticketStore');
@@ -106,7 +107,7 @@ const fakeMember = {
   console.log('\ncommands');
   const commands = collectCommands();
   const names = commands.map((command) => command.name);
-  for (const required of ['announce', 'rules', 'mod', 'ticket-panel', 'giveaway', 'welcome', 'status', 'help']) {
+  for (const required of ['announce', 'rules', 'mod', 'ticket-panel', 'giveaway', 'welcome', 'status', 'help', 'link']) {
     check(names.includes(required), `/${required} is registered`);
   }
   check(new Set(names).size === names.length, 'no command name is registered twice');
@@ -219,6 +220,35 @@ const fakeMember = {
   check(welcome.embeds[0].description.includes('42'), 'the welcome text includes the member count');
   check(welcome.embeds[0].thumbnail?.includes('cdn.discordapp.com'), 'the avatar is used as the thumbnail');
   check(welcome.links.length >= 2 && welcome.links[0].url.startsWith('https://'), 'welcome link buttons are rendered');
+  const systemChannel = { name: 'general', isTextBased: () => true };
+  const fallback = await findWelcomeChannel(
+    { systemChannel, channels: { cache: [] } },
+    { channelId: '' }
+  );
+  check(fallback === systemChannel, 'welcome falls back to the system channel');
+  const namedChannel = { name: 'welcome', isTextBased: () => true };
+  const named = await findWelcomeChannel(
+    { systemChannel: null, channels: { cache: [namedChannel] } },
+    { channelId: '' }
+  );
+  check(named === namedChannel, 'welcome falls back to a named welcome channel');
+  let createdOptions = null;
+  const createdChannel = await findWelcomeChannel(
+    {
+      systemChannel: null,
+      channels: {
+        cache: [],
+        create: async (options) => {
+          createdOptions = options;
+          return { name: options.name, isTextBased: () => true };
+        },
+      },
+      members: { me: { permissions: { has: () => true } } },
+    },
+    { channelId: '' },
+    { create: true }
+  );
+  check(createdChannel?.name === 'welcome' && createdOptions?.name === 'welcome', 'welcome creates a channel when none exists');
   check(buildLinks({ links: [{ label: 'x', url: 'javascript:alert(1)' }] }, {}).length === 0, 'unsafe welcome links are dropped');
   const goodbye = buildGoodbyeMessage(fakeMember, getWelcomeConfig(), { memberCount: 41 });
   check(goodbye.embeds[0].title.includes('tester'), 'the goodbye title names the member');
