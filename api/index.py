@@ -534,7 +534,8 @@ def public_payment_methods() -> dict:
         "methods": {
             "crypto": payment_setting_bool("payment_crypto_enabled") and bool(payment_setting("payment_crypto_address").strip())
                       and payment_rate("payment_crypto_rate") > 0,
-            "donut": payment_setting_bool("payment_donut_enabled") and donut_ready,
+            "donut": payment_setting_bool("payment_donut_enabled") and donut_ready
+                     and bool(os.getenv("DONUT_BOT_TOKEN", "").strip()),
             "giftcard": payment_setting_bool("payment_giftcard_enabled"),
         },
         "crypto_coin": payment_coin(),
