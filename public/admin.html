@@ -55,7 +55,7 @@
     </a>
 
     <div class="sidebar-label">Site</div>
-    <button class="sidebar-link admin-tab active" data-tab="settings" type="button"><span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-sliders"></use></svg></span><span>Announcements</span></button>
+    <button class="sidebar-link admin-tab active" data-tab="settings" type="button"><span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-sliders"></use></svg></span><span>Site settings</span></button>
     <button class="sidebar-link admin-tab" data-tab="features" type="button"><span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-grid"></use></svg></span><span>Features &amp; videos</span></button>
     <button class="sidebar-link admin-tab" data-tab="reviews" type="button"><span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-star"></use></svg></span><span>Reviews</span></button>
     <button class="sidebar-link admin-tab" data-tab="ai-knowledge" type="button"><span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-message"></use></svg></span><span>Discord knowledge</span></button>
@@ -131,6 +131,25 @@
           <h3>Dashboard icons</h3>
           <p class="no-license-text" style="margin:0">Pick the icon shown next to each dashboard item. Labels stay visible on mobile.</p>
           <div id="adminDashboardIcons" class="admin-editor"></div>
+
+          <h3>Access &amp; trial</h3>
+          <p class="no-license-text" style="margin:0">These switches apply immediately, without a redeploy. The free trial is off by default.</p>
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:12.5px">
+            <input type="checkbox" id="settingSignupEnabled">
+            <span>Allow new customer registrations</span>
+          </label>
+          <label>Maximum new accounts per IP / 24 hours<input id="settingSignupMaxPerIp" type="number" min="0" max="50" step="1" placeholder="3"></label>
+          <p class="no-license-text" style="margin:0">Set to 0 to remove the per-IP cap. A low value such as 1 or 3 blocks bulk account creation; shared networks may need a higher value.</p>
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:12.5px">
+            <input type="checkbox" id="settingTrialEnabled">
+            <span>Enable the free trial</span>
+          </label>
+          <label>Trial length in hours<input id="settingTrialHours" type="number" min="1" max="168" step="1" placeholder="24"></label>
+          <div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap">
+            <button class="btn-ghost" type="button" id="stopTrialsBtn">End all active trials</button>
+            <p id="stopTrialsMsg" class="save-message" style="display:none;margin:0" role="status"></p>
+          </div>
+          <p class="no-license-text" style="margin:0">Ending trials revokes every currently active trial license; paid licenses are not touched.</p>
 
           <div><button class="btn-primary" type="submit">Save site settings</button></div>
           <p id="settingsSaveMsg" class="save-message" style="display:none" role="status"></p>
@@ -268,7 +287,7 @@
         <div class="admin-section-head">
           <div>
             <h2>Payment methods</h2>
-            <p class="no-license-text">Choose what the checkout offers. Crypto uses the wallet below, DonutSMP uses the 24/7 bot, and gift cards wait here for a manual check.</p>
+            <p class="no-license-text">Choose what the checkout offers. Crypto uses the wallet below, DonutSMP can be checked manually here or by an optional bot, and gift cards wait here for a manual check.</p>
           </div>
         </div>
         <form id="adminPaymentsForm" class="admin-editor">
@@ -283,7 +302,8 @@
             <input type="checkbox" id="payDonutEnabled">
             <span>Enable DonutSMP money</span>
           </label>
-          <label>DonutSMP bot username<input id="payDonutBot" placeholder="ChampPayBot" autocomplete="off"></label>
+          <label>DonutSMP payment mode<select id="payDonutMode"><option value="manual">Manual review (no bot needed)</option><option value="bot">Bot auto-check (requires the bot service)</option></select></label>
+          <label>DonutSMP receiving username<input id="payDonutBot" placeholder="ChampPayBot" autocomplete="off"></label>
           <label>Donut money per EUR 1<input id="payDonutRate" type="number" min="0.01" step="0.01" placeholder="1000"></label>
           <label>Exact amount Weekly (0 = use the rate)<input id="payDonutWeekly" type="number" min="0" step="1" placeholder="0"></label>
           <label>Exact amount Monthly (0 = use the rate)<input id="payDonutMonthly" type="number" min="0" step="1" placeholder="0"></label>

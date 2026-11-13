@@ -243,6 +243,10 @@ function startPurchase(plan) {
 }
 
 async function startFreeTrial() {
+  if (window.champTrialEnabled === false) {
+    alert('The free trial is currently closed. Choose a weekly, monthly or lifetime plan to continue.');
+    return;
+  }
   try {
     const me = await api('/api/auth/me');
     if (!me.ok || !me.data || !me.data.email) {
@@ -392,7 +396,7 @@ if (registerForm) {
     });
     const subtitle = document.querySelector('.auth-card-head p');
     if (subtitle) subtitle.textContent = trialPlan
-      ? 'Create your account, then start your free 24-hour trial.'
+      ? 'Create your account, then start your free trial.'
       : `Create your account, then continue to ${champPlanLabel(selectedPlan)} checkout.`;
   }
 
@@ -621,7 +625,7 @@ if (loginForm) {
     });
     const subtitle = document.querySelector('.auth-card-head p');
     if (subtitle) subtitle.textContent = trialPlan
-      ? 'Sign in to start your free 24-hour trial.'
+      ? 'Sign in to start your free trial.'
       : `Sign in to continue with ${champPlanLabel(checkoutPlan)} checkout.`;
   }
 
@@ -826,7 +830,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const methodLabels = {
     crypto: ['Crypto', 'Send the exact amount to the shop wallet'],
-    donut: ['DonutSMP money', 'Pay the Champ bot in-game from your Minecraft account'],
+    donut: ['DonutSMP money', 'Pay in-game from your Minecraft account'],
     giftcard: ['Gift card', 'Steam, Roblox, Apple, Google Play and more'],
   };
   const methodsWrap = document.getElementById('paymentMethodsList');
@@ -837,6 +841,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const refreshBtn = document.getElementById('refreshPaymentBtn');
   const footnote = document.getElementById('checkout-footnote');
   let methods = {};
+  let donutMode = 'manual';
   let selected = '';
   let order = null;
   let prepared = false;
@@ -934,11 +939,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('prep-title').textContent = 'Send crypto';
       setStatus(next.crypto.txid ? 'Transaction submitted. Waiting for confirmation.' : 'Send the exact amount, then paste the transaction hash below.');
     } else if (method === 'donut') {
+      const mode = next.donut.mode || donutMode;
       document.getElementById('donut-amount').textContent = String(next.donut.amount);
       document.getElementById('donut-bot').textContent = next.donut.bot;
       document.getElementById('donut-username').textContent = next.donut.username;
       document.getElementById('prep-title').textContent = 'Pay in DonutSMP';
-      setStatus('Waiting for the bot to see your payment. This can take a minute.');
+      document.getElementById('donut-prep-copy').textContent = mode === 'bot'
+        ? 'Pay the amount below to the Champ DonutSMP bot from your Minecraft account. Keep the exact amount.'
+        : 'Pay the amount below to the Champ DonutSMP account from your Minecraft account. Keep the exact amount.';
+      setStatus(mode === 'bot'
+        ? 'Waiting for the bot to see your payment. This can take a minute.'
+        : 'Waiting for the shop to check your payment. You will get access after approval.');
     } else if (method === 'giftcard') {
       document.getElementById('giftcard-brand-label').textContent = next.giftcard.brand;
       document.getElementById('giftcard-value-label').textContent = (Number(next.giftcard.value_cents || 0) / 100).toFixed(2);
@@ -964,6 +975,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const methodRes = await api('/api/payments/methods');
     if (methodRes.ok) {
       methods = methodRes.data.methods || {};
+      donutMode = methodRes.data.donut_mode === 'bot' ? 'bot' : 'manual';
+      if (methodLabels.donut) {
+        methodLabels.donut[1] = donutMode === 'bot'
+          ? 'Pay the Champ bot in-game from your Minecraft account'
+          : 'Pay in-game; the shop checks it before unlocking';
+      }
       const brandSel = document.getElementById('giftBrand');
       brandSel.innerHTML = (methodRes.data.giftcard_brands || []).map(b => `<option value="${escapeHtml(b)}">${escapeHtml(b)}</option>`).join('');
       if (methodRes.data.giftcard_note) document.getElementById('giftcard-help').textContent = methodRes.data.giftcard_note;
@@ -1082,15 +1099,23 @@ function renderTrial(trial) {
   const copyContent = document.getElementById('content-trial-copy');
   if (!badge || !content) return;
 
+  const card = badge.closest('.dash-card');
+  if (!trial || trial.enabled === false) {
+    if (card) card.style.display = 'none';
+    return;
+  }
+  if (card) card.style.display = 'block';
+
   const used = Boolean(trial && trial.used);
   const eligible = Boolean(trial && trial.eligible);
+  const hours = Number((trial && trial.hours) || 24) || 24;
   const text = used ? 'Used' : (eligible ? 'Available' : 'Unavailable');
   const cls = eligible ? 'status-badge status-active' : 'status-badge status-none';
   let html;
   if (used) {
-    html = '<p class="no-license-text">This account has used its free 24-hour trial.</p><a href="index.html#pricing" class="btn-purchase-direct">View plans</a>';
+    html = `<p class="no-license-text">This account has used its free ${hours}-hour trial.</p><a href="index.html#pricing" class="btn-purchase-direct">View plans</a>`;
   } else if (eligible) {
-    html = '<p class="no-license-text">Every module for one day, no card. One trial per account, PC and network.</p><button class="btn-ghost" type="button" onclick="startFreeTrial()">Start free trial</button>';
+    html = `<p class="no-license-text">Every module for ${hours} hours, no card. One trial per account, PC and network.</p><button class="btn-ghost" type="button" onclick="startFreeTrial()">Start free trial</button>`;
   } else {
     html = '<p class="no-license-text">A free trial was already used from this account or network.</p><a href="index.html#pricing" class="btn-purchase-direct">View plans</a>';
   }
@@ -1135,7 +1160,7 @@ function renderLicense(kind, lic) {
   const label = ({weekly:'Weekly', monthly:'Monthly', lifetime:'Lifetime', trial:'Trial'})[kind] || kind;
   if (!lic.active) {
     const expired = kind === 'trial'
-      ? '<p class="no-license-text">Your free 24-hour trial has ended.</p><a href="index.html#pricing" class="btn-purchase-direct">View plans</a>'
+      ? '<p class="no-license-text">Your free trial has ended.</p><a href="index.html#pricing" class="btn-purchase-direct">View plans</a>'
       : `<p class="no-license-text">Your ${label.toLowerCase()} license is no longer active.</p><a href="index.html#pricing" class="btn-purchase-direct">Renew ${label}</a>`;
     paint({ text: 'Expired', className: 'status-badge status-none' }, expired);
     return;
@@ -1271,7 +1296,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       data = (await load()) || data;
       if (notice) {
         notice.style.display = 'block';
-        notice.textContent = 'Your free 24-hour trial is active. Download the client and enter the key below.';
+        notice.textContent = `Your free ${Number((data.trial && data.trial.hours) || 24)}-hour trial is active. Download the client and enter the key below.`;
       }
     } else if (notice) {
       notice.style.display = 'block';
@@ -1280,7 +1305,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   } else if (query.get('trial') === 'started' && notice) {
     notice.style.display = 'block';
-    notice.textContent = 'Your free 24-hour trial is active. Download the client and enter the key below.';
+    notice.textContent = `Your free ${Number((data.trial && data.trial.hours) || 24)}-hour trial is active. Download the client and enter the key below.`;
   }
 
   // After paying, the license appears as soon as the payment is confirmed (usually seconds)
@@ -1906,6 +1931,28 @@ async function loadPublicData() {
           el.innerHTML = renderSiteText(value);
         });
       });
+      const trialOn = s.trial_enabled === 'true';
+      window.champTrialEnabled = trialOn;
+      const trialHours = Number(s.trial_hours || 24) || 24;
+      const trialStrip = document.getElementById('trialStrip');
+      if (trialStrip) trialStrip.style.display = trialOn ? 'flex' : 'none';
+      const trialTitle = document.getElementById('trialStripTitle');
+      if (trialTitle) trialTitle.textContent = `Try Champ free for ${trialHours} hours.`;
+      const trialCard = document.getElementById('trialCard');
+      if (trialCard) trialCard.style.display = trialOn ? 'block' : 'none';
+      const trialCardTitle = document.getElementById('trialCardTitle');
+      if (trialCardTitle) trialCardTitle.textContent = `Free ${trialHours}-hour trial`;
+      const trialCopyBadge = document.getElementById('badge-trial-copy');
+      if (trialCopyBadge) {
+        const card = trialCopyBadge.closest('.dash-card');
+        if (card) card.style.display = trialOn ? 'block' : 'none';
+      }
+      const footnote = document.getElementById('pricingFootnote');
+      if (footnote) {
+        footnote.textContent = trialOn
+          ? `Every plan gets the same client and every module. Prices in EUR. One PC per key. The free ${trialHours}-hour trial is once per PC and per network.`
+          : 'Every plan gets the same client and every module. Prices in EUR. One PC per key.';
+      }
       applyDashboardIcons(s.dashboard_icons);
       if (s.youtube_video_url) {
         const wrap = document.getElementById('heroVideoEmbedWrap');
@@ -2435,6 +2482,7 @@ async function loadAdminPaymentSettings() {
     document.getElementById('payCryptoAddress').value = s.crypto_address || '';
     document.getElementById('payCryptoRate').value = s.crypto_rate || '';
     document.getElementById('payDonutEnabled').checked = !!s.donut_enabled;
+    document.getElementById('payDonutMode').value = s.donut_mode === 'bot' ? 'bot' : 'manual';
     document.getElementById('payDonutBot').value = s.donut_bot || '';
     document.getElementById('payDonutRate').value = s.donut_rate || '';
     document.getElementById('payDonutWeekly').value = s.donut_weekly || '';
@@ -2525,6 +2573,7 @@ document.getElementById('adminPaymentsForm')?.addEventListener('submit', async f
     crypto_address: document.getElementById('payCryptoAddress').value.trim(),
     crypto_rate: Number(document.getElementById('payCryptoRate').value || 0),
     donut_enabled: document.getElementById('payDonutEnabled').checked,
+    donut_mode: document.getElementById('payDonutMode').value,
     donut_bot: document.getElementById('payDonutBot').value.trim(),
     donut_rate: Number(document.getElementById('payDonutRate').value || 0),
     donut_weekly: Number(document.getElementById('payDonutWeekly').value || 0),
@@ -2607,6 +2656,10 @@ async function loadAdminSettings() {
       if (document.getElementById('settingDiscordLink')) document.getElementById('settingDiscordLink').value = s.discord_link || '';
       if (document.getElementById('settingYoutubeUrl')) document.getElementById('settingYoutubeUrl').value = s.youtube_video_url || '';
       if (document.getElementById('settingHeroTagline')) document.getElementById('settingHeroTagline').value = s.hero_tagline || '';
+      if (document.getElementById('settingSignupEnabled')) document.getElementById('settingSignupEnabled').checked = s.signup_enabled !== 'false';
+      if (document.getElementById('settingSignupMaxPerIp')) document.getElementById('settingSignupMaxPerIp').value = s.signup_max_per_ip || '3';
+      if (document.getElementById('settingTrialEnabled')) document.getElementById('settingTrialEnabled').checked = s.trial_enabled === 'true';
+      if (document.getElementById('settingTrialHours')) document.getElementById('settingTrialHours').value = s.trial_hours || '24';
       SITE_TEXT_KEYS.forEach(key => {
         const input = document.getElementById(`setting${key.replace(/(^|_)([a-z])/g, (_, __, c) => c.toUpperCase())}`);
         if (!input) return;
@@ -2629,6 +2682,10 @@ async function loadAdminSettings() {
       discord_link: document.getElementById('settingDiscordLink').value,
       youtube_video_url: document.getElementById('settingYoutubeUrl').value,
       hero_tagline: document.getElementById('settingHeroTagline').value,
+      signup_enabled: document.getElementById('settingSignupEnabled').checked,
+      signup_max_per_ip: Number(document.getElementById('settingSignupMaxPerIp').value || 0),
+      trial_enabled: document.getElementById('settingTrialEnabled').checked,
+      trial_hours: Number(document.getElementById('settingTrialHours').value || 24),
     };
     SITE_TEXT_KEYS.forEach(key => {
       const input = document.getElementById(`setting${key.replace(/(^|_)([a-z])/g, (_, __, c) => c.toUpperCase())}`);
@@ -2645,6 +2702,19 @@ async function loadAdminSettings() {
     msg.style.color = res.ok ? '#4ade80' : '#ff6b6b';
     msg.textContent = res.ok ? 'Settings saved successfully!' : errorText(res.data, 'Could not save settings.');
     btn.disabled = false;
+  });
+
+  document.getElementById('stopTrialsBtn')?.addEventListener('click', async function () {
+    if (!confirm('End every currently active trial? Paid licenses are not touched.')) return;
+    const msg = document.getElementById('stopTrialsMsg');
+    this.disabled = true;
+    const res = await api('/api/admin/trials/stop', { method: 'POST', body: '{}' });
+    if (msg) {
+      msg.style.display = 'block';
+      msg.style.color = res.ok ? '#4ade80' : '#ff6b6b';
+      msg.textContent = res.ok ? (res.data.message || 'Trials ended.') : errorText(res.data, 'Could not end the trials.');
+    }
+    this.disabled = false;
   });
 }
 

@@ -320,10 +320,10 @@
     <span><b>Weekly is live:</b> &euro;2.99 for 7 days. No subscription.</span>
   </div>
 
-  <div class="trial-strip" data-reveal>
+  <div class="trial-strip" id="trialStrip" data-reveal style="display:none">
     <div class="trial-strip-copy">
       <span class="trial-strip-tag">FREE</span>
-      <p><b>Try Champ free for 24 hours.</b> Every module, no payment. One trial per account, PC and network; VPNs and proxies are blocked.</p>
+      <p><b id="trialStripTitle">Try Champ free for 24 hours.</b> Every module, no payment. One trial per account, PC and network; VPNs and proxies are blocked.</p>
     </div>
     <button class="plan-cta trial-cta" type="button" onclick="startFreeTrial()">Start free trial</button>
   </div>
@@ -371,7 +371,7 @@
       <button class="plan-cta" onclick="openPurchase('lifetime')">Get Lifetime (&euro;9.99)</button>
     </div>
   </div>
-  <p class="pricing-footnote">Every plan gets the same client and every module. Prices in EUR. One PC per key. The free 24-hour trial is once per PC and per network.</p>
+  <p class="pricing-footnote" id="pricingFootnote">Every plan gets the same client and every module. Prices in EUR. One PC per key.</p>
 </section>
 
 <!-- FAQ -->
@@ -389,7 +389,7 @@
 
     <details class="faq-item">
       <summary><h3 class="faq-question">How quickly do I get access after paying?</h3></summary>
-      <p class="faq-answer">Straight away for crypto and DonutSMP payments; a gift card is checked first. The license appears in your dashboard and the same details go to your email. If the dashboard looks empty, reload it once; it reads the license on load.</p>
+      <p class="faq-answer">Crypto is checked automatically; DonutSMP money and gift cards are checked by the shop first. The license appears in your dashboard and the same details go to your email. If the dashboard looks empty, reload it once; it reads the license on load.</p>
     </details>
 
     <details class="faq-item">

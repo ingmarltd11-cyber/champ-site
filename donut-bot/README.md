@@ -1,5 +1,9 @@
 # Champ DonutSMP payment bot
 
+> This bot is optional. The shop's default DonutSMP mode is **manual review**: the admin sets a
+> receiving username, customers pay it in-game, and the admin approves the order in the payment
+> queue. No Railway account, local process or bot host is required for that mode.
+
 The bot stays in DonutSMP 24/7, polls the Champ API for unpaid DonutSMP orders, and watches
 chat for incoming payments. When a payment matches an order it calls the website, and the
 website unlocks the license. The bot never touches Supabase directly.

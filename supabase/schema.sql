@@ -22,6 +22,9 @@ alter table public.users add column if not exists totp_enabled boolean not null 
 alter table public.users add column if not exists discord_id text;
 alter table public.users add column if not exists discord_username text;
 alter table public.users add column if not exists is_admin boolean not null default false;
+-- The network a signup came from. Used only to cap bulk account creation; admin-configurable.
+alter table public.users add column if not exists signup_ip text not null default '';
+create index if not exists users_signup_ip_idx on public.users (signup_ip, created_at desc);
 
 create table if not exists public.pending_payments (
   uid         uuid primary key,
@@ -355,7 +358,7 @@ where slug in ('fabric-mod', 'combat', 'movement', 'render', 'donut')
 -- Default settings
 insert into public.site_settings (key, value)
 values
-  ('Product, plans, installation, accounts, customer support', 'Champ Client is a Windows injector for Minecraft Java 1.21.11. It is not a mod and not a jar: nothing is placed in the mods folder. The customer keeps their own Fabric Loader profile, starts the game, and runs one .exe that signs in to their Champ account and injects the client into the game that is already running. Free trial: one 24-hour trial per account, PC and network, claimed from the pricing page. VPN, proxy, Tor and datacenter connections are refused. Plans: EUR 2.99 weekly (7 days), EUR 9.99 lifetime and EUR 6.99 monthly. Customers register with username, password, and email, then verify a 6-digit email code valid for 10 minutes; the email provider must be configured on Vercel before sending works. Purchases use crypto, DonutSMP money or gift cards; licenses are assigned when the payment clears, and the injector is downloaded from the customer dashboard. Texture packs are public or customer-only. Site administration can manage announcements, Discord links, homepage and feature videos, features, reviews, texture pack files, orders, referrals and community finds. Only report facts confirmed by current records/site; do not invent features, user reviews, downloads, compatibility, guarantees or legal claims. If a detail is not found in the knowledge, say you do not have verified information and direct to the support link. Never disclose or request credentials, license keys or private account data.'),
+  ('Product, plans, installation, accounts, customer support', 'Champ Client is a Windows injector for Minecraft Java 1.21.11. It is not a mod and not a jar: nothing is placed in the mods folder. The customer keeps their own Fabric Loader profile, starts the game, and runs one .exe that signs in to their Champ account and injects the client into the game that is already running. Free trial: disabled by default; when the shop enables it, one trial per account, PC and network from the pricing page. VPN, proxy, Tor and datacenter connections are refused. Plans: EUR 2.99 weekly (7 days), EUR 9.99 lifetime and EUR 6.99 monthly. Customers register with username, password, and email, then verify a 6-digit email code valid for 10 minutes; the email provider must be configured on Vercel before sending works. Purchases use crypto, DonutSMP money or gift cards; licenses are assigned when the payment clears, and the injector is downloaded from the customer dashboard. Texture packs are public or customer-only. Site administration can manage announcements, Discord links, homepage and feature videos, features, reviews, texture pack files, orders, referrals and community finds. Only report facts confirmed by current records/site; do not invent features, user reviews, downloads, compatibility, guarantees or legal claims. If a detail is not found in the knowledge, say you do not have verified information and direct to the support link. Never disclose or request credentials, license keys or private account data.'),
   ('announcement_text', '🔥 Champ Client 0.9.9.1 is out for Minecraft 1.21.11 Fabric Loader! Weekly €2.99, Monthly €6.99 or Lifetime €9.99.'),
   ('announcement_enabled', 'true'),
   ('discord_link', 'https://discord.gg/6vyQnVjeX'),
@@ -371,6 +374,7 @@ values
   ('payment_crypto_address', ''),
   ('payment_crypto_rate', '0'),
   ('payment_donut_enabled', 'false'),
+  ('payment_donut_mode', 'manual'),
   ('payment_donut_bot', ''),
   ('payment_donut_rate', '1000'),
   ('payment_donut_weekly', '0'),
@@ -379,6 +383,15 @@ values
   ('payment_giftcard_enabled', 'false'),
   ('payment_giftcard_brands', 'Steam,Roblox,Apple,Google Play,PlayStation,Xbox'),
   ('payment_giftcard_note', 'Enter the code and the full value of the card. We check it before unlocking.')
+on conflict (key) do nothing;
+
+-- Storefront access switches, editable in Admin -> Announcements -> Access & trial.
+insert into public.site_settings (key, value)
+values
+  ('trial_enabled', 'false'),
+  ('trial_hours', '24'),
+  ('signup_enabled', 'true'),
+  ('signup_max_per_ip', '3')
 on conflict (key) do nothing;
 
 -- Card checkout was removed; drop the old switch if a previous run created it.
@@ -396,7 +409,7 @@ on conflict do nothing;
 -- Default texture packs
 insert into public.ai_knowledge (title, body)
 values
-  ('Product, plans, installation, accounts, customer support', 'Champ Client is a Windows injector for Minecraft Java 1.21.11. It is not a mod and not a jar: nothing is placed in the mods folder. The customer keeps their own Fabric Loader profile, starts the game, and runs one .exe that signs in to their Champ account and injects the client into the game that is already running. Free trial: one 24-hour trial per account, PC and network, claimed from the pricing page. VPN, proxy, Tor and datacenter connections are refused. Plans: EUR 2.99 weekly (7 days), EUR 9.99 lifetime and EUR 6.99 monthly. Customers register with username, password, and email, then verify a 6-digit email code valid for 10 minutes; the email provider must be configured on Vercel before sending works. Purchases use crypto, DonutSMP money or gift cards; licenses are assigned when the payment clears, downloads are authorized from the customer dashboard. Texture packs are public or customer-only. Site administration can manage announcements, Discord links, homepage and feature videos, features, reviews, texture pack files, orders, referrals and community finds. Only report facts confirmed by current records/site; do not invent features, user reviews, downloads, compatibility, guarantees or legal claims. If a detail is not found in the knowledge, say you do not have verified information and direct to the support link. Never disclose or request credentials, license keys or private account data.'),
+  ('Product, plans, installation, accounts, customer support', 'Champ Client is a Windows injector for Minecraft Java 1.21.11. It is not a mod and not a jar: nothing is placed in the mods folder. The customer keeps their own Fabric Loader profile, starts the game, and runs one .exe that signs in to their Champ account and injects the client into the game that is already running. Free trial: disabled by default; when the shop enables it, one trial per account, PC and network from the pricing page. VPN, proxy, Tor and datacenter connections are refused. Plans: EUR 2.99 weekly (7 days), EUR 9.99 lifetime and EUR 6.99 monthly. Customers register with username, password, and email, then verify a 6-digit email code valid for 10 minutes; the email provider must be configured on Vercel before sending works. Purchases use crypto, DonutSMP money or gift cards; licenses are assigned when the payment clears, downloads are authorized from the customer dashboard. Texture packs are public or customer-only. Site administration can manage announcements, Discord links, homepage and feature videos, features, reviews, texture pack files, orders, referrals and community finds. Only report facts confirmed by current records/site; do not invent features, user reviews, downloads, compatibility, guarantees or legal claims. If a detail is not found in the knowledge, say you do not have verified information and direct to the support link. Never disclose or request credentials, license keys or private account data.'),
   ('Installation', 'The install is the injector, not a jar. Order matters: (1) start Minecraft 1.21.11 on the Fabric profile the customer normally plays and wait in the main menu; (2) run the .exe downloaded from the dashboard; (3) sign in with the Champ account inside the splash and press inject; (4) Windows may ask for permission, which is the injection itself; (5) the splash says Champ is running and closes itself. Minecraft does not have to be restarted, and nothing is ever placed in the mods folder. Every download gets a random file name, so never tell a customer a fixed file name. Keep the file: the session is remembered and later sessions only need Minecraft open plus the same file. A newer release is a new download that replaces the old one. If the game is not running the splash says so and offers Retry. Do not claim support for other Minecraft versions unless documented by the current release notes.'),
   ('Licence keys by e-mail', 'Every purchase, and every key that support hands out or edits, is e-mailed automatically to the customer address with the key in the message plus a thank-you note; the same key is shown in the customer dashboard. Keys look like CHAMP-XXXX-XXXX-XXXX-XXXX. Never ask a customer to post a key in chat and never repeat a key back.'),
   ('Billing', 'The site lists EUR 2.99 weekly (one-time, 7 days), EUR 9.99 lifetime (one-time) and EUR 6.99 monthly. Weekly and monthly passes are prepaid and do not renew automatically; there is no subscription to cancel. Support handles purchase and account problems.')

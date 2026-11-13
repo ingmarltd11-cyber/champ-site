@@ -13,7 +13,8 @@ In the Champ Site project on Vercel, set the following under **Settings → Envi
 - `RESEND_API_KEY` — Resend API key authorized to send from the verified sender domain.
 - `FROM_EMAIL` — e.g. `Champ Client <verify@your-verified-domain>`.
 - `ADMIN_USERNAME` and `ADMIN_PASSWORD` — optional break-glass admin credentials for the normal login form; use a unique, strong password. Normal admin accounts are users with `is_admin = true` and sign in on `login.html`.
-- `DONUT_BOT_TOKEN` if the DonutSMP bot is deployed. Crypto and gift-card settings live in the admin panel.
+- `DONUT_BOT_TOKEN` only if you choose the optional DonutSMP bot mode. Manual DonutSMP review needs
+  no bot or extra host. Crypto, DonutSMP and gift-card settings live in the admin panel.
 
 ### The Supabase key must be a server key
 
@@ -69,7 +70,7 @@ The `ai_knowledge` table was added to the connected project for the admin-manage
 3. Check `/api/health` and confirm `"ai":"built-in"` or `"ai":"llm"`.
 4. Create an account on `/signup.html` and confirm you land signed in (dashboard, or checkout when a plan was chosen).
 5. Ask the assistant a pricing question and confirm it answers with the pricing link.
-6. Test the crypto checkout, gift-card review and DonutSMP bot against a staging order before enabling live payments.
+6. Test the crypto checkout, gift-card review and manual DonutSMP review against a staging order before enabling live payments.
 7. Never log or share passwords, API keys or Supabase service keys.
 8. The Discord support bot answers from its built-in knowledge. Add `GROQ_API_KEY` (or `OPENAI_API_KEY`) only for free-form answers to everything else; `/api/health` shows `"ai":"built-in"` or `"ai":"llm"`. The bot calls `/api/ai/chat` with `channel=discord` and uses the same database-backed knowledge and per-ticket conversation history.
 

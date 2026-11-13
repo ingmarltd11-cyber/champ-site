@@ -457,6 +457,7 @@ PAYMENT_SETTING_DEFAULTS = {
     "payment_crypto_address": "",
     "payment_crypto_rate": "0",          # EUR per 1 coin, set by the admin
     "payment_donut_enabled": "false",
+    "payment_donut_mode": "manual",       # manual = admin checks; bot = 24/7 bot checks
     "payment_donut_bot": "",
     "payment_donut_rate": "1000",        # Donut money per EUR 1
     "payment_donut_weekly": "0",         # optional exact amount per plan, 0 = use the rate
@@ -465,6 +466,15 @@ PAYMENT_SETTING_DEFAULTS = {
     "payment_giftcard_enabled": "false",
     "payment_giftcard_brands": "Steam,Roblox,Apple,Google Play,PlayStation,Xbox",
     "payment_giftcard_note": "Enter the code and the full value of the card. We check it before unlocking.",
+}
+
+# Storefront access switches. These are editable from the admin panel and are deliberately
+# independent from the environment: closing signups or the trial must not need a redeploy.
+SITE_SETTING_DEFAULTS = {
+    "trial_enabled": "false",
+    "trial_hours": "24",
+    "signup_enabled": "true",
+    "signup_max_per_ip": "3",
 }
 
 
@@ -480,6 +490,45 @@ def payment_setting(key: str) -> str:
 
 def payment_setting_bool(key: str) -> bool:
     return payment_setting(key).strip().lower() in ("1", "true", "yes", "on")
+
+
+def site_setting(key: str) -> str:
+    try:
+        row = db_get("site_settings", {"key": eq(key)})
+        if row and row.get("value") is not None:
+            return str(row["value"])
+    except Exception as exc:
+        print("Site setting unavailable:", key, type(exc).__name__)
+    return SITE_SETTING_DEFAULTS.get(key, "")
+
+
+def site_setting_bool(key: str) -> bool:
+    return site_setting(key).strip().lower() in ("1", "true", "yes", "on")
+
+
+def trial_enabled() -> bool:
+    return site_setting_bool("trial_enabled")
+
+
+def trial_hours() -> int:
+    try:
+        value = int(site_setting("trial_hours"))
+    except (TypeError, ValueError):
+        return TRIAL_HOURS
+    return value if 1 <= value <= 168 else TRIAL_HOURS
+
+
+def signup_max_per_ip() -> int:
+    """Maximum new accounts from one IP per 24 hours. 0 disables the cap."""
+    try:
+        value = int(site_setting("signup_max_per_ip"))
+    except (TypeError, ValueError):
+        return 3
+    return value if 0 <= value <= 50 else 3
+
+
+def payment_donut_mode() -> str:
+    return "bot" if payment_setting("payment_donut_mode").strip().lower() == "bot" else "manual"
 
 
 def payment_brands() -> list:
@@ -526,20 +575,23 @@ def gift_code_hash(code: str) -> str:
 
 
 def public_payment_methods() -> dict:
+    mode = payment_donut_mode()
     donut_ready = bool(payment_setting("payment_donut_bot").strip()) and (
         payment_rate("payment_donut_rate") > 0
         or any(payment_rate(f"payment_donut_{plan}") > 0 for plan in PLANS)
     )
+    donut_live = bool(payment_setting_bool("payment_donut_enabled") and donut_ready
+                      and (mode == "manual" or os.getenv("DONUT_BOT_TOKEN", "").strip()))
     return {
         "methods": {
             "crypto": payment_setting_bool("payment_crypto_enabled") and bool(payment_setting("payment_crypto_address").strip())
                       and payment_rate("payment_crypto_rate") > 0,
-            "donut": payment_setting_bool("payment_donut_enabled") and donut_ready
-                     and bool(os.getenv("DONUT_BOT_TOKEN", "").strip()),
+            "donut": donut_live,
             "giftcard": payment_setting_bool("payment_giftcard_enabled"),
         },
         "crypto_coin": payment_coin(),
         "donut_rate": payment_rate("payment_donut_rate"),
+        "donut_mode": mode,
         "giftcard_brands": payment_brands(),
         "giftcard_note": payment_setting("payment_giftcard_note"),
     }
@@ -967,6 +1019,7 @@ def order_json(row: dict) -> dict:
             "bot": row.get("donut_bot") or payment_setting("payment_donut_bot"),
             "username": row.get("donut_username") or "",
             "amount": row.get("donut_amount") or 0,
+            "mode": payment_donut_mode(),
         }
     if row.get("method") == "giftcard":
         code = row.get("gift_card_code") or ""
@@ -1057,6 +1110,7 @@ class PaymentSettingsReq(BaseModel):
     crypto_address: Optional[str] = None
     crypto_rate: Optional[float] = None
     donut_enabled: Optional[bool] = None
+    donut_mode: Optional[str] = None
     donut_bot: Optional[str] = None
     donut_rate: Optional[float] = None
     donut_weekly: Optional[float] = None
@@ -1248,6 +1302,10 @@ class SettingsUpdateReq(BaseModel):
     support_title: Optional[str] = None
     support_sub: Optional[str] = None
     dashboard_icons: Optional[str] = None
+    trial_enabled: Optional[bool] = None
+    trial_hours: Optional[int] = None
+    signup_enabled: Optional[bool] = None
+    signup_max_per_ip: Optional[int] = None
 
 
 class ReviewCreateReq(BaseModel):
@@ -1385,6 +1443,7 @@ def health():
     # this deployment can reach its database. "database": false means the Vercel
     # environment is missing SUPABASE_URL / SUPABASE_SERVICE_KEY.
     # booleans only: never expose a key or a webhook secret.
+    donut_mode = payment_donut_mode()
     donut_bot = bool(os.getenv("DONUT_BOT_TOKEN"))
     return {
         "ok": True,
@@ -1400,7 +1459,10 @@ def health():
         "vercel_env": os.getenv("VERCEL_ENV"),
         "payments": {
             "crypto": bool(payment_setting("payment_crypto_address")),
-            "donut": donut_bot and bool(payment_setting("payment_donut_bot")),
+            "donut": payment_setting_bool("payment_donut_enabled")
+                     and bool(payment_setting("payment_donut_bot"))
+                     and (donut_mode == "manual" or donut_bot),
+            "donut_mode": donut_mode,
             "giftcard": payment_setting_bool("payment_giftcard_enabled"),
         },
     }
@@ -1617,10 +1679,13 @@ def plan_checkout_url(email: str, plan: str, referral_code: Optional[str] = None
 # Routes: authentication
 # --------------------------------------------------------------------------
 @app.post("/api/auth/signup", status_code=201)
-def signup(p: SignupReq, response: Response):
+def signup(p: SignupReq, request: Request, response: Response):
     username = p.username.strip()
     email = p.email.lower().strip()
     email_confirm = p.email_confirm.lower().strip()
+
+    if not site_setting_bool("signup_enabled"):
+        raise HTTPException(503, "Account creation is temporarily closed. Please contact support.")
 
     if email != email_confirm:
         raise HTTPException(400, "The email addresses do not match.")
@@ -1647,14 +1712,43 @@ def signup(p: SignupReq, response: Response):
     if VERIFY_EMAIL and not email_configured():
         raise HTTPException(503, "Email verification is temporarily unavailable. Please contact support.")
 
+    ip = client_ip(request)
+    per_ip = signup_max_per_ip()
+    if per_ip and ip:
+        try:
+            recent = db_list("users", {
+                "signup_ip": eq(ip),
+                "created_at": f"gte.{iso(now() - timedelta(hours=24))}",
+            }, limit=per_ip)
+        except DBError as exc:
+            # The signup_ip migration may not have been run yet. Do not turn a
+            # missing migration into an outage; the admin setting still applies
+            # as soon as the column exists.
+            print("Signup IP limit unavailable:", exc.status)
+            recent = []
+        except Exception as exc:
+            print("Signup IP limit failed:", type(exc).__name__)
+            recent = []
+        if len(recent) >= per_ip:
+            raise HTTPException(429, "Too many accounts were created from this network. Try again later or contact support.")
+
     try:
-        user = db_insert("users", {
+        user_row = {
             "username": username,
             "username_lower": username.lower(),
             "email": email,
             "password_hash": hash_pw(p.password),
             "email_verified": not VERIFY_EMAIL,
-        })
+            "signup_ip": ip,
+        }
+        try:
+            user = db_insert("users", user_row)
+        except DBError as exc:
+            if exc.status == 400 and "signup_ip" in exc.body:
+                user_row.pop("signup_ip", None)
+                user = db_insert("users", user_row)
+            else:
+                raise
     except DBError as e:
         if e.status == 409:
             raise HTTPException(409, taken)
@@ -1999,6 +2093,8 @@ def start_payment(p: PaymentStartReq, user: dict = Depends(current_user)):
         fixed = payment_rate(f"payment_donut_{row.get('plan_type') or ''}")
         if not bot or (rate <= 0 and fixed <= 0):
             raise HTTPException(503, "DonutSMP payments are not configured yet.")
+        if payment_donut_mode() == "bot" and not os.getenv("DONUT_BOT_TOKEN", "").strip():
+            raise HTTPException(503, "The DonutSMP bot is not configured. Use manual review or contact support.")
         donut_amount = donut_amount_for(row)
         values.update({"donut_username": username, "donut_amount": donut_amount, "donut_bot": bot})
         updated = db_update("pending_payments", {"uid": eq(str(p.uid))}, values)
@@ -2166,6 +2262,7 @@ def admin_payment_settings(admin: dict = Depends(current_admin)):
         "crypto_address": payment_setting("payment_crypto_address"),
         "crypto_rate": payment_setting("payment_crypto_rate"),
         "donut_enabled": payment_setting_bool("payment_donut_enabled"),
+        "donut_mode": payment_donut_mode(),
         "donut_bot": payment_setting("payment_donut_bot"),
         "donut_rate": payment_setting("payment_donut_rate"),
         "donut_weekly": payment_setting("payment_donut_weekly"),
@@ -2195,6 +2292,11 @@ def update_payment_settings(p: PaymentSettingsReq, admin: dict = Depends(current
         updates["payment_crypto_rate"] = f"{p.crypto_rate:.8f}".rstrip("0").rstrip(".")
     if p.donut_enabled is not None:
         updates["payment_donut_enabled"] = "true" if p.donut_enabled else "false"
+    if p.donut_mode is not None:
+        mode = p.donut_mode.strip().lower()
+        if mode not in ("manual", "bot"):
+            raise HTTPException(400, "DonutSMP mode must be manual or bot.")
+        updates["payment_donut_mode"] = mode
     if p.donut_bot is not None:
         bot = p.donut_bot.strip()
         if bot and not USERNAME_RE.match(bot):
@@ -2233,6 +2335,8 @@ def update_payment_settings(p: PaymentSettingsReq, admin: dict = Depends(current
 @app.get("/api/trial")
 def trial_state(request: Request, user: dict = Depends(current_user)):
     email = user["email"].lower()
+    enabled = trial_enabled()
+    hours = trial_hours()
     row = trial_license(email)
     paid_active = any(
         license_active(db_get("licenses", {"email": eq(email), "plan_type": eq(plan)}))
@@ -2246,13 +2350,15 @@ def trial_state(request: Request, user: dict = Depends(current_user)):
         ip_used = True
     return {
         "plan": TRIAL_PLAN,
-        "hours": TRIAL_HOURS,
+        "enabled": enabled,
+        "hours": hours,
         "used": bool(row),
         "active": license_active(row),
         "expires_at": (row or {}).get("expires_at"),
         "paid_active": paid_active,
         "ip_used": ip_used,
-        "eligible": bool(not row and not paid_active and not ip_used),
+        "eligible": bool(enabled and not row and not paid_active and not ip_used),
+        "reason": "" if enabled else "The free trial is currently closed.",
     }
 
 
@@ -2264,12 +2370,18 @@ def start_trial(request: Request, user: dict = Depends(current_user)):
     trial_hwid_taken refuses a machine that already used a trial. The network is known
     here, so a trial is only issued once per IP; the unique index backs both rules up.
     """
+    if not trial_enabled():
+        return JSONResponse(status_code=403, content={
+            "ok": False, "error": "trial_disabled",
+            "message": "The free trial is currently closed. Choose a paid plan to continue.",
+        })
+    hours = trial_hours()
     email = user["email"].lower()
     existing = trial_license(email)
     if existing:
         return JSONResponse(status_code=409, content={
             "ok": False, "error": "trial_used",
-            "message": "This account has already used its free 24-hour trial.",
+            "message": f"This account has already used its free {trial_hours()}-hour trial.",
             "expires_at": existing.get("expires_at"),
         })
     for plan in PLANS:
@@ -2300,7 +2412,7 @@ def start_trial(request: Request, user: dict = Depends(current_user)):
         "plan_type": TRIAL_PLAN,
         "license_key": new_license_key(),
         "status": "active",
-        "expires_at": iso(now() + timedelta(hours=TRIAL_HOURS)),
+        "expires_at": iso(now() + timedelta(hours=hours)),
         "trial_ip": ip,
     }
     try:
@@ -2315,9 +2427,9 @@ def start_trial(request: Request, user: dict = Depends(current_user)):
         raise HTTPException(503, "The free trial is not available right now. Please try again later.")
     lic = saved or row
     try:
-        send_email(email, "Your Champ 24-hour trial",
+        send_email(email, f"Your Champ {hours}-hour trial",
                    email_html("Your free day is ready",
-                              "Your 24-hour trial key:<br>"
+                              f"Your {hours}-hour trial key:<br>"
                               f"<b style='font-size:18px'>{html.escape(lic['license_key'])}</b><br><br>"
                               "Start Minecraft 1.21.11 first, then run champ.exe and enter this key. "
                               "The trial is linked to the first PC and network that uses it.",
@@ -2325,8 +2437,27 @@ def start_trial(request: Request, user: dict = Depends(current_user)):
     except Exception as exc:
         print("Trial e-mail failed:", exc)
     return {"ok": True, "plan": TRIAL_PLAN, "key": lic["license_key"],
-            "expires_at": lic.get("expires_at"), "hours": TRIAL_HOURS,
-            "message": f"Your free {TRIAL_HOURS}-hour trial is active."}
+            "expires_at": lic.get("expires_at"), "hours": hours,
+            "message": f"Your free {hours}-hour trial is active."}
+
+
+@app.post("/api/admin/trials/stop")
+def admin_stop_trials(admin: dict = Depends(current_admin)):
+    """End every trial that is still active, without touching paid licenses."""
+    try:
+        rows = db_list("licenses", {"plan_type": eq(TRIAL_PLAN), "status": eq("active")}, limit=500)
+    except Exception as exc:
+        print("Trial stop lookup failed:", type(exc).__name__)
+        raise HTTPException(503, "The license database is temporarily unavailable.")
+    stopped = 0
+    for row in rows:
+        try:
+            db_update("licenses", {"id": eq(row["id"])}, {"status": "revoked", "updated_at": iso(now())})
+            stopped += 1
+        except Exception as exc:
+            print("Trial stop update failed:", type(exc).__name__)
+    return {"ok": True, "count": stopped,
+            "message": f"Ended {stopped} active trial{'' if stopped == 1 else 's'}."}
 
 
 # --------------------------------------------------------------------------
@@ -2351,11 +2482,12 @@ def dashboard(user: dict = Depends(current_user)):
         }
     trial_row = licenses.get(TRIAL_PLAN)
     trial_info = {
-        "hours": TRIAL_HOURS,
+        "enabled": trial_enabled(),
+        "hours": trial_hours(),
         "used": bool(trial_row),
         "active": bool(trial_row and trial_row.get("active")),
         "expires_at": trial_row.get("expires_at") if trial_row else None,
-        "eligible": bool(not trial_row and not any(l and l.get("active") for l in licenses.values())),
+        "eligible": bool(trial_enabled() and not trial_row and not any(l and l.get("active") for l in licenses.values())),
     }
     return {"email": user["email"], "username": user["username"], "licenses": licenses,
             "trial": trial_info,
@@ -4156,12 +4288,16 @@ def get_site_settings():
         "hero_title": "Every module.|*One injector.*",
         "hero_sub": "Champ runs inside the Minecraft 1.21.11 you already have open. Start the game, run champ.bat, and the menu is there. No jar goes into your mods folder, and you don't have to restart the game afterwards.",
         "pricing_title": "Three plans, *same client.*",
-        "pricing_sub": "Start with a free 24-hour trial, then weekly, monthly or lifetime. VPNs and proxies cannot claim it. Pay with crypto, DonutSMP money or a gift card; the license lands in your dashboard as soon as the payment clears.",
+        "pricing_sub": "Weekly, monthly or lifetime. Pay with crypto, DonutSMP money or a gift card; the license lands in your dashboard as soon as the payment clears.",
         "features_title": "Every module, *listed.*",
         "features_sub": "The full list, grouped by category: combat, mace, spear, movement, misc, visuals and Donut SMP. Filter one group or scroll the lot, then open a card for its settings and a clip.",
         "support_title": "Need *help?*",
         "support_sub": "The fastest way to reach us is Discord. Setup problems, license issues and bug reports all go there, and someone from the team answers, usually within a few hours.",
         "dashboard_icons": json.dumps(DEFAULT_DASH_ICONS, separators=(",", ":")),
+        "trial_enabled": "false",
+        "trial_hours": "24",
+        "signup_enabled": "true",
+        "signup_max_per_ip": "3",
     }
     for r in rows:
         settings[r["key"]] = r["value"]
@@ -4198,6 +4334,18 @@ def update_site_settings(p: SettingsUpdateReq, admin: dict = Depends(current_adm
             if section in icons and icon in DASH_ICON_CHOICES:
                 icons[section] = icon
         updates["dashboard_icons"] = json.dumps(icons, separators=(",", ":"))
+    if p.trial_enabled is not None:
+        updates["trial_enabled"] = "true" if p.trial_enabled else "false"
+    if p.trial_hours is not None:
+        if not 1 <= p.trial_hours <= 168:
+            raise HTTPException(400, "Trial hours must be between 1 and 168.")
+        updates["trial_hours"] = str(p.trial_hours)
+    if p.signup_enabled is not None:
+        updates["signup_enabled"] = "true" if p.signup_enabled else "false"
+    if p.signup_max_per_ip is not None:
+        if not 0 <= p.signup_max_per_ip <= 50:
+            raise HTTPException(400, "The IP signup limit must be between 0 and 50.")
+        updates["signup_max_per_ip"] = str(p.signup_max_per_ip)
 
     for k, v in updates.items():
         existing = db_get("site_settings", {"key": eq(k)})
@@ -4475,7 +4623,7 @@ Install: customers download two Windows files from their dashboard, champ.bat an
 
 Scope: the website advertises 247 modules, custom Dear ImGui render overlays, crystal macros and DonutSMP base raiding suites. The full module list lives on the features page. Never invent module names or describe a specific module that is not listed on the site.
 
-Free trial: a signed-in account can claim one 24-hour trial from the pricing page. It is free, includes every module, and is limited to one trial per account, one per PC and one per network. The key is linked to the first PC that runs it and cannot be moved to another PC; it expires 24 hours after it is claimed. VPN, proxy, Tor and datacenter connections are refused.
+Free trial: the shop can enable or close a free trial from the admin panel; it is closed by default. When enabled, a signed-in account can claim one trial from the pricing page. It is free, includes every module, and is limited to one trial per account, one per PC and one per network. The key is linked to the first PC that runs it and cannot be moved to another PC. VPN, proxy, Tor and datacenter connections are refused. Never promise a trial when it is closed; use the live site settings.
 
 Plans and delivery: Weekly costs EUR 2.99 for 7 days as a one-time payment and does not renew. Monthly costs EUR 6.99 for a prepaid 30-day pass and does not renew automatically. Lifetime costs EUR 9.99 as a one-time payment and includes future 1.21.x updates. Checkout supports crypto, DonutSMP money and gift cards; availability depends on what the shop has enabled. After successful payment the product is available in the customer's dashboard immediately, and a licence e-mail with the key is sent. Downloads require an active license. Never promise a payment method that is not shown on the checkout page.
 
@@ -4565,12 +4713,21 @@ SITE_LINKS = {
 
 
 def _answer_pricing() -> str:
+    trial_line = (
+        "Champ Client has a free trial and three paid plans: "
+        if trial_enabled() else
+        "Champ Client has three paid plans: "
+    )
+    trial_paragraph = (
+        f"The trial gives every module for {trial_hours()} hours, needs no payment, and is limited to one "
+        "per account, PC and network; VPNs and proxies cannot claim it. "
+        if trial_enabled() else ""
+    )
     return (
-        "Champ Client has a free 24-hour trial and three paid plans: Weekly is EUR 2.99 for 7 days as a "
+        trial_line + "Weekly is EUR 2.99 for 7 days as a "
         "one-time payment, Monthly is EUR 6.99 for a prepaid 30-day pass, and "
         "Lifetime is EUR 9.99 as a one-time payment and includes future 1.21.x updates.\n\n"
-        "The trial gives every module for one day, needs no payment, and is limited to one per account, PC "
-        "and network; VPNs and proxies cannot claim it. Every plan includes the same modules and texture "
+        + trial_paragraph + "Every plan includes the same modules and texture "
         "packs; only how long access lasts changes. The weekly pass does not renew automatically.\n\n"
         "Checkout accepts crypto, DonutSMP money and gift cards; the checkout page "
         "shows which methods the shop has enabled. Your download and licence appear in your dashboard right "
@@ -4703,9 +4860,17 @@ def _answer_what_is_it() -> str:
 
 
 def _answer_trial() -> str:
+    if not trial_enabled():
+        return (
+            "The free trial is currently closed. Weekly is the cheapest way to try Champ: EUR 2.99 "
+            "for 7 days, one-time and without auto-renewal. Monthly is EUR 6.99 and Lifetime is EUR 9.99 "
+            "once. Every plan includes the same modules.\n\n"
+            f"Plans and pricing: {SITE_LINKS['pricing']}"
+        )
+    hours = trial_hours()
     return (
-        "Yes - there is a free 24-hour trial. Claim it on the pricing page while signed in: it gives every "
-        "module for one day and needs no card. It is limited to one trial per account, one per PC and one "
+        f"Yes - there is a free {hours}-hour trial. Claim it on the pricing page while signed in: it gives every "
+        f"module for {hours} hours and needs no card. It is limited to one trial per account, one per PC and one "
         "per network. The key is linked to the first PC that uses it and cannot be moved to another PC. "
         "VPNs, proxies, Tor and datacenter connections are refused.\n\n"
         "When the day ends, Weekly is the cheapest paid plan at EUR 2.99 for 7 days, one-time and without "
@@ -4733,8 +4898,9 @@ def _answer_devices() -> str:
 
 def _answer_discount() -> str:
     return (
-        "I don't have a confirmed discount or coupon code, so I won't invent one. There is a free 24-hour "
-        "trial if you want to try every module first. The current prices are Weekly EUR 2.99, Monthly "
+        "I don't have a confirmed discount or coupon code, so I won't invent one. "
+        + (f"There is a free {trial_hours()}-hour trial if you want to try every module first. " if trial_enabled() else "")
+        + "The current prices are Weekly EUR 2.99, Monthly "
         "EUR 6.99 and Lifetime EUR 9.99, all listed on the pricing page. If you "
         "were given a code by the team, ask them on Discord to check it for you.\n\n"
         f"Plans and pricing: {SITE_LINKS['pricing']}\nDiscord support: {SITE_LINKS['discord']}"
