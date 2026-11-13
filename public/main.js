@@ -934,6 +934,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (method === 'crypto') {
       document.getElementById('crypto-amount').textContent = `${next.crypto.amount} ${next.crypto.coin}`;
       document.getElementById('crypto-coin').textContent = '';
+      const rate = Number(next.crypto.rate || 0);
+      const rateLine = document.getElementById('crypto-rate');
+      if (rateLine) {
+        rateLine.textContent = rate > 0
+          ? `Rate used for this order: €${rate.toLocaleString('en-US', { maximumFractionDigits: 2 })} per ${next.crypto.coin}`
+          : '';
+      }
       document.getElementById('crypto-address').textContent = next.crypto.address;
       document.getElementById('cryptoTxid').value = next.crypto.txid || '';
       document.getElementById('prep-title').textContent = 'Send crypto';

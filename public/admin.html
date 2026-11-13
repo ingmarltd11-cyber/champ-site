@@ -296,7 +296,8 @@
           </label>
           <label>Crypto coin<select id="payCryptoCoin"><option value="BTC">Bitcoin (BTC)</option><option value="LTC">Litecoin (LTC)</option><option value="ETH">Ethereum (ETH)</option></select></label>
           <label>Wallet address<input id="payCryptoAddress" placeholder="Your receiving address" autocomplete="off"></label>
-          <label>EUR per 1 coin<input id="payCryptoRate" type="number" min="0.00000001" step="0.00000001" placeholder="e.g. 60000"></label>
+          <label>Fallback EUR per 1 coin<input id="payCryptoRate" type="number" min="0" step="0.00000001" placeholder="optional, used only if the live rate fails"></label>
+          <p class="no-license-text">Checkout uses the live Coinbase EUR spot rate. This fallback is used only when that feed is unreachable.</p>
           <label style="display:flex;align-items:center;gap:10px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:12.5px">
             <input type="checkbox" id="payDonutEnabled">
             <span>Enable DonutSMP money</span>

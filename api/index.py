@@ -455,7 +455,7 @@ PAYMENT_SETTING_DEFAULTS = {
     "payment_crypto_enabled": "false",
     "payment_crypto_coin": "BTC",
     "payment_crypto_address": "",
-    "payment_crypto_rate": "0",          # EUR per 1 coin, set by the admin
+    "payment_crypto_rate": "0",          # fallback EUR per 1 coin if the live feed is unavailable
     "payment_donut_enabled": "false",
     "payment_donut_mode": "manual",       # manual = admin checks; bot = 24/7 bot checks
     "payment_donut_bot": "",
@@ -542,6 +542,43 @@ def payment_coin() -> str:
     return coin if coin in ("BTC", "LTC", "ETH") else "BTC"
 
 
+CRYPTO_RATE_TTL_SECONDS = 60
+_crypto_rate_cache = {}
+
+
+def live_crypto_rate(coin: str) -> Optional[float]:
+    """Fetch the current EUR spot price from Coinbase, cached briefly per process."""
+    coin = (coin or "").strip().upper()
+    if coin not in ("BTC", "LTC", "ETH"):
+        return None
+    now_ts = time.time()
+    cached = _crypto_rate_cache.get(coin)
+    if cached and now_ts - cached[1] < CRYPTO_RATE_TTL_SECONDS:
+        return cached[0]
+    try:
+        response = requests.get(
+            f"https://api.coinbase.com/v2/prices/{coin}-EUR/spot", timeout=5
+        )
+        if response.status_code != 200:
+            return None
+        amount = float((response.json().get("data") or {}).get("amount") or 0)
+        if not math.isfinite(amount) or amount <= 0:
+            return None
+        _crypto_rate_cache[coin] = (amount, now_ts)
+        return amount
+    except Exception as exc:
+        print("Crypto rate lookup failed:", type(exc).__name__)
+        return None
+
+
+def crypto_eur_rate(coin: str) -> tuple[float, str]:
+    """Prefer the live rate; keep the admin value as an outage fallback."""
+    live = live_crypto_rate(coin)
+    if live:
+        return live, "live"
+    return payment_rate("payment_crypto_rate"), "manual"
+
+
 def payment_rate(key: str) -> float:
     try:
         value = float(payment_setting(key).replace(",", "."))
@@ -576,6 +613,10 @@ def gift_code_hash(code: str) -> str:
 
 def public_payment_methods() -> dict:
     mode = payment_donut_mode()
+    coin = payment_coin()
+    crypto_ready = (payment_setting_bool("payment_crypto_enabled")
+                    and bool(payment_setting("payment_crypto_address").strip()))
+    crypto_rate, crypto_rate_source = crypto_eur_rate(coin) if crypto_ready else (0.0, "")
     donut_ready = bool(payment_setting("payment_donut_bot").strip()) and (
         payment_rate("payment_donut_rate") > 0
         or any(payment_rate(f"payment_donut_{plan}") > 0 for plan in PLANS)
@@ -584,12 +625,13 @@ def public_payment_methods() -> dict:
                       and (mode == "manual" or os.getenv("DONUT_BOT_TOKEN", "").strip()))
     return {
         "methods": {
-            "crypto": payment_setting_bool("payment_crypto_enabled") and bool(payment_setting("payment_crypto_address").strip())
-                      and payment_rate("payment_crypto_rate") > 0,
+            "crypto": crypto_ready and crypto_rate > 0,
             "donut": donut_live,
             "giftcard": payment_setting_bool("payment_giftcard_enabled"),
         },
-        "crypto_coin": payment_coin(),
+        "crypto_coin": coin,
+        "crypto_rate": crypto_rate,
+        "crypto_rate_source": crypto_rate_source,
         "donut_rate": payment_rate("payment_donut_rate"),
         "donut_mode": mode,
         "giftcard_brands": payment_brands(),
@@ -2078,10 +2120,10 @@ def start_payment(p: PaymentStartReq, user: dict = Depends(current_user)):
     if method == "crypto":
         values.update({"provider": None, "provider_ref": None})
         address = payment_setting("payment_crypto_address").strip()
-        rate = payment_rate("payment_crypto_rate")
+        coin = payment_coin()
+        rate, _ = crypto_eur_rate(coin)
         if not address or rate <= 0:
             raise HTTPException(503, "Crypto payments are not configured yet.")
-        coin = payment_coin()
         coin_amount = amount / 100 / rate
         values.update({"crypto_coin": coin, "crypto_address": address,
                        "crypto_rate": str(rate), "crypto_amount": f"{coin_amount:.8f}".rstrip("0").rstrip(".")})
