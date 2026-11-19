@@ -24,59 +24,51 @@ async function execute(interaction) {
   const embed = new EmbedBuilder()
     .setTitle('Champ bot · help')
     .setDescription(
-      'Tickets, giveaways and the welcome system. Slash commands are available to everyone unless a ' +
-        'row says **staff**.'
+      'Everything works from the **control panel**: buttons, menus and modals for tickets, panels, giveaways, ' +
+        'welcome, rules, announcements, moderation, knowledge and payments. Slash commands are shortcuts.'
     )
     .setColor('#2EC4B6')
     .addFields(
       {
-        name: '🔗 Account',
+        name: '🎛️ Control panel',
         value: [
-          '`/link code:<code>` — connect Discord to your Champ dashboard account',
-          `Link code: ${siteUrl()}/dashboard.html`,
+          '`/panel` **staff** — post the control panel once, then use its menus',
+          'Every section has its own buttons; staff actions check your role when you press them.',
         ].join('\n'),
       },
       {
         name: '🎫 Tickets',
         value: [
-          '`/ticket-panel` **staff** — post the support dropdown',
-          '`/ticket-close [reason]` — close your own ticket',
-          '`/ticket-add user:@member` **staff** — let someone else join',
-          '`/ticket-remove user:@member` **staff** — remove them again',
-          '`/ticket-transcript` **staff** — export the conversation',
-          '`/ticket-stats` **staff** — open/closed counts and ratings',
+          'Open a ticket from any ticket panel dropdown.',
+          'Claim, transcript and close buttons live inside the ticket.',
+          '`/ticket-panel name:<name>` **staff** — post another named ticket panel',
+          '`/ticket-stats` · `/ticket-add` · `/ticket-remove` · `/ticket-transcript`',
         ].join('\n'),
       },
       {
-        name: '🎉 Giveaways',
+        name: '📚 Knowledge',
         value: [
-          '`/giveaway create` **staff** — prize, minutes, winners, optional role and account age',
-          '`/giveaway end [id]` **staff** — draw the winners now',
-          '`/giveaway reroll id [winners]` **staff** — draw again',
-          '`/giveaway list` · `/giveaway entries id` · `/giveaway delete id`',
+          'Browse or search the knowledge panel — entries are Discord forum threads.',
+          'Ask a question from the panel; staff answer in the forum and it becomes searchable.',
+          'There is deliberately no `/knowledge add`: the forum is the editor.',
         ].join('\n'),
       },
       {
-        name: '👋 Welcome',
+        name: '💳 Payments',
         value: [
-          '`/welcome status` · `preview` · `test` **staff**',
-          '`/welcome channel` · `autorole` · `dm` · `message` · `title` · `reset` **staff**',
+          '`/payments` — buy weekly, monthly or lifetime inside Discord',
+          'Crypto, DonutSMP money and gift cards; the license lands on your linked account.',
+          '`/payments panel:#channel` **staff** — post a persistent checkout panel',
+          '`/link code:<code>` — connect Discord to your Champ dashboard account',
         ].join('\n'),
       },
       {
-        name: '🛡️ Staff tools',
+        name: '🎉 Community & staff',
         value: [
-          '`/announce` — branded announcement with optional @here/@everyone and a link button',
-          '`/rules` — post the server rules from `config/rules.json`',
-          '`/mod timeout user duration reason` — mute for `10m`, `2h`, `1d`',
-          '`/mod kick` · `/mod ban [delete_days]` — with a DM, a reason and a mod-log entry',
-          '`/mod purge count` — clear up to 100 recent messages',
-          '`/mod slowmode seconds` — 0 turns it off',
+          '`/giveaway create` **staff** — prize, minutes, winners, role and account-age requirements',
+          '`/welcome` · `/announce` · `/rules` · `/mod` **staff** — also available as control-panel screens',
+          '`/status` — uptime, latency, tickets, giveaways and knowledge',
         ].join('\n'),
-      },
-      {
-        name: 'ℹ️ Bot',
-        value: '`/status` — uptime, latency, tickets and giveaways\n`/help` — this page',
       }
     )
     .setFooter({ text: 'Champ Client · support and community' });

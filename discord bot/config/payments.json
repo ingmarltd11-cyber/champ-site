@@ -1,0 +1,14 @@
+{
+  "enabled": true,
+  "title": "💳 Champ checkout",
+  "description": "Buy or renew Champ without leaving Discord. Choose a plan, pick crypto, DonutSMP money or a gift card, and the license lands on your linked account.",
+  "color": "#FFC93C",
+  "supportUrl": "",
+  "showWebCheckout": true,
+  "orderRefreshSeconds": 20,
+  "plans": {
+    "weekly": { "label": "Weekly", "price": "€2.99", "days": 7, "description": "7 days of full access" },
+    "monthly": { "label": "Monthly", "price": "€6.99", "days": 30, "description": "30 days of full access" },
+    "lifetime": { "label": "Lifetime", "price": "€9.99", "days": null, "description": "One payment, never expires" }
+  }
+}

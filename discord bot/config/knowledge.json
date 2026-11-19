@@ -1,0 +1,17 @@
+{
+  "forumChannelId": "",
+  "title": "📚 Champ knowledge base",
+  "description": "Guides, answers and fixes written by the team. Browse an entry, search for a symptom, or ask a question in the forum.",
+  "color": "#2EC4B6",
+  "questionTagId": "question",
+  "allowPublicQuestions": true,
+  "syncArchived": true,
+  "maxEntries": 500,
+  "tags": [
+    { "id": "guide", "label": "Guide", "emoji": "📘" },
+    { "id": "faq", "label": "FAQ", "emoji": "❓" },
+    { "id": "troubleshooting", "label": "Troubleshooting", "emoji": "🛠️" },
+    { "id": "billing", "label": "Billing", "emoji": "💳" },
+    { "id": "question", "label": "Question", "emoji": "💬" }
+  ]
+}

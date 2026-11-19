@@ -1142,6 +1142,27 @@ class CryptoProofReq(BaseModel):
     txid: str
 
 
+# Discord bot bridge: the bot proves itself with its own token and acts for a linked account.
+class DiscordCheckoutReq(BaseModel):
+    discord_id: str
+    plan_type: str
+    method: Optional[str] = None
+    donut_username: Optional[str] = None
+    gift_card_brand: Optional[str] = None
+    gift_card_code: Optional[str] = None
+    gift_card_value: Optional[float] = None
+
+
+class DiscordCryptoReq(BaseModel):
+    discord_id: str
+    txid: str
+
+
+class DiscordAdminReq(BaseModel):
+    admin_discord_id: Optional[str] = None
+    reason: Optional[str] = None
+
+
 class AdminPaymentReviewReq(BaseModel):
     reason: Optional[str] = None
 
@@ -2258,6 +2279,203 @@ def submit_crypto_proof(uid: uuid.UUID, p: CryptoProofReq, user: dict = Depends(
         db_update("pending_payments", {"uid": eq(str(uid))}, {"status": "review", "updated_at": iso(now())})
         return {"ok": True, "paid": False, "message": "Transaction received. The admin will check it manually."}
     return {"ok": True, "paid": False, "message": "The transaction is not confirmed yet. Try again in a few minutes."}
+
+
+# --------------------------------------------------------------------------
+# Discord bot bridge for the in-Discord checkout
+# --------------------------------------------------------------------------
+def _require_discord_bot(authorization: Optional[str]) -> None:
+    """The bot authenticates with its own Discord token, never with a customer session."""
+    expected = (os.getenv("DISCORD_BOT_TOKEN") or os.getenv("DISCORD_TOKEN") or "").strip()
+    if not expected:
+        raise HTTPException(503, "Discord bot payments are not configured on the site.")
+    if not authorization or not hmac.compare_digest(authorization, f"Bot {expected}"):
+        raise HTTPException(401, "Invalid bot authorization.")
+
+
+def _discord_linked_user(discord_id: str) -> dict:
+    discord_id = re.sub(r"\D", "", str(discord_id or ""))
+    if not re.fullmatch(r"\d{15,25}", discord_id):
+        raise HTTPException(400, "Invalid Discord account.")
+    try:
+        user = db_get("users", {"discord_id": eq(discord_id)})
+    except DBError:
+        raise HTTPException(503, "Discord linking is temporarily unavailable.")
+    if not user:
+        raise HTTPException(409, "Link your Discord account on the dashboard first.")
+    return user
+
+
+def _discord_license(email: str, plan: Optional[str] = None) -> Optional[dict]:
+    try:
+        if plan:
+            row = db_get("licenses", {"email": eq(email), "plan_type": eq(plan)})
+            if row and license_active(row):
+                return {"license_key": row.get("license_key"), "plan_type": row.get("plan_type"),
+                        "status": row.get("status"), "expires_at": row.get("expires_at")}
+        for row in db_list("licenses", {"email": eq(email)}, limit=20):
+            if license_active(row):
+                return {"license_key": row.get("license_key"), "plan_type": row.get("plan_type"),
+                        "status": row.get("status"), "expires_at": row.get("expires_at")}
+    except Exception as exc:
+        print("Discord license lookup failed:", type(exc).__name__)
+    return None
+
+
+def _discord_order(uid: uuid.UUID, discord_id: str) -> tuple:
+    user = _discord_linked_user(discord_id)
+    row = load_pending(uid)
+    if str(user["email"]).lower() != str(row.get("email") or "").lower():
+        raise HTTPException(403, "This order belongs to another account.")
+    return row, user
+
+
+def _mask_email(value: str) -> str:
+    local, separator, domain = str(value or "").partition("@")
+    if not separator:
+        return "hidden"
+    return f"{local[:2]}***@{domain}"
+
+
+@app.post("/api/discord/bot/checkout")
+def discord_bot_checkout(p: DiscordCheckoutReq, authorization: Optional[str] = Header(None)):
+    """Create/reuse the same pending payment as the website, then apply a method."""
+    _require_discord_bot(authorization)
+    user = _discord_linked_user(p.discord_id)
+    plan = (p.plan_type or "").strip().lower()
+    if plan not in PLANS:
+        raise HTTPException(400, "Unknown plan.")
+
+    url = plan_checkout_url(user["email"], plan)
+    if not url:
+        raise HTTPException(500, "Could not prepare checkout.")
+    if "uid=" not in url:
+        return {"active": True, "order": None, "checkout_url": url,
+                "license": _discord_license(user["email"], plan)}
+
+    uid_text = url.split("uid=", 1)[1].split("&", 1)[0]
+    try:
+        uid = uuid.UUID(uid_text)
+    except (TypeError, ValueError):
+        raise HTTPException(500, "Could not prepare checkout.")
+    row = load_pending(uid)
+
+    if p.method:
+        result = start_payment(PaymentStartReq(
+            uid=uid,
+            method=p.method,
+            donut_username=p.donut_username,
+            gift_card_brand=p.gift_card_brand,
+            gift_card_code=p.gift_card_code,
+            gift_card_value=p.gift_card_value,
+        ), user)
+        row = db_get("pending_payments", {"uid": eq(str(uid))}) or row
+        paid = bool(result.get("paid"))
+    else:
+        paid = row.get("status") == "paid"
+
+    return {
+        "active": False,
+        "order": order_json(row),
+        "checkout_url": url,
+        "paid": paid,
+        "license": _discord_license(user["email"], plan) if paid else None,
+    }
+
+
+@app.get("/api/discord/bot/order/{uid}")
+def discord_bot_order(uid: uuid.UUID, discord_id: str = "", authorization: Optional[str] = Header(None)):
+    _require_discord_bot(authorization)
+    row, user = _discord_order(uid, discord_id)
+    return {
+        "order": order_json(row),
+        "paid": row.get("status") == "paid",
+        "license": _discord_license(user["email"], row.get("plan_type")) if row.get("status") == "paid" else None,
+    }
+
+
+@app.get("/api/discord/bot/orders")
+def discord_bot_orders(discord_id: str = "", limit: int = 10, authorization: Optional[str] = Header(None)):
+    _require_discord_bot(authorization)
+    user = _discord_linked_user(discord_id)
+    limit = max(1, min(int(limit or 10), 25))
+    rows = db_list("pending_payments", {"email": eq(user["email"])}, limit=limit, order="created_at.desc")
+    orders = []
+    for row in rows:
+        item = order_json(row)
+        if row.get("status") == "paid":
+            item["license"] = _discord_license(user["email"], row.get("plan_type"))
+        orders.append(item)
+    return {"orders": orders}
+
+
+@app.post("/api/discord/bot/order/{uid}/crypto")
+def discord_bot_crypto(uid: uuid.UUID, p: DiscordCryptoReq, authorization: Optional[str] = Header(None)):
+    _require_discord_bot(authorization)
+    row, user = _discord_order(uid, p.discord_id)
+    result = submit_crypto_proof(uid, CryptoProofReq(txid=p.txid), user)
+    fresh = db_get("pending_payments", {"uid": eq(str(uid))}) or row
+    return {
+        **result,
+        "order": order_json(fresh),
+        "license": _discord_license(user["email"], fresh.get("plan_type")) if fresh.get("status") == "paid" else None,
+    }
+
+
+@app.get("/api/discord/bot/payments")
+def discord_bot_payments(status: str = "all", authorization: Optional[str] = Header(None)):
+    _require_discord_bot(authorization)
+    filters = {}
+    if status in ("pending", "review", "paid", "rejected"):
+        filters["status"] = eq(status)
+    rows = db_list("pending_payments", filters, limit=100, order="created_at.desc")
+    orders = []
+    for row in rows:
+        item = order_json(row)
+        item["email"] = _mask_email(row.get("email"))
+        orders.append(item)
+    return {"orders": orders}
+
+
+@app.get("/api/discord/bot/payments/{uid}")
+def discord_bot_payment(uid: uuid.UUID, authorization: Optional[str] = Header(None)):
+    _require_discord_bot(authorization)
+    row = db_get("pending_payments", {"uid": eq(str(uid))})
+    if not row:
+        raise HTTPException(404, "Payment order not found.")
+    item = order_json(row)
+    item["email"] = _mask_email(row.get("email"))
+    return {"order": item}
+
+
+@app.post("/api/discord/bot/payments/{uid}/approve")
+def discord_bot_approve(uid: uuid.UUID, p: DiscordAdminReq, authorization: Optional[str] = Header(None)):
+    _require_discord_bot(authorization)
+    row = db_get("pending_payments", {"uid": eq(str(uid))})
+    if not row:
+        raise HTTPException(404, "Payment order not found.")
+    if row.get("status") not in ("pending", "review"):
+        raise HTTPException(409, f"This order is already {row.get('status')}.")
+    admin = re.sub(r"\D", "", str(p.admin_discord_id or ""))[:25]
+    complete_payment_order(str(uid), "discord-bot", f"discord:{admin}" if admin else "discord")
+    fresh = db_get("pending_payments", {"uid": eq(str(uid))}) or row
+    return {"order": order_json(fresh),
+            "license": _discord_license(row["email"], row.get("plan_type"))}
+
+
+@app.post("/api/discord/bot/payments/{uid}/reject")
+def discord_bot_reject(uid: uuid.UUID, p: DiscordAdminReq, authorization: Optional[str] = Header(None)):
+    _require_discord_bot(authorization)
+    row = db_get("pending_payments", {"uid": eq(str(uid))})
+    if not row:
+        raise HTTPException(404, "Payment order not found.")
+    if row.get("status") not in ("pending", "review"):
+        raise HTTPException(409, f"This order is already {row.get('status')}.")
+    reason = (p.reason or "Rejected by staff.").strip()[:500]
+    db_update("pending_payments", {"uid": eq(str(uid))}, {
+        "status": "rejected", "admin_note": reason, "updated_at": iso(now()),
+    })
+    return {"ok": True, "order": order_json(db_get("pending_payments", {"uid": eq(str(uid))}) or row)}
 
 
 @app.get("/api/admin/payments")

@@ -9,6 +9,7 @@ const {
   ButtonBuilder,
   ButtonStyle,
   AttachmentBuilder,
+  UserSelectMenuBuilder,
 } = require('discord.js');
 const { getTicketConfig } = require('../config/loadConfig');
 const { resolveSupportRole, isStaffMember } = require('../utils/permissions');
@@ -62,6 +63,26 @@ function openButtonRow(type) {
     new ButtonBuilder().setCustomId('ticket-close').setLabel('Close').setEmoji('🔒').setStyle(ButtonStyle.Danger)
   );
   return row;
+}
+
+// Member add/remove are clickGUI too: staff pick a member from the ticket message instead of
+// remembering /ticket-add or /ticket-remove.
+function openTicketComponents(type) {
+  return [
+    openButtonRow(type),
+    new ActionRowBuilder().addComponents(
+      new UserSelectMenuBuilder()
+        .setCustomId('ticket-member:add')
+        .setPlaceholder('Add a member to this ticket...')
+        .setMaxValues(1)
+    ),
+    new ActionRowBuilder().addComponents(
+      new UserSelectMenuBuilder()
+        .setCustomId('ticket-member:remove')
+        .setPlaceholder('Remove a member from this ticket...')
+        .setMaxValues(1)
+    ),
+  ];
 }
 
 function fail(message) {
@@ -240,7 +261,7 @@ async function createTicketChannel(interaction, type, answers) {
   }
 
   const pingContent = supportRole && type.pingSupport !== false ? `<@&${supportRole.id}>` : '';
-  await channel.send({ content: pingContent || undefined, embeds: [embed], components: [openButtonRow(type)] });
+  await channel.send({ content: pingContent || undefined, embeds: [embed], components: openTicketComponents(type) });
 
   cooldowns.set(user.id, Date.now());
 
@@ -464,6 +485,20 @@ async function handleAddUser(interaction, user) {
   return interaction.reply({ content: `✅ ${user} can now see and reply in this ticket.`, ephemeral: true });
 }
 
+async function handleMemberSelect(interaction) {
+  const action = String(interaction.customId).split(':')[1];
+  const config = getTicketConfig();
+  const ticket = await ticketStore.getTicket(interaction.channel.id);
+  if (!ticket) return interaction.reply({ content: 'This is not a ticket channel.', ephemeral: true });
+  if (!isStaffMember(interaction.member, interaction.guild, config)) {
+    return interaction.reply({ content: '❌ Only staff can manage ticket members.', ephemeral: true });
+  }
+  const user = await interaction.client.users.fetch(interaction.values[0]).catch(() => null);
+  if (!user) return interaction.reply({ content: '❌ Could not resolve that member.', ephemeral: true });
+  if (action === 'remove') return handleRemoveUser(interaction, user);
+  return handleAddUser(interaction, user);
+}
+
 async function handleRemoveUser(interaction, user) {
   const config = getTicketConfig();
   const ticket = await ticketStore.getTicket(interaction.channel.id);
@@ -534,6 +569,7 @@ module.exports = {
   handleTranscript,
   handleAddUser,
   handleRemoveUser,
+  handleMemberSelect,
   handleRateButton,
   handleRateModal,
   closeTicketChannel,

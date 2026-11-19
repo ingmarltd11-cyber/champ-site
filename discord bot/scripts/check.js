@@ -9,7 +9,13 @@ process.env.DATA_DIR = tmp;
 delete process.env.SUPABASE_URL;
 delete process.env.SUPABASE_SERVICE_KEY;
 
-const { getTicketConfig, getGiveawayConfig } = require('../src/config/loadConfig');
+const { getTicketConfig, getGiveawayConfig, getKnowledgeConfig, getPaymentConfig } = require('../src/config/loadConfig');
+const panelStore = require('../src/core/panelStore');
+const knowledgeStore = require('../src/knowledge/knowledgeStore');
+const { PANEL_TYPES } = require('../src/panels');
+const { updateTicketSettings, resetTicketSettings, updateKnowledgeSettings } = require('../src/utils/settings');
+const { buildId, parseId } = require('../src/core/ids');
+const { statusMeta } = require('../src/handlers/paymentInteractions');
 const { getWelcomeConfig, updateWelcomeConfig, resetWelcomeConfig } = require('../src/utils/welcomeSettings');
 const { findWelcomeChannel } = require('../src/handlers/welcomeEvents');
 const { pickWinners, giveawayEmbedData, isTooNew } = require('../src/utils/giveaway');
@@ -115,7 +121,7 @@ const fakeMember = {
   console.log('\ncommands');
   const commands = collectCommands();
   const names = commands.map((command) => command.name);
-  for (const required of ['announce', 'rules', 'mod', 'ticket-panel', 'giveaway', 'welcome', 'status', 'help', 'link']) {
+  for (const required of ['announce', 'rules', 'mod', 'ticket-panel', 'giveaway', 'welcome', 'status', 'help', 'link', 'panel', 'payments']) {
     check(names.includes(required), `/${required} is registered`);
   }
   check(new Set(names).size === names.length, 'no command name is registered twice');
@@ -325,6 +331,68 @@ const fakeMember = {
   const saved = await saveTranscript({ name: 'ticket-test' }, transcriptHtml);
   check(Boolean(saved) && saved.endsWith('.html'), 'the transcript is saved to disk');
   check(saved && fs.existsSync(saved), 'the saved transcript exists');
+
+  console.log('\npanels');
+  const panel = await panelStore.createPanel({
+    guildId: 'guild',
+    type: 'tickets',
+    name: 'Support',
+    channelId: 'channel-1',
+    options: { title: 'Support' },
+  });
+  check(Boolean(panel.id) && panel.type === 'tickets', 'a panel record is created');
+  check((await panelStore.listPanels({ guildId: 'guild' })).length === 1, 'panels are listed per guild');
+  check((await panelStore.listPanels({ type: 'payments' })).length === 0, 'panels are filterable by type');
+  await panelStore.updatePanel(panel.id, { name: 'Billing' });
+  check((await panelStore.getPanel(panel.id)).name === 'Billing', 'a panel can be renamed');
+  await panelStore.attachMessage(panel.id, { channelId: 'channel-1', messageId: 'message-1' });
+  check((await panelStore.getPanel(panel.id)).messageId === 'message-1', 'a panel remembers its message');
+  await panelStore.deletePanel(panel.id);
+  check((await panelStore.getPanel(panel.id)) === null, 'a panel can be deleted');
+  check(
+    Boolean(PANEL_TYPES.tickets && PANEL_TYPES.knowledge && PANEL_TYPES.payments && PANEL_TYPES.help),
+    'every panel type is registered'
+  );
+  check(buildId('pay', 'status', 'abc') === 'pay:status:abc', 'component ids are namespaced');
+  check(parseId('panel:deadbeef:ticket')[2] === 'ticket', 'component ids parse back');
+
+  console.log('\nknowledge');
+  await knowledgeStore.upsertEntry({
+    threadId: 'thread-1',
+    guildId: 'guild',
+    forumId: 'forum-1',
+    title: 'Reset your HWID',
+    body: 'Open the dashboard and use the free device reset.',
+    tags: ['troubleshooting'],
+    url: 'https://discord.com/channels/guild/thread-1',
+    messageCount: 3,
+  });
+  check((await knowledgeStore.getEntry('thread-1')).title === 'Reset your HWID', 'a forum entry is indexed');
+  check((await knowledgeStore.searchEntries('hwid'))[0]?.threadId === 'thread-1', 'knowledge search finds the title');
+  check((await knowledgeStore.searchEntries('dashboard'))[0]?.threadId === 'thread-1', 'knowledge search finds the body');
+  check((await knowledgeStore.searchEntries('no-such-topic')).length === 0, 'an unrelated search returns nothing');
+  const knowledgeStats = await knowledgeStore.stats({ guildId: 'guild' });
+  check(knowledgeStats.total === 1 && knowledgeStats.byTag.troubleshooting === 1, 'knowledge stats count tags');
+  await knowledgeStore.removeEntry('thread-1');
+  check((await knowledgeStore.getEntry('thread-1')) === null, 'a deleted forum thread leaves the index');
+
+  console.log('\nknowledge and payment config');
+  check(getKnowledgeConfig().tags.length >= 5, 'knowledge tags load');
+  check(getPaymentConfig().plans.lifetime.price === '€9.99', 'payment plans load');
+  check(statusMeta('paid').color === '#22C55E', 'paid orders get the green status');
+  check(statusMeta('review').label.includes('review'), 'review orders are labelled');
+
+  console.log('\nsettings overrides');
+  const beforeMax = getTicketConfig().settings.maxOpenTicketsPerUser;
+  await updateTicketSettings({ settings: { maxOpenTicketsPerUser: 2 } });
+  check(getTicketConfig().settings.maxOpenTicketsPerUser === 2, 'ticket settings are saved from the panel');
+  await resetTicketSettings();
+  check(getTicketConfig().settings.maxOpenTicketsPerUser === beforeMax, 'ticket settings can be reset');
+  const beforeForum = getKnowledgeConfig().forumChannelId;
+  await updateKnowledgeSettings({ forumChannelId: '123456789012345678' });
+  check(getKnowledgeConfig().forumChannelId === '123456789012345678', 'the knowledge forum is saved');
+  await updateKnowledgeSettings({ forumChannelId: beforeForum });
+  check(getKnowledgeConfig().forumChannelId === beforeForum, 'the knowledge forum can be restored');
 
   fs.rmSync(tmp, { recursive: true, force: true });
   console.log(fails === 0 ? '\nBOT CHECK OK' : `\nBOT CHECK FAILED (${fails})`);

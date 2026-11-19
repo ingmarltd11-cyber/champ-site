@@ -22,6 +22,12 @@ const { startGiveawayScheduler } = require('./jobs/giveawayScheduler');
 const giveawayInteractions = require('./handlers/giveawayInteractions');
 const welcomeEvents = require('./handlers/welcomeEvents');
 const ticketInteractions = require('./handlers/ticketInteractions');
+const knowledgeInteractions = require('./handlers/knowledgeInteractions');
+const paymentInteractions = require('./handlers/paymentInteractions');
+const controlPanel = require('./core/controlPanel');
+const controlStore = require('./core/controlStore');
+const panelRuntime = require('./core/panelRuntime');
+const knowledgeSync = require('./knowledge/knowledgeSync');
 const { startHealthServer } = require('./health');
 const { registerCommands } = require('./deploy-commands');
 
@@ -99,6 +105,27 @@ client.on('interactionCreate', async (interaction) => {
       return;
     }
 
+    // The clickGUI comes first. Dispatch on the namespace, not on a handler's return value:
+    // showModal()/deferReply() resolve to undefined, and those interactions must not fall
+    // through to the legacy handler afterwards.
+    const customId = String(interaction.customId || '');
+    if (customId.startsWith('ctl:')) {
+      await controlPanel.handleControl(interaction);
+      return;
+    }
+    if (customId.startsWith('panel:')) {
+      await controlPanel.handlePanel(interaction);
+      return;
+    }
+    if (customId.startsWith('kb:')) {
+      await knowledgeInteractions.handleKnowledge(interaction);
+      return;
+    }
+    if (customId.startsWith('pay:')) {
+      await paymentInteractions.handlePayment(interaction);
+      return;
+    }
+
     if (interaction.isButton()) {
       const id = interaction.customId;
       if (id.startsWith('ticket-rate:')) return ticketInteractions.handleRateButton(interaction);
@@ -106,12 +133,18 @@ client.on('interactionCreate', async (interaction) => {
       if (id === 'ticket-close') return ticketInteractions.handleClose(interaction);
       if (id === 'ticket-transcript') return ticketInteractions.handleTranscript(interaction);
       if (id.startsWith('giveaway:')) return giveawayInteractions.handleGiveawayButton(interaction);
-      return replyError(interaction, 'This button is out of date. Run `/ticket-panel` again if the panel is broken.');
+      return replyError(interaction, 'This button is out of date. Open the control panel or ask staff to refresh the panel.');
     }
 
     if (interaction.isStringSelectMenu()) {
       if (interaction.customId === 'ticket-select') return ticketInteractions.handleSelect(interaction);
-      return replyError(interaction, 'This menu is out of date. Run `/ticket-panel` again.');
+      if (interaction.customId.startsWith('ticket-member:')) return ticketInteractions.handleMemberSelect(interaction);
+      return replyError(interaction, 'This menu is out of date. Ask staff to refresh the panel.');
+    }
+
+    if (interaction.isUserSelectMenu?.()) {
+      if (interaction.customId.startsWith('ticket-member:')) return ticketInteractions.handleMemberSelect(interaction);
+      return replyError(interaction, 'This menu is out of date. Ask staff to refresh the ticket panel.');
     }
 
     if (interaction.isModalSubmit()) {
@@ -177,6 +210,8 @@ client.on('channelDelete', async (channel) => {
   }
 });
 
+knowledgeSync.registerKnowledgeEvents(client);
+
 client.on('guildMemberAdd', (member) => {
   welcomeEvents
     .onGuildMemberAdd(member)
@@ -223,6 +258,38 @@ client.once('ready', async () => {
 
   stopAutoClose = startAutoClose(client);
   stopGiveaways = startGiveawayScheduler(client);
+
+  // Repost/edit every stored panel from its record, so a restart never leaves a dead button
+  // or a duplicate panel. The knowledge index is refreshed in the background.
+  panelRuntime
+    .refreshAllPanels(client)
+    .then((result) => log.info('panels', `refreshed ${result.refreshed}/${result.total} panel(s)`))
+    .catch((err) => log.warn('panels', `refresh failed: ${err.message}`));
+  controlPanel
+    .refreshControlPanels(client)
+    .then((count) => log.info('control', `refreshed ${count} control panel(s)`))
+    .catch((err) => log.warn('control', `refresh failed: ${err.message}`));
+
+  const controlChannelId = process.env.CONTROL_PANEL_CHANNEL_ID;
+  if (controlChannelId) {
+    for (const guild of client.guilds.cache.values()) {
+      if (controlStore.get(guild.id)) continue;
+      const channel = guild.channels.cache.get(controlChannelId) ||
+        (await guild.channels.fetch(controlChannelId).catch(() => null));
+      if (channel?.isTextBased()) {
+        await controlPanel.postControlPanel(channel, client).catch((err) =>
+          log.warn('control', `could not post in ${controlChannelId}: ${err.message}`)
+        );
+      }
+    }
+  }
+
+  for (const guild of client.guilds.cache.values()) {
+    knowledgeSync
+      .syncForum(guild)
+      .catch((err) => log.warn('knowledge', `initial sync failed for ${guild.name}: ${err.message}`));
+  }
+
   log.info('boot', `ready in ${Date.now() - startedAt}ms`);
 });
 

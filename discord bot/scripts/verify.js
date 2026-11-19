@@ -29,7 +29,7 @@ for (const file of files) {
 }
 console.log(`checked ${files.length} JavaScript file(s)`);
 
-for (const name of ['tickets.json', 'giveaway.json', 'welcome.json']) {
+for (const name of ['tickets.json', 'giveaway.json', 'welcome.json', 'knowledge.json', 'payments.json', 'rules.json']) {
   const file = path.join(ROOT, 'config', name);
   try {
     JSON.parse(fs.readFileSync(file, 'utf8'));

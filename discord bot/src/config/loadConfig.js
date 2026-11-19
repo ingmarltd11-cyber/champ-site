@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const jsonStore = require('../utils/jsonStore');
 
 // Everything the bot reads at start-up lives in ./config. The ticket panel text and the
 // welcome messages are JSON so they can be edited without touching code or rebuilding.
@@ -57,6 +58,41 @@ const GIVEAWAY_DEFAULTS = {
   requirements: { defaultRoleId: '', minAccountAgeDays: 0 },
 };
 
+const KNOWLEDGE_DEFAULTS = {
+  forumChannelId: '',
+  title: '📚 Champ knowledge base',
+  description:
+    'Guides, answers and fixes written by the team. Browse an entry, search for a symptom, or ask a question in the forum.',
+  color: '#2EC4B6',
+  questionTagId: 'question',
+  allowPublicQuestions: true,
+  syncArchived: true,
+  maxEntries: 500,
+  tags: [
+    { id: 'guide', label: 'Guide', emoji: '📘' },
+    { id: 'faq', label: 'FAQ', emoji: '❓' },
+    { id: 'troubleshooting', label: 'Troubleshooting', emoji: '🛠️' },
+    { id: 'billing', label: 'Billing', emoji: '💳' },
+    { id: 'question', label: 'Question', emoji: '💬' },
+  ],
+};
+
+const PAYMENT_DEFAULTS = {
+  enabled: true,
+  title: '💳 Champ checkout',
+  description:
+    'Buy or renew Champ without leaving Discord. Choose a plan, pick crypto, DonutSMP money or a gift card, and the license lands on your linked account.',
+  color: '#FFC93C',
+  supportUrl: '',
+  showWebCheckout: true,
+  orderRefreshSeconds: 20,
+  plans: {
+    weekly: { label: 'Weekly', price: '€2.99', days: 7, description: '7 days of full access' },
+    monthly: { label: 'Monthly', price: '€6.99', days: 30, description: '30 days of full access' },
+    lifetime: { label: 'Lifetime', price: '€9.99', days: null, description: 'One payment, never expires' },
+  },
+};
+
 const WELCOME_DEFAULTS = {
   enabled: true,
   channelId: '',
@@ -106,7 +142,9 @@ function withDefaults(value, defaults) {
 }
 
 function getTicketConfig() {
-  return withDefaults(load('tickets.json', {}), TICKET_DEFAULTS);
+  const base = withDefaults(load('tickets.json', {}), TICKET_DEFAULTS);
+  const overrides = jsonStore.readJson('ticket-settings.json', {});
+  return withDefaults(overrides, base);
 }
 
 function getGiveawayConfig() {
@@ -115,6 +153,16 @@ function getGiveawayConfig() {
 
 function getWelcomeDefaults() {
   return withDefaults(load('welcome.json', {}), WELCOME_DEFAULTS);
+}
+
+function getKnowledgeConfig() {
+  const base = withDefaults(load('knowledge.json', {}), KNOWLEDGE_DEFAULTS);
+  const overrides = jsonStore.readJson('knowledge-settings.json', {});
+  return withDefaults(overrides, base);
+}
+
+function getPaymentConfig() {
+  return withDefaults(load('payments.json', {}), PAYMENT_DEFAULTS);
 }
 
 function clearCache() {
@@ -128,6 +176,10 @@ module.exports = {
   getTicketConfig,
   getGiveawayConfig,
   getWelcomeDefaults,
+  getKnowledgeConfig,
+  getPaymentConfig,
   WELCOME_DEFAULTS,
+  KNOWLEDGE_DEFAULTS,
+  PAYMENT_DEFAULTS,
   clearCache,
 };
