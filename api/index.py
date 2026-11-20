@@ -33,7 +33,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from cryptography.hazmat.primitives.serialization import load_der_public_key
 import jwt
 import requests
-from fastapi import Cookie, Depends, FastAPI, Header, HTTPException, Request, Response
+from fastapi import BackgroundTasks, Cookie, Depends, FastAPI, Header, HTTPException, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, EmailStr
 
@@ -3099,6 +3099,104 @@ def device_challenge(p: ChallengeReq):
     }
 
 
+INJECT_ALERT_MINUTES = 30   # at most one Discord notice per licence per half hour
+INJECT_LOG_MINUTES = 10     # a retry of the same launch must not add another row
+
+
+def session_reference(session_token: Optional[str]) -> str:
+    """A one-way reference for the launcher session behind one inject.
+
+    The cookie itself is a thirty-day login, so it is never stored, returned, logged or sent
+    to Discord. This keyed digest is enough to recognise the same session across launches;
+    a database read cannot be turned back into a working credential.
+    """
+    if not session_token:
+        return ""
+    key = hmac.new(jwt_secret().encode(), b"champ-session-ref-v1", hashlib.sha256).digest()
+    return hmac.new(key, session_token.encode(), hashlib.sha256).hexdigest()
+
+
+def record_inject(email: str, plan: str, license_id: Optional[int],
+                  session_token: Optional[str], session_kind: str, ip: str) -> None:
+    """Writes one inject to `inject_events` and tells the owner.
+
+    The row carries only the one-way `session_ref`; the raw session token, the password and
+    the HWID never leave the server. A missing table (the migration has not been applied yet)
+    or a database hiccup is logged and ignored: it must never block a paying customer.
+    """
+    try:
+        ref = session_reference(session_token)
+    except Exception as exc:
+        print("Inject log skipped:", type(exc).__name__)
+        return
+
+    notify = True
+    duplicate = False
+    try:
+        previous = (db_list("inject_events", {"license_id": eq(license_id)}, limit=1,
+                            order="created_at.desc") if license_id else [])
+        if previous:
+            row = previous[0]
+            last_seen = parse_dt(row.get("created_at"))
+            same_session = (row.get("session_ref") or "") == ref
+            # The same session relaunching is noise; a different session is exactly the
+            # event the owner wants to hear about, so that one is never throttled away.
+            if same_session and last_seen and last_seen > now() - timedelta(minutes=INJECT_ALERT_MINUTES):
+                notify = False
+            if same_session and last_seen and last_seen > now() - timedelta(minutes=INJECT_LOG_MINUTES):
+                duplicate = True
+        if not duplicate:
+            db_insert("inject_events", {
+                "license_id": license_id,
+                "email": email,
+                "plan_type": plan,
+                "session_kind": session_kind,
+                "session_ref": ref,
+                "ip": ip,
+            })
+    except Exception as exc:
+        print("Inject log skipped:", type(exc).__name__)
+
+    if notify:
+        notify_owner_inject(email, plan, ref, session_kind)
+
+
+def notify_owner_inject(email: str, plan: str, ref: str, session_kind: str) -> None:
+    """Posts the inject notice in the owner-only Discord channel.
+
+    No credential is in the message: not the session token, not a licence key, not a password.
+    The reference matches `inject_events.session_ref` in the database, which is where support
+    can follow a launch; the channel only needs to know that one happened.
+    """
+    token = (os.getenv("DISCORD_BOT_TOKEN") or os.getenv("DISCORD_TOKEN") or "").strip()
+    channel = (os.getenv("INJECT_LOG_CHANNEL_ID") or "").strip()
+    if not token or not channel:
+        return
+
+    def clean(value, limit: int) -> str:
+        return re.sub(r"[`\r\n]", "", str(value or ""))[:limit]
+
+    lines = [
+        "**Champ inject**",
+        f"Account: {clean(email, 120) or 'unclaimed'}",
+        f"Plan: {clean(plan, 24) or 'unknown'}",
+        f"Mode: {'licence key' if session_kind == 'key' else 'account session'}",
+        f"Session ref: {clean(ref, 64) or 'none'}",
+        f"Time: {iso(now())}",
+    ]
+    try:
+        r = requests.post(
+            f"https://discord.com/api/v10/channels/{channel}/messages",
+            headers={"Authorization": f"Bot {token}"},
+            json={"content": "\n".join(lines), "allowed_mentions": {"parse": []}},
+            timeout=6,
+        )
+        if r.status_code >= 300:
+            print("Inject alert failed:", r.status_code)
+    except Exception as exc:
+        print("Inject alert failed:", type(exc).__name__)
+
+
 @app.post("/api/license/session")
 def license_session(p: SessionReq, request: Request):
     """Cloud-only license check used by the current client.
@@ -3381,8 +3479,16 @@ def launcher_payload(user: dict, request: Request, hwid: str = "") -> dict:
 
 
 @app.get("/api/launcher/state")
-def launcher_state(request: Request, hwid: str = "", user: dict = Depends(current_user)):
-    return launcher_payload(user, request, hwid)
+def launcher_state(request: Request, background: BackgroundTasks, hwid: str = "",
+                   session_token: Optional[str] = Cookie(None),
+                   user: dict = Depends(current_user)):
+    payload = launcher_payload(user, request, hwid)
+    if payload.get("can_inject"):
+        lic = account_license(user)
+        background.add_task(record_inject, user["email"], payload.get("license") or "",
+                            (lic or {}).get("id"), session_token, "account",
+                            client_ip(request))
+    return payload
 
 
 @app.post("/api/launcher/reset/ip")
@@ -3516,9 +3622,15 @@ class LauncherKeyReq(BaseModel):
 
 
 @app.post("/api/launcher/key")
-def launcher_key(request: Request, p: LauncherKeyReq):
+def launcher_key(request: Request, p: LauncherKeyReq, background: BackgroundTasks):
     """Signs the injector in with a license key: PC and network both have to match."""
-    return key_payload(key_license(p.key), request, p.hwid)
+    lic = key_license(p.key)
+    payload = key_payload(lic, request, p.hwid)
+    if payload.get("can_inject"):
+        background.add_task(record_inject, lic.get("email") or "",
+                            payload.get("license") or "", lic.get("id"), None, "key",
+                            client_ip(request))
+    return payload
 
 
 @app.post("/api/launcher/key/reset/ip")

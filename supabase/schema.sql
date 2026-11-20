@@ -122,6 +122,23 @@ create table if not exists public.hwid_resets (
 create index if not exists hwid_resets_license_idx on public.hwid_resets (license_id, created_at desc);
 alter table public.hwid_resets enable row level security;
 
+-- Inject audit: one row per launch that actually injected. The launcher session cookie is a
+-- full login, so only a keyed, one-way reference is kept; the same session can be recognised
+-- across launches, but a row cannot be replayed as a token.
+create table if not exists public.inject_events (
+  id            bigint generated always as identity primary key,
+  license_id    bigint,
+  email         text not null default '',
+  plan_type     text not null default '',
+  session_kind  text not null default 'account' check (session_kind in ('account', 'key')),
+  session_ref   text not null default '',
+  ip            text not null default '',
+  created_at    timestamptz not null default now()
+);
+create index if not exists inject_events_license_idx on public.inject_events (license_id, created_at desc);
+create index if not exists inject_events_ref_idx on public.inject_events (session_ref) where session_ref <> '';
+alter table public.inject_events enable row level security;
+
 alter table public.pending_payments add column if not exists referral_code text;
 
 -- Referrals: users earn 10% credit for sales through their personal link.
