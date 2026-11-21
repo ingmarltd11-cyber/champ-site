@@ -70,8 +70,11 @@ async function ensureDefaultPanels(client) {
 
       try {
         if (existing) {
-          // Keep staff copy edits, but always enforce the category list the panel is for.
-          const options = { ...def.options, ...existing.options, typeIds: def.options.typeIds };
+          // Keep staff copy edits. Only an untouched default panel gets the standard category
+          // list enforced; a panel edited through /ticket keeps its own categories.
+          const options = existing.options?.customised
+            ? { ...def.options, ...existing.options }
+            : { ...def.options, ...existing.options, typeIds: def.options.typeIds };
           const updated = await panelStore.updatePanel(existing.id, { options });
           await postPanel(client, updated);
           result.updated += 1;

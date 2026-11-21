@@ -18,7 +18,7 @@ const { isStaffMember } = require('../utils/permissions');
 const { view, clip } = require('./guiHelpers');
 const { buildId, parseId } = require('./ids');
 const panelStore = require('./panelStore');
-const { postPanel } = require('./panelRuntime');
+const { postPanel, deletePanelMessage } = require('./panelRuntime');
 const { log } = require('../utils/logger');
 
 const COLOUR = '#FFC93C';
@@ -37,14 +37,59 @@ function row(...components) {
   return new ActionRowBuilder().addComponents(...components);
 }
 
-function typeOptions(types) {
+function typeOptions(types, selected = []) {
   return types.slice(0, 25).map((type) =>
     new StringSelectMenuOptionBuilder()
       .setLabel(clip(type.label || type.id, 100))
       .setValue(type.id)
       .setDescription(clip(`${(type.questions || []).length} question(s) · ${type.description || type.id}`, 100))
       .setEmoji(type.emoji || '🎫')
+      .setDefault(selected.includes(type.id))
   );
+}
+
+function panelOptions(panels) {
+  return panels.slice(0, 25).map((panel) =>
+    new StringSelectMenuOptionBuilder()
+      .setLabel(clip(panel.name, 100))
+      .setValue(panel.id)
+      .setDescription(
+        clip(
+          `${(panel.options?.typeIds || []).length || 'all'} categories · ${panel.messageId ? 'posted' : 'not posted'}`,
+          100
+        )
+      )
+      .setEmoji('🧩')
+  );
+}
+
+function multiSelect(customId, placeholder, options) {
+  return row(
+    new StringSelectMenuBuilder()
+      .setCustomId(customId)
+      .setPlaceholder(clip(placeholder, 150))
+      .setMinValues(1)
+      .setMaxValues(Math.min(25, Math.max(1, options.length)))
+      .addOptions(options)
+  );
+}
+
+// The category picker and the text form are two separate Discord interactions. Keep the picked
+// category ids here for the few seconds between them, scoped to the staff member.
+const panelDrafts = new Map();
+const DRAFT_TTL_MS = 10 * 60 * 1000;
+
+function setDraft(userId, value) {
+  const now = Date.now();
+  for (const [id, draft] of panelDrafts) if (draft.expiresAt < now) panelDrafts.delete(id);
+  panelDrafts.set(String(userId), { ...value, expiresAt: now + DRAFT_TTL_MS });
+}
+
+function takeDraft(userId) {
+  const key = String(userId);
+  const draft = panelDrafts.get(key);
+  panelDrafts.delete(key);
+  return draft && draft.expiresAt >= Date.now() ? draft : null;
 }
 
 function questionOptions(type) {
@@ -122,6 +167,14 @@ async function execute(interaction, group, sub) {
       return editPanelCopy(interaction);
     case 'settings:limits':
       return editLimits(interaction);
+    case 'panel:add':
+      return startPanelAdd(interaction);
+    case 'panel:edit':
+      return startPanelEdit(interaction);
+    case 'panel:remove':
+      return startPanelRemove(interaction);
+    case 'panel:list':
+      return listPanels(interaction);
     case 'panel:post':
       return postPanelHere(interaction);
     default:
@@ -592,6 +645,229 @@ async function settingsLimitsSubmit(interaction) {
   return view(interaction, { embeds: [embed('✅ Limits saved', 'New tickets use these settings immediately.')] });
 }
 
+// ---------------------------------------------------------------------------
+// Panels
+// ---------------------------------------------------------------------------
+
+async function startPanelAdd(interaction) {
+  const types = await ticketTypes.listTypes();
+  if (!types.length) return view(interaction, { content: 'No categories yet. Add one with `/ticket category add`.' });
+  return view(interaction, {
+    embeds: [embed('➕ Add a ticket panel', 'Pick the categories this panel should show. You can pick several.')],
+    components: [
+      multiSelect(buildId('ticket-config', 'p-add-cats'), 'Choose one or more categories...', typeOptions(types)),
+    ],
+  });
+}
+
+async function panelAddCategories(interaction) {
+  setDraft(interaction.user.id, { typeIds: interaction.values });
+  const modal = new ModalBuilder()
+    .setCustomId(buildId('ticket-config', 'p-add'))
+    .setTitle('New ticket panel')
+    .addComponents(
+      row(input('name', 'Panel name', TextInputStyle.Short, { value: 'tickets', maxLength: 80 })),
+      row(input('title', 'Panel title', TextInputStyle.Short, { value: '🎫 Champ Support', maxLength: 256 })),
+      row(
+        input('description', 'Panel description', TextInputStyle.Paragraph, {
+          value: 'Choose a reason for your ticket below. A team member will help you as soon as possible.',
+          maxLength: 2000,
+        })
+      ),
+      row(
+        input('placeholder', 'Dropdown placeholder', TextInputStyle.Short, {
+          value: 'Choose a support category...',
+          maxLength: 150,
+        })
+      ),
+      row(input('color', 'Colour (#FFC93C)', TextInputStyle.Short, { value: COLOUR, maxLength: 7 }))
+    );
+  return interaction.showModal(modal);
+}
+
+async function panelAddSubmit(interaction) {
+  const draft = takeDraft(interaction.user.id);
+  if (!draft) throw new Error('That panel form expired. Run `/ticket panel add` again.');
+  const name = clip(interaction.fields.getTextInputValue('name').trim() || 'tickets', 80);
+  const title = clip(interaction.fields.getTextInputValue('title').trim(), 256);
+  const description = clip(interaction.fields.getTextInputValue('description').trim(), 2000);
+  const placeholder = clip(interaction.fields.getTextInputValue('placeholder').trim(), 150);
+  const color = interaction.fields.getTextInputValue('color').trim();
+  if (!title) throw new Error('The panel needs a title.');
+  if (color && !/^#[0-9a-f]{6}$/i.test(color)) throw new Error('Colour must look like #FFC93C.');
+
+  const panel = await panelStore.createPanel({
+    guildId: interaction.guildId,
+    type: 'tickets',
+    name,
+    channelId: interaction.channelId,
+    createdBy: interaction.user.id,
+    options: {
+      title,
+      description,
+      placeholder,
+      ...(color ? { color } : {}),
+      typeIds: draft.typeIds,
+      customised: true,
+    },
+  });
+  const message = await postPanel(interaction.client, panel);
+  return view(interaction, {
+    embeds: [embed('✅ Panel added', `**${panel.name}** is live: ${message.url}`)],
+  });
+}
+
+async function startPanelEdit(interaction) {
+  const panels = await panelStore.listPanels({ guildId: interaction.guildId, type: 'tickets' });
+  if (!panels.length) return view(interaction, { content: 'There are no ticket panels yet. Add one with `/ticket panel add`.' });
+  return view(interaction, {
+    embeds: [embed('✏️ Edit a ticket panel', 'Pick the panel to edit.')],
+    components: [select(buildId('ticket-config', 'p-edit-cat'), 'Choose a panel...', panelOptions(panels))],
+  });
+}
+
+async function panelEditPick(interaction, panelId) {
+  const panel = await panelStore.getPanel(panelId);
+  if (!panel || panel.guildId !== interaction.guildId) return view(interaction, { content: 'That panel no longer exists.' });
+  const types = await ticketTypes.listTypes();
+  if (!types.length) return view(interaction, { content: 'No categories yet. Add one with `/ticket category add`.' });
+  const current = Array.isArray(panel.options?.typeIds) && panel.options.typeIds.length
+    ? panel.options.typeIds
+    : types.map((type) => type.id);
+  return view(interaction, {
+    embeds: [embed('✏️ Edit a ticket panel', `Pick the categories for **${panel.name}**. The current ones are selected.`)],
+    components: [
+      multiSelect(buildId('ticket-config', 'p-edit-cats', panel.id), 'Choose one or more categories...', typeOptions(types, current)),
+    ],
+  });
+}
+
+async function panelEditCategories(interaction, panelId) {
+  const panel = await panelStore.getPanel(panelId);
+  if (!panel || panel.guildId !== interaction.guildId) return view(interaction, { content: 'That panel no longer exists.' });
+  setDraft(interaction.user.id, { panelId: panel.id, typeIds: interaction.values });
+  const options = panel.options || {};
+  const modal = new ModalBuilder()
+    .setCustomId(buildId('ticket-config', 'p-edit', panel.id))
+    .setTitle(clip(`Edit · ${panel.name}`, 45))
+    .addComponents(
+      row(input('name', 'Panel name', TextInputStyle.Short, { value: panel.name, maxLength: 80 })),
+      row(
+        input('title', 'Panel title', TextInputStyle.Short, {
+          value: options.title || '',
+          maxLength: 256,
+        })
+      ),
+      row(
+        input('description', 'Panel description', TextInputStyle.Paragraph, {
+          value: options.description || '',
+          maxLength: 2000,
+        })
+      ),
+      row(
+        input('placeholder', 'Dropdown placeholder', TextInputStyle.Short, {
+          value: options.placeholder || '',
+          maxLength: 150,
+        })
+      ),
+      row(input('color', 'Colour (#FFC93C)', TextInputStyle.Short, { value: options.color || COLOUR, maxLength: 7 }))
+    );
+  return interaction.showModal(modal);
+}
+
+async function panelEditSubmit(interaction, panelId) {
+  const draft = takeDraft(interaction.user.id);
+  if (!draft || draft.panelId !== panelId) throw new Error('That panel form expired. Run `/ticket panel edit` again.');
+  const panel = await panelStore.getPanel(panelId);
+  if (!panel || panel.guildId !== interaction.guildId) throw new Error('That panel no longer exists.');
+
+  const name = clip(interaction.fields.getTextInputValue('name').trim() || panel.name, 80);
+  const title = clip(interaction.fields.getTextInputValue('title').trim(), 256);
+  const description = clip(interaction.fields.getTextInputValue('description').trim(), 2000);
+  const placeholder = clip(interaction.fields.getTextInputValue('placeholder').trim(), 150);
+  const color = interaction.fields.getTextInputValue('color').trim();
+  if (!title) throw new Error('The panel needs a title.');
+  if (color && !/^#[0-9a-f]{6}$/i.test(color)) throw new Error('Colour must look like #FFC93C.');
+
+  const options = {
+    ...(panel.options || {}),
+    title,
+    description,
+    placeholder,
+    ...(color ? { color } : {}),
+    typeIds: draft.typeIds,
+    customised: true,
+  };
+  const updated = await panelStore.updatePanel(panel.id, { name, options });
+  const message = await postPanel(interaction.client, updated);
+  return view(interaction, {
+    embeds: [embed('✅ Panel updated', `**${updated.name}** is refreshed: ${message.url}`)],
+  });
+}
+
+async function startPanelRemove(interaction) {
+  const panels = await panelStore.listPanels({ guildId: interaction.guildId, type: 'tickets' });
+  if (!panels.length) return view(interaction, { content: 'There are no ticket panels yet.' });
+  return view(interaction, {
+    embeds: [embed('🗑️ Remove a ticket panel', 'Pick the panel to delete. Its message is removed too.')],
+    components: [select(buildId('ticket-config', 'p-del-cat'), 'Choose a panel...', panelOptions(panels))],
+  });
+}
+
+async function panelRemovePick(interaction, panelId) {
+  const panel = await panelStore.getPanel(panelId);
+  if (!panel || panel.guildId !== interaction.guildId) return view(interaction, { content: 'That panel no longer exists.' });
+  return view(interaction, {
+    embeds: [
+      embed(
+        '🗑️ Confirm removal',
+        `Delete the panel **${panel.name}** and its message?\n\nA default #media or #tickets panel is posted again on the next restart.`
+      ),
+    ],
+    components: [
+      row(
+        new ButtonBuilder()
+          .setCustomId(buildId('ticket-config', 'p-del', panel.id))
+          .setLabel('Yes, delete')
+          .setEmoji('🗑️')
+          .setStyle(ButtonStyle.Danger),
+        new ButtonBuilder()
+          .setCustomId(buildId('ticket-config', 'cancel'))
+          .setLabel('Cancel')
+          .setStyle(ButtonStyle.Secondary)
+      ),
+    ],
+  });
+}
+
+async function panelRemoveConfirm(interaction, panelId) {
+  const panel = await panelStore.getPanel(panelId);
+  if (!panel || panel.guildId !== interaction.guildId) throw new Error('That panel no longer exists.');
+  await deletePanelMessage(interaction.client, panel);
+  await panelStore.deletePanel(panel.id);
+  return view(interaction, { embeds: [embed('🗑️ Panel removed', `**${panel.name}** is gone.`)] });
+}
+
+async function listPanels(interaction) {
+  const panels = await panelStore.listPanels({ guildId: interaction.guildId, type: 'tickets' });
+  const embedBuilder = new EmbedBuilder()
+    .setTitle('🧩 Ticket panels')
+    .setColor(COLOUR)
+    .setFooter({ text: `${panels.length} panel(s) · /ticket panel add to create one` });
+  if (!panels.length) embedBuilder.setDescription('There are no ticket panels yet.');
+  for (const panel of panels.slice(0, 15)) {
+    embedBuilder.addFields({
+      name: clip(panel.name, 256),
+      value: clip(
+        `<#${panel.channelId}> · ${(panel.options?.typeIds || []).length || 'all'} categories · ${panel.messageId ? 'posted' : 'not posted'}`,
+        1024
+      ),
+      inline: true,
+    });
+  }
+  return view(interaction, { embeds: [embedBuilder] });
+}
+
 async function postPanelHere(interaction) {
   if (!interaction.channel?.isTextBased()) return view(interaction, { content: 'Use this in a text channel.' });
   await interaction.deferReply({ ephemeral: true });
@@ -632,6 +908,14 @@ async function handleComponent(interaction) {
           return categoryEditPick(interaction, interaction.values[0]);
         case 'c-del-cat':
           return categoryRemovePick(interaction, interaction.values[0]);
+        case 'p-add-cats':
+          return panelAddCategories(interaction);
+        case 'p-edit-cat':
+          return panelEditPick(interaction, interaction.values[0]);
+        case 'p-edit-cats':
+          return panelEditCategories(interaction, parts[2]);
+        case 'p-del-cat':
+          return panelRemovePick(interaction, interaction.values[0]);
       }
     }
 
@@ -639,6 +923,7 @@ async function handleComponent(interaction) {
       if (action === 'cancel') return view(interaction, { embeds: [embed('Cancelled', 'Nothing was changed.')] });
       if (action === 'q-del') return questionRemoveConfirm(interaction, parts[2], parts[3]);
       if (action === 'c-del') return categoryRemoveConfirm(interaction, parts[2]);
+      if (action === 'p-del') return panelRemoveConfirm(interaction, parts[2]);
     }
 
     if (interaction.isModalSubmit()) {
@@ -651,6 +936,10 @@ async function handleComponent(interaction) {
           return categoryAddSubmit(interaction);
         case 'c-edit':
           return categoryEditSubmit(interaction, parts[2]);
+        case 'p-add':
+          return panelAddSubmit(interaction);
+        case 'p-edit':
+          return panelEditSubmit(interaction, parts[2]);
         case 'settings':
           return settingsPanelSubmit(interaction);
         case 'limits':
@@ -670,4 +959,5 @@ module.exports = {
   handleComponent,
   slug,
   uniqueId,
+  panelOptions,
 };

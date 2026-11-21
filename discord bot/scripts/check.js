@@ -125,6 +125,10 @@ const fakeMember = {
   check((await ticketTypes.listTypes()).length === startCount, 'ticket form changes can be undone');
   check(ticketConfig.slug('Buy Champ Client!') === 'buy-champ-client', 'category ids are slugged from the form');
   check(ticketConfig.uniqueId([{ id: 'version' }], 'Version') === 'version-2', 'question ids stay unique');
+  const panelChoices = ticketConfig.panelOptions([
+    { id: 'abc', name: 'media', options: { typeIds: ['a', 'b'] }, messageId: 'm1' },
+  ]);
+  check(panelChoices.length === 1 && panelChoices[0].data.value === 'abc', 'the panel picker lists stored panels');
   check(ownerActions.parse('delete this ticket')?.action === 'delete-ticket', 'the owner can ask to delete a ticket');
   check(ownerActions.parse('verwijder 5 berichten')?.action === 'delete-messages', 'Dutch message deletion is understood');
   check(ownerActions.parse('delete role VIP')?.target === 'VIP', 'role deletion targets the named role');

@@ -221,11 +221,20 @@ Every editor is a Discord form, so nobody has to touch `config/tickets.json`:
 | `/ticket category remove` | Pick a category, then confirm |
 | `/ticket settings panel` | Panel title, description, placeholder, footer and colour |
 | `/ticket settings limits` | Support role name, max open, delete delay, transcript format and rating |
+| `/ticket panel add` | Pick categories, then name, title, description, placeholder and colour |
+| `/ticket panel edit` | Pick a panel and its categories, then edit the prefilled text form |
+| `/ticket panel remove` | Pick a panel, then confirm; the message and record are removed |
+| `/ticket panel list` | Show every panel, its channel and category count |
 | `/ticket panel post` | Post a fresh ticket panel in the current channel |
 
 Discord allows five questions per ticket category; adding a sixth is refused. The edited
 category list is stored in `DATA_DIR/ticket-types.json` and overrides the shipped list, so a
 redeploy keeps it. `/ticket question list` and `/ticket category list` show the current state.
+
+Panels created or edited with `/ticket panel` are stored in `DATA_DIR/panels.json`. A panel
+edited that way is marked customised, so the startup seeder for `#media` and `#tickets` keeps its
+chosen categories instead of restoring the standard list. Deleting a default panel is allowed,
+but the seeder posts it again on the next restart unless that panel is customised first.
 
 ## Owner-only actions
 

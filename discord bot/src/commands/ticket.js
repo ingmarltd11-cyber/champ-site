@@ -32,7 +32,11 @@ const data = new SlashCommandBuilder()
   .addSubcommandGroup((group) =>
     group
       .setName('panel')
-      .setDescription('Post the ticket panel')
+      .setDescription('Add, edit, remove, list or post ticket panels')
+      .addSubcommand((sub) => sub.setName('add').setDescription('Pick categories and create a panel in a form'))
+      .addSubcommand((sub) => sub.setName('edit').setDescription('Edit a panel and its categories in a form'))
+      .addSubcommand((sub) => sub.setName('remove').setDescription('Pick a panel and delete it'))
+      .addSubcommand((sub) => sub.setName('list').setDescription('Show every ticket panel'))
       .addSubcommand((sub) => sub.setName('post').setDescription('Post a ticket panel in this channel'))
   );
 
