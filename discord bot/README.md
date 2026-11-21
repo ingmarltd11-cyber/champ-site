@@ -163,6 +163,10 @@ if none are enabled, the panel links to the website checkout/support instead.
 | --- | --- | --- |
 | `/panel [channel]` | staff | Post the persistent control panel |
 | `/ticket-panel [channel] [name]` | staff | Post a stored, refreshable ticket panel |
+| `/ticket question add` · `edit` · `remove` · `list` | staff | Category and question forms (see below) |
+| `/ticket category add` · `edit` · `remove` · `list` | staff | Add or change a whole ticket category in a form |
+| `/ticket settings panel` · `limits` | staff | Panel copy and ticket limits in a form |
+| `/ticket panel post` | staff | Post the ticket panel in this channel |
 | `/ticket-close [reason]` | opener / staff | Close with transcript, DM and rating |
 | `/ticket-add user:@member` | staff | Let someone else see and reply in the ticket |
 | `/ticket-remove user:@member` | staff | Remove their access again |
@@ -202,6 +206,42 @@ channel from the control panel.
 - A ticket channel deleted by hand is marked closed instead of staying open in the stats.
 - One open ticket per member by default (`settings.maxOpenTicketsPerUser`), plus a 20 second
   creation cooldown to stop accidental double tickets.
+
+## Ticket setup without JSON: `/ticket`
+
+Every editor is a Discord form, so nobody has to touch `config/tickets.json`:
+
+| Command | Form |
+| --- | --- |
+| `/ticket question add` | Pick a category, then title, placeholder, short/paragraph and required |
+| `/ticket question edit` | Pick a category and question; the form is prefilled |
+| `/ticket question remove` | Pick a category and question, then confirm |
+| `/ticket category add` | Id, title, emoji, dropdown description and ping Support |
+| `/ticket category edit` | Title, emoji, description, support role id and ping |
+| `/ticket category remove` | Pick a category, then confirm |
+| `/ticket settings panel` | Panel title, description, placeholder, footer and colour |
+| `/ticket settings limits` | Support role name, max open, delete delay, transcript format and rating |
+| `/ticket panel post` | Post a fresh ticket panel in the current channel |
+
+Discord allows five questions per ticket category; adding a sixth is refused. The edited
+category list is stored in `DATA_DIR/ticket-types.json` and overrides the shipped list, so a
+redeploy keeps it. `/ticket question list` and `/ticket category list` show the current state.
+
+## Owner-only actions
+
+The AI ticket has deterministic owner commands — they never come from the model:
+
+| Owner says | What happens |
+| --- | --- |
+| `delete this ticket` (or `verwijder dit ticket`) | Confirmation buttons; then transcript, close and channel delete |
+| `delete role <name or id>` | Confirmation buttons; deletes the role if it is below the bot |
+| `delete 10 messages` (or `verwijder 10 berichten`) | Confirmation buttons; deletes the last 10 messages |
+| `delete message <link or id>` / reply with `delete this message` | Confirmation buttons; deletes that one message |
+
+Only the owner can confirm the buttons, and the actions only run inside an AI support ticket.
+The bot is also owner-only: when it is added to a server it does not recognise, it leaves again.
+Set `OWNER_IDS` and/or `OWNER_GUILD_IDS` to make that allowlist explicit; without them the
+usernames `silvan` and `sora_developing` and guilds already known to the bot are accepted.
 
 ## AI support tickets
 
@@ -280,6 +320,7 @@ Discord support links; AI answers live only inside an AI support ticket.
 | Knowledge settings | `DATA_DIR/knowledge-settings.json` | — |
 | Rule overrides | `DATA_DIR/rules.json` | — |
 | Panels | `DATA_DIR/panels.json` | — |
+| Ticket categories from `/ticket` | `DATA_DIR/ticket-types.json` | — |
 | Control panel pointer | `DATA_DIR/control.json` | — |
 
 Set `DATA_DIR` to a mounted volume (for example `/data` on Railway) so restarts keep everything.
@@ -308,6 +349,8 @@ Existing names are preserved. Either Discord name works:
 | `DATA_DIR` | volume | Persistent state |
 | `SUPABASE_URL` + `SUPABASE_SERVICE_KEY` | no | Shared ticket history |
 | `CONTROL_PANEL_CHANNEL_ID` | no | Post/refresh the control panel here on startup |
+| `OWNER_IDS` | recommended | Comma-separated user ids allowed to use owner actions and add the bot |
+| `OWNER_GUILD_IDS` | recommended | Comma-separated guild ids the bot may stay in; others are left |
 | `OPENAI_API_KEY` / `AI_API_KEY` | for AI tickets | Enables the AI support conversation (OpenAI-compatible) |
 | `OPENAI_BASE_URL` / `AI_BASE_URL` | no | Chat-completions base URL, default `https://api.openai.com/v1` |
 | `OPENAI_MODEL` / `AI_MODEL` | no | Model name, default `gpt-4o-mini` |

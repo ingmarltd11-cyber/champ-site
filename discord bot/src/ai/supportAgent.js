@@ -5,6 +5,7 @@ const knowledgeStore = require('../knowledge/knowledgeStore');
 const { resolveSupportRole, isStaffMember } = require('../utils/permissions');
 const { siteUrl, truncate } = require('../utils/format');
 const { log } = require('../utils/logger');
+const ownerActions = require('./ownerActions');
 
 // The AI support ticket is a normal private ticket whose conversation is answered by an
 // OpenAI-compatible chat model. It is deliberately stateless between requests: the recent
@@ -237,10 +238,17 @@ async function handleMessage(message, ticket) {
   const config = getTicketConfig();
   const type = (config.types || []).find((candidate) => candidate.id === ticket.typeId);
   if (!type?.ai || ticket.status === 'closed') return false;
+
+  const content = String(message.content || '').trim();
+  // Destructive actions are deterministic owner commands, never model output. Checked before
+  // the staff guard so the owner's own messages still reach them.
+  if (ownerActions.isOwner(message.author)) {
+    const action = ownerActions.parse(content);
+    if (action) return ownerActions.prompt(message, action);
+  }
   // Staff take over by simply talking; the assistant must not answer its own team.
   if (isStaffMember(message.member, message.guild, config)) return false;
 
-  const content = String(message.content || '').trim();
   const { role, text: ping } = supportPing(message.guild, type, config);
 
   if (wantsHuman(content)) {

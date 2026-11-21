@@ -28,7 +28,9 @@ const controlPanel = require('./core/controlPanel');
 const controlStore = require('./core/controlStore');
 const panelRuntime = require('./core/panelRuntime');
 const defaultPanels = require('./core/defaultPanels');
+const ticketEditor = require('./core/ticketConfig');
 const supportAgent = require('./ai/supportAgent');
+const ownerActions = require('./ai/ownerActions');
 const knowledgeSync = require('./knowledge/knowledgeSync');
 const { startHealthServer } = require('./health');
 const { registerCommands } = require('./deploy-commands');
@@ -130,6 +132,14 @@ client.on('interactionCreate', async (interaction) => {
       await paymentInteractions.handlePayment(interaction);
       return;
     }
+    if (customId.startsWith('ticket-config:')) {
+      await ticketEditor.handleComponent(interaction);
+      return;
+    }
+    if (customId.startsWith('owner-confirm:') || customId.startsWith('owner-cancel:')) {
+      await ownerActions.handleButton(interaction);
+      return;
+    }
 
     if (interaction.isButton()) {
       const id = interaction.customId;
@@ -202,6 +212,17 @@ client.on('messageCreate', async (message) => {
   }
 });
 
+// The bot is owner-only: a guild that is not the owner's server is left again immediately.
+client.on('guildCreate', async (guild) => {
+  try {
+    if (await ownerActions.isOwnerGuild(guild)) return;
+    log.warn('access', `leaving ${guild.name} (${guild.id}): only the owner may add this bot`);
+    await guild.leave();
+  } catch (err) {
+    log.warn('access', `could not check guild ${guild.id}: ${err.message}`);
+  }
+});
+
 // A deleted ticket channel must not stay "open" forever in the statistics.
 client.on('channelDelete', async (channel) => {
   try {
@@ -245,6 +266,12 @@ client.once('ready', async () => {
     activities: [{ name: siteUrl().replace(/^https?:\/\//, ''), type: ActivityType.Watching }],
     status: 'online',
   });
+
+  for (const guild of client.guilds.cache.values()) {
+    if (!(await ownerActions.isOwnerGuild(guild))) {
+      log.warn('access', `${guild.name} (${guild.id}) is not an owner server; new servers that are not allowed are left automatically.`);
+    }
+  }
 
   for (const guild of client.guilds.cache.values()) {
     const warnings = auditGuild(guild, {

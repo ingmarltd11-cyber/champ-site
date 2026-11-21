@@ -10,6 +10,8 @@ delete process.env.SUPABASE_URL;
 delete process.env.SUPABASE_SERVICE_KEY;
 delete process.env.AI_API_KEY;
 delete process.env.OPENAI_API_KEY;
+delete process.env.OWNER_IDS;
+delete process.env.OWNER_GUILD_IDS;
 
 const { getTicketConfig, getGiveawayConfig, getKnowledgeConfig, getPaymentConfig } = require('../src/config/loadConfig');
 const panelStore = require('../src/core/panelStore');
@@ -106,6 +108,31 @@ const fakeMember = {
     defaultPanels.DEFAULTS[1].options.typeIds.includes('ai-support'),
     'the tickets panel includes AI support'
   );
+
+  console.log('\nticket forms and owner actions');
+  const ticketTypes = require('../src/utils/ticketTypes');
+  const ticketConfig = require('../src/core/ticketConfig');
+  const ownerActions = require('../src/ai/ownerActions');
+  const startCount = (await ticketTypes.listTypes()).length;
+  await ticketTypes.addType({ id: 'gui-test', label: 'GUI test', emoji: '🧪', description: 'Temporary category' });
+  check((await ticketTypes.listTypes()).length === startCount + 1, 'a category can be added from /ticket');
+  await ticketTypes.addQuestion('gui-test', { id: 'title', label: 'Title', style: 'short', required: true, maxLength: 100 });
+  check((await ticketTypes.getType('gui-test')).questions.length === 1, 'a question can be added from /ticket');
+  await ticketTypes.updateQuestion('gui-test', 'title', { label: 'Title updated' });
+  check((await ticketTypes.getType('gui-test')).questions[0].label === 'Title updated', 'a question can be edited');
+  await ticketTypes.removeQuestion('gui-test', 'title');
+  await ticketTypes.removeType('gui-test');
+  check((await ticketTypes.listTypes()).length === startCount, 'ticket form changes can be undone');
+  check(ticketConfig.slug('Buy Champ Client!') === 'buy-champ-client', 'category ids are slugged from the form');
+  check(ticketConfig.uniqueId([{ id: 'version' }], 'Version') === 'version-2', 'question ids stay unique');
+  check(ownerActions.parse('delete this ticket')?.action === 'delete-ticket', 'the owner can ask to delete a ticket');
+  check(ownerActions.parse('verwijder 5 berichten')?.action === 'delete-messages', 'Dutch message deletion is understood');
+  check(ownerActions.parse('delete role VIP')?.target === 'VIP', 'role deletion targets the named role');
+  check(ownerActions.parse('can you delete this ticket?')?.action === 'delete-ticket', 'polite owner phrasing works');
+  check(ownerActions.parse('delete messages 5')?.action === 'delete-messages', 'both message orderings work');
+  check(ownerActions.parse('how are you?') === null, 'normal chat is not an owner action');
+  check(ownerActions.isOwner({ id: '1', username: 'sora_developing' }) === true, 'the owner username is recognised');
+  check(ownerActions.isOwner({ id: '1', username: 'someone_else' }) === false, 'other members are not the owner');
   const duplicate = JSON.parse(JSON.stringify(tickets));
   duplicate.types.push({ ...duplicate.types[0] });
   check(
@@ -165,7 +192,7 @@ const fakeMember = {
   console.log('\ncommands');
   const commands = collectCommands();
   const names = commands.map((command) => command.name);
-  for (const required of ['announce', 'rules', 'mod', 'ticket-panel', 'giveaway', 'welcome', 'status', 'help', 'link', 'panel', 'payments']) {
+  for (const required of ['announce', 'rules', 'mod', 'ticket', 'ticket-panel', 'giveaway', 'welcome', 'status', 'help', 'link', 'panel', 'payments']) {
     check(names.includes(required), `/${required} is registered`);
   }
   check(new Set(names).size === names.length, 'no command name is registered twice');

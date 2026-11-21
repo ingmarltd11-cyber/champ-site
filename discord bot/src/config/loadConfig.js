@@ -144,7 +144,11 @@ function withDefaults(value, defaults) {
 function getTicketConfig() {
   const base = withDefaults(load('tickets.json', {}), TICKET_DEFAULTS);
   const overrides = jsonStore.readJson('ticket-settings.json', {});
-  return withDefaults(overrides, base);
+  const config = withDefaults(overrides, base);
+  // /ticket edits the category list as a whole. It lives in DATA_DIR so a redeploy keeps it.
+  const customTypes = jsonStore.readJson('ticket-types.json', null);
+  if (Array.isArray(customTypes)) config.types = customTypes;
+  return config;
 }
 
 function getGiveawayConfig() {
