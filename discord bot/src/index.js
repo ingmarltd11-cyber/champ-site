@@ -27,6 +27,8 @@ const paymentInteractions = require('./handlers/paymentInteractions');
 const controlPanel = require('./core/controlPanel');
 const controlStore = require('./core/controlStore');
 const panelRuntime = require('./core/panelRuntime');
+const defaultPanels = require('./core/defaultPanels');
+const supportAgent = require('./ai/supportAgent');
 const knowledgeSync = require('./knowledge/knowledgeSync');
 const { startHealthServer } = require('./health');
 const { registerCommands } = require('./deploy-commands');
@@ -175,6 +177,9 @@ client.on('messageCreate', async (message) => {
       if (ticket.warned || !Number.isFinite(last) || Date.now() - last > 60 * 1000) {
         await ticketStore.touchTicket(message.channelId);
       }
+      // An AI ticket is answered here instead of by staff; the assistant pings support itself
+      // when it escalates, so the generic mention reply below is skipped for this message.
+      if (await supportAgent.handleMessage(message, ticket)) return;
     }
     if (client.user && message.mentions.has(client.user)) {
       // Support mentions are deliberately not answered by an AI. Point the member at the
@@ -265,6 +270,17 @@ client.once('ready', async () => {
     .refreshAllPanels(client)
     .then((result) => log.info('panels', `refreshed ${result.refreshed}/${result.total} panel(s)`))
     .catch((err) => log.warn('panels', `refresh failed: ${err.message}`));
+  defaultPanels
+    .ensureDefaultPanels(client)
+    .then((result) =>
+      log.info(
+        'panels',
+        `default panels: ${result.created} created, ${result.updated} updated${
+          result.skipped.length ? `, skipped ${result.skipped.join(', ')}` : ''
+        }`
+      )
+    )
+    .catch((err) => log.warn('panels', `default panel seeding failed: ${err.message}`));
   controlPanel
     .refreshControlPanels(client)
     .then((count) => log.info('control', `refreshed ${count} control panel(s)`))

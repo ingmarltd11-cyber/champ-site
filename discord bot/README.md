@@ -78,6 +78,19 @@ the current config; **Post again** sends a new copy and updates the record; **De
 message and the record. On every restart the bot refreshes all stored panels, so a deploy never
 leaves a dead button behind.
 
+### Default #media and #tickets panels
+
+When the server has channels named `media` and `tickets`, the bot posts (or updates) one panel in
+each on startup. They are normal stored panels, so no duplicates appear after a restart:
+
+| Channel | Panel | Categories |
+| --- | --- | --- |
+| `#media` | `media` | Payout · Apply for Media |
+| `#tickets` | `tickets` | Refunds · Buy Champ Client · Buy Advertisement · Giveaway Claim · General Support · License Key Issues · Crashing Issues · AI Support |
+
+The category list is enforced on every boot; edits to the panel copy in `panels.json` are kept. If
+a channel is missing, the bot logs it as skipped and posts nothing there.
+
 ## Knowledge: the forum is the editor
 
 There is deliberately **no `/knowledge add` command**. Knowledge is written as Discord forum
@@ -190,6 +203,35 @@ channel from the control panel.
 - One open ticket per member by default (`settings.maxOpenTicketsPerUser`), plus a 20 second
   creation cooldown to stop accidental double tickets.
 
+## AI support tickets
+
+The **AI Support** category has `"ai": true` in `config/tickets.json` and no modal questions, so it
+opens straight into a private channel. From then on the bot answers every member message in that
+channel instead of waiting for staff:
+
+- The model gets the recent channel history, a fact sheet about Champ and the best-matching forum
+  knowledge entries, so it can answer normal questions and small talk as well as support ones.
+- It answers in the member's language (Dutch or English) and keeps replies short.
+- It never invents order status, keys, refunds or ETAs. When staff action is needed — refund,
+  payout, missing payment, license/order change, ban appeal — or when the member types `human`, it
+  says a human will take over and pings the support role.
+- Staff messages are not answered by the AI, and only channels of an AI ticket type are handled.
+  Mentions elsewhere still get the short link reply, not the AI.
+
+Set an OpenAI-compatible key to turn it on. Without a key the ticket still opens and the bot
+immediately asks a human to help instead of failing.
+
+```
+OPENAI_API_KEY=sk-...
+# optional, any OpenAI-compatible endpoint and model:
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_MODEL=gpt-4o-mini
+```
+
+`AI_API_KEY`, `AI_BASE_URL` and `AI_MODEL` are accepted as aliases. For the Freebuff API use
+`OPENAI_BASE_URL=https://freebuff.com/api/v1/paid` with a key from the Freebuff account page.
+The key is read from the environment on the host; it is never sent to Discord or committed.
+
 ## Giveaways
 
 - `/giveaway create` or the control panel posts an embed with a live **Enter** button; the label
@@ -222,8 +264,8 @@ never from a value the member types. If the account has an active license the bo
 Champ+ role. Discord payments require this link, because the site needs a customer account to
 deliver the license.
 
-Mentioning the bot does not call an AI service. It replies once per minute with the dashboard,
-ticket and Discord support links.
+Mentioning the bot does not call the AI. It replies once per minute with the dashboard, ticket and
+Discord support links; AI answers live only inside an AI support ticket.
 
 ## Storage
 
@@ -266,6 +308,9 @@ Existing names are preserved. Either Discord name works:
 | `DATA_DIR` | volume | Persistent state |
 | `SUPABASE_URL` + `SUPABASE_SERVICE_KEY` | no | Shared ticket history |
 | `CONTROL_PANEL_CHANNEL_ID` | no | Post/refresh the control panel here on startup |
+| `OPENAI_API_KEY` / `AI_API_KEY` | for AI tickets | Enables the AI support conversation (OpenAI-compatible) |
+| `OPENAI_BASE_URL` / `AI_BASE_URL` | no | Chat-completions base URL, default `https://api.openai.com/v1` |
+| `OPENAI_MODEL` / `AI_MODEL` | no | Model name, default `gpt-4o-mini` |
 
 Never commit `.env`. The site also needs its own `DISCORD_BOT_TOKEN` (or `DISCORD_TOKEN`) and the
 same `SITE_URL` so the bridge can verify the bot.

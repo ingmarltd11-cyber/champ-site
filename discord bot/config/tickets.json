@@ -30,10 +30,105 @@
   },
   "types": [
     {
+      "id": "media-payout",
+      "label": "Payout",
+      "emoji": "🪙",
+      "description": "Request a payout for your Champ videos, streams or posts",
+      "supportRoleId": "",
+      "pingSupport": true,
+      "claimEnabled": true,
+      "ratingEnabled": true,
+      "maxOpen": 1,
+      "questions": [
+        { "id": "channel", "label": "Channel / profile link", "style": "short", "required": true, "placeholder": "YouTube / TikTok / Twitch link", "maxLength": 200 },
+        { "id": "period", "label": "Payout period (month)", "style": "short", "required": true, "placeholder": "e.g. November", "maxLength": 30 },
+        { "id": "method", "label": "Payout method", "style": "paragraph", "required": true, "placeholder": "PayPal, crypto, bank transfer...", "maxLength": 200 }
+      ]
+    },
+    {
+      "id": "media-apply",
+      "label": "Apply for Media",
+      "emoji": "🎬",
+      "description": "Apply for the Media role as a content creator",
+      "supportRoleId": "",
+      "pingSupport": true,
+      "claimEnabled": true,
+      "ratingEnabled": true,
+      "maxOpen": 1,
+      "questions": [
+        { "id": "channel", "label": "Channel / profile link", "style": "short", "required": true, "placeholder": "YouTube / TikTok / Twitch link", "maxLength": 200 },
+        { "id": "subs", "label": "Follower / subscriber count", "style": "short", "required": true, "placeholder": "e.g. 2500", "maxLength": 20 },
+        { "id": "proposal", "label": "What will you make with Champ?", "style": "paragraph", "required": true, "placeholder": "Describe your content plans", "maxLength": 1000 }
+      ]
+    },
+    {
+      "id": "refund",
+      "label": "Refunds",
+      "emoji": "💸",
+      "description": "Request a refund for an order or subscription",
+      "supportRoleId": "",
+      "pingSupport": true,
+      "claimEnabled": true,
+      "ratingEnabled": true,
+      "maxOpen": 1,
+      "questions": [
+        { "id": "order", "label": "Order ID or email", "style": "short", "required": true, "placeholder": "used for your purchase", "maxLength": 100 },
+        { "id": "reason", "label": "Why do you want a refund?", "style": "paragraph", "required": true, "placeholder": "Describe the issue in as much detail as possible", "maxLength": 1000 }
+      ]
+    },
+    {
+      "id": "buy-client",
+      "label": "Buy Champ Client",
+      "emoji": "🛒",
+      "description": "Questions about buying Champ or choosing a plan",
+      "supportRoleId": "",
+      "pingSupport": true,
+      "claimEnabled": true,
+      "ratingEnabled": true,
+      "maxOpen": 1,
+      "questions": [
+        { "id": "plan", "label": "Weekly, monthly or lifetime?", "style": "short", "required": true, "placeholder": "weekly / monthly / lifetime", "maxLength": 20 },
+        { "id": "method", "label": "Preferred payment method", "style": "short", "required": false, "placeholder": "crypto / DonutSMP / gift card", "maxLength": 40 },
+        { "id": "contact", "label": "Email or Discord username", "style": "short", "required": false, "placeholder": "so we can find your order", "maxLength": 100 }
+      ]
+    },
+    {
+      "id": "buy-ad",
+      "label": "Buy Advertisement",
+      "emoji": "📣",
+      "description": "Buy an advertisement slot in the server",
+      "supportRoleId": "",
+      "pingSupport": true,
+      "claimEnabled": true,
+      "ratingEnabled": true,
+      "maxOpen": 1,
+      "questions": [
+        { "id": "what", "label": "What do you want to advertise?", "style": "short", "required": true, "placeholder": "server, product, channel...", "maxLength": 100 },
+        { "id": "budget", "label": "Budget", "style": "short", "required": true, "placeholder": "e.g. €10", "maxLength": 30 },
+        { "id": "when", "label": "When should it go live?", "style": "short", "required": false, "placeholder": "date or as soon as possible", "maxLength": 40 }
+      ]
+    },
+    {
+      "id": "giveaway-claim",
+      "label": "Giveaway Claim",
+      "emoji": "🎉",
+      "description": "Claim a giveaway prize you won",
+      "supportRoleId": "",
+      "pingSupport": true,
+      "claimEnabled": true,
+      "ratingEnabled": true,
+      "maxOpen": 1,
+      "questions": [
+        { "id": "giveaway", "label": "Giveaway name or link", "style": "short", "required": true, "placeholder": "which giveaway did you win?", "maxLength": 200 },
+        { "id": "proof", "label": "Proof / screenshot link", "style": "short", "required": false, "placeholder": "link to the winning message or screenshot", "maxLength": 200 },
+        { "id": "username", "label": "Discord / Minecraft username", "style": "short", "required": true, "placeholder": "where should the prize go?", "maxLength": 60 }
+      ]
+    },
+    {
       "id": "support",
       "label": "General Support",
       "emoji": "🛠️",
-      "description": "Questions or issues with the client",
+      "description": "General questions and help with the client",
       "supportRoleId": "",
       "pingSupport": true,
       "claimEnabled": true,
@@ -45,68 +140,48 @@
       ]
     },
     {
-      "id": "billing",
-      "label": "Orders & Billing",
-      "emoji": "💳",
-      "description": "Questions about an order or payment (lifetime or subscription)",
+      "id": "license",
+      "label": "License Key Issues",
+      "emoji": "🔑",
+      "description": "License key, activation or HWID problems",
       "supportRoleId": "",
       "pingSupport": true,
       "claimEnabled": true,
       "ratingEnabled": true,
-      "maxOpen": null,
+      "maxOpen": 1,
       "questions": [
-        { "id": "order", "label": "Order ID / email address", "style": "short", "required": true, "placeholder": "used for your purchase", "maxLength": 100 },
-        { "id": "plan", "label": "Lifetime or monthly?", "style": "short", "required": true, "placeholder": "lifetime / monthly", "maxLength": 20 },
-        { "id": "issue", "label": "What is the issue?", "style": "paragraph", "required": true, "placeholder": "Describe the issue in as much detail as possible", "maxLength": 1000 }
+        { "id": "order", "label": "Order ID or account email", "style": "short", "required": true, "placeholder": "used for your purchase", "maxLength": 100 },
+        { "id": "issue", "label": "What happens with the key?", "style": "paragraph", "required": true, "placeholder": "invalid, already used, HWID limit, expired...", "maxLength": 1000 }
       ]
     },
     {
-      "id": "bug",
-      "label": "Bug Report",
-      "emoji": "🐞",
-      "description": "Report a bug in the client",
+      "id": "crashing",
+      "label": "Crashing Issues",
+      "emoji": "💥",
+      "description": "The client or injector crashes",
       "supportRoleId": "",
       "pingSupport": true,
       "claimEnabled": true,
-      "ratingEnabled": false,
-      "maxOpen": null,
+      "ratingEnabled": true,
+      "maxOpen": 1,
       "questions": [
         { "id": "version", "label": "Client version", "style": "short", "required": true, "placeholder": "e.g. Beta 0.9.9.1", "maxLength": 20 },
-        { "id": "module", "label": "Which module?", "style": "short", "required": false, "placeholder": "e.g. Seed Xray", "maxLength": 50 },
-        { "id": "bug", "label": "Describe the bug", "style": "paragraph", "required": true, "placeholder": "What did you expect, and what happened instead?", "maxLength": 1000 },
-        { "id": "steps", "label": "Steps to reproduce", "style": "paragraph", "required": false, "placeholder": "1. ... 2. ...", "maxLength": 1000 }
+        { "id": "when", "label": "When does it crash?", "style": "short", "required": true, "placeholder": "on inject, in the menu, in game...", "maxLength": 100 },
+        { "id": "details", "label": "Error or crash log", "style": "paragraph", "required": false, "placeholder": "paste the error text or a link to the log", "maxLength": 1500 }
       ]
     },
     {
-      "id": "media",
-      "label": "Media Role Application",
-      "emoji": "🎬",
-      "description": "Apply for the Media role as a content creator",
+      "id": "ai-support",
+      "label": "AI Support",
+      "emoji": "🤖",
+      "description": "AI answers instantly and calls a human if needed",
       "supportRoleId": "",
       "pingSupport": false,
       "claimEnabled": true,
       "ratingEnabled": true,
-      "maxOpen": 1,
-      "questions": [
-        { "id": "channel", "label": "Link to your channel", "style": "short", "required": true, "placeholder": "YouTube / TikTok / Twitch link", "maxLength": 200 },
-        { "id": "subs", "label": "Follower / subscriber count", "style": "short", "required": true, "placeholder": "e.g. 2500", "maxLength": 20 },
-        { "id": "proposal", "label": "What would you like to create with Champ?", "style": "paragraph", "required": true, "placeholder": "Describe your content plans", "maxLength": 1000 }
-      ]
-    },
-    {
-      "id": "partner",
-      "label": "Partnership Application",
-      "emoji": "🤝",
-      "description": "Apply for a collaboration or partnership",
-      "supportRoleId": "",
-      "pingSupport": true,
-      "claimEnabled": true,
-      "ratingEnabled": true,
-      "maxOpen": 1,
-      "questions": [
-        { "id": "who", "label": "Who are you / what server?", "style": "short", "required": true, "placeholder": "name + member count", "maxLength": 100 },
-        { "id": "proposal", "label": "Describe your proposal", "style": "paragraph", "required": true, "placeholder": "What would the collaboration involve?", "maxLength": 1000 }
-      ]
+      "maxOpen": null,
+      "ai": true,
+      "questions": []
     }
   ]
 }

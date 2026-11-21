@@ -8,6 +8,8 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'champ-bot-'));
 process.env.DATA_DIR = tmp;
 delete process.env.SUPABASE_URL;
 delete process.env.SUPABASE_SERVICE_KEY;
+delete process.env.AI_API_KEY;
+delete process.env.OPENAI_API_KEY;
 
 const { getTicketConfig, getGiveawayConfig, getKnowledgeConfig, getPaymentConfig } = require('../src/config/loadConfig');
 const panelStore = require('../src/core/panelStore');
@@ -62,6 +64,34 @@ const fakeMember = {
   check(tickets.types.length >= 5, 'ticket categories load from config/tickets.json');
   check(typeof tickets.panel.description === 'string', 'ticket panel copy is present');
   check(validateTicketConfig(tickets).errors.length === 0, 'the shipped ticket config validates');
+  const aiType = tickets.types.find((type) => type.ai === true);
+  check(Boolean(aiType) && aiType.id === 'ai-support', 'the AI support category is configured');
+  check(Boolean(aiType) && (aiType.questions || []).length === 0, 'AI support opens without a form');
+  const typeIds = tickets.types.map((type) => type.id);
+  check(
+    ['media-payout', 'media-apply', 'refund', 'buy-client', 'buy-ad', 'giveaway-claim', 'support', 'license', 'crashing'].every(
+      (id) => typeIds.includes(id)
+    ),
+    'the requested media and ticket categories exist'
+  );
+
+  console.log('\nai support');
+  const supportAgent = require('../src/ai/supportAgent');
+  const defaultPanels = require('../src/core/defaultPanels');
+  check(supportAgent.isEnabled() === false, 'the AI agent stays off without a key');
+  check(supportAgent.isAiTicket({ typeId: 'ai-support', status: 'open' }) === true, 'AI tickets are detected');
+  check(supportAgent.isAiTicket({ typeId: 'refund', status: 'open' }) === false, 'other tickets are not answered by AI');
+  check(supportAgent.wantsHuman('can I talk to a human?') === true, 'asking for a human escalates');
+  check(supportAgent.wantsHuman('how are you?') === false, 'small talk does not escalate');
+  check(defaultPanels.DEFAULTS.length === 2, 'two default panels are configured');
+  check(
+    defaultPanels.DEFAULTS[0].options.typeIds.join(',') === 'media-payout,media-apply',
+    'the media panel has payout and apply'
+  );
+  check(
+    defaultPanels.DEFAULTS[1].options.typeIds.includes('ai-support'),
+    'the tickets panel includes AI support'
+  );
   const duplicate = JSON.parse(JSON.stringify(tickets));
   duplicate.types.push({ ...duplicate.types[0] });
   check(

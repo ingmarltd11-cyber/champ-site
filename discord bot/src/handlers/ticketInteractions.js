@@ -18,6 +18,7 @@ const { generateTranscripts } = require('../utils/transcript');
 const { saveTranscript } = require('../utils/transcriptStore');
 const { logTicketEvent } = require('../utils/ticketLog');
 const { log } = require('../utils/logger');
+const supportAgent = require('../ai/supportAgent');
 
 const COOLDOWN_MS = 20 * 1000;
 const cooldowns = new Map();
@@ -245,12 +246,14 @@ async function createTicketChannel(interaction, type, answers) {
     throw err;
   }
 
+  const intro = type.ai
+    ? `Welcome ${user}, I'm **Champ AI**. Ask me anything about Champ — if I can't help, type \`human\` and a team member will join.`
+    : `Welcome ${user}, a team member will be with you as soon as possible.\n\n` +
+      `Describe the issue in this channel. Opening a second ticket does not speed things up.`;
+
   const embed = new EmbedBuilder()
     .setTitle(`${type.emoji || '🎫'} ${type.label}`)
-    .setDescription(
-      `Welcome ${user}, a team member will be with you as soon as possible.\n\n` +
-        `Describe the issue in this channel. Opening a second ticket does not speed things up.`
-    )
+    .setDescription(intro)
     .setColor(type.color || config.panel.color)
     .setTimestamp()
     .setFooter({ text: config.panel.footer || 'Champ Client Support' });
@@ -262,6 +265,12 @@ async function createTicketChannel(interaction, type, answers) {
 
   const pingContent = supportRole && type.pingSupport !== false ? `<@&${supportRole.id}>` : '';
   await channel.send({ content: pingContent || undefined, embeds: [embed], components: openTicketComponents(type) });
+
+  if (type.ai) {
+    await channel
+      .send({ content: supportAgent.greeting(user), allowedMentions: { parse: [] } })
+      .catch(() => {});
+  }
 
   cooldowns.set(user.id, Date.now());
 
