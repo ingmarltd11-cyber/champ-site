@@ -83,6 +83,20 @@ const fakeMember = {
   check(supportAgent.isAiTicket({ typeId: 'refund', status: 'open' }) === false, 'other tickets are not answered by AI');
   check(supportAgent.wantsHuman('can I talk to a human?') === true, 'asking for a human escalates');
   check(supportAgent.wantsHuman('how are you?') === false, 'small talk does not escalate');
+  check(supportAgent.startupWarning().includes('OPENAI_API_KEY'), 'a missing AI key warns at startup');
+  check(supportAgent.__internal.MIN_REPLY_INTERVAL_MS === 3000, 'AI replies are limited to one per 3 seconds');
+  check(
+    defaultPanels.existingFor([{ id: 'p1', channelId: 'other', name: 'media' }], { id: 'media-channel' }) === null,
+    'a same-name panel in another channel does not replace the default'
+  );
+  check(
+    defaultPanels.existingFor([{ id: 'p2', channelId: 'media-channel' }], { id: 'media-channel' })?.id === 'p2',
+    'a panel in the target channel is reused'
+  );
+  const throttleStart = Date.now();
+  await supportAgent.__internal.withThrottle('throttle-test', async () => {}, 40);
+  await supportAgent.__internal.withThrottle('throttle-test', async () => {}, 40);
+  check(Date.now() - throttleStart >= 35, 'AI answers are throttled per ticket');
   check(defaultPanels.DEFAULTS.length === 2, 'two default panels are configured');
   check(
     defaultPanels.DEFAULTS[0].options.typeIds.join(',') === 'media-payout,media-apply',

@@ -49,6 +49,12 @@ function findChannel(guild, name) {
   );
 }
 
+// Only a panel that already lives in this channel may be reused. A panel with the same name in
+// another channel is a different panel: the default must still be posted in #media / #tickets.
+function existingFor(panels, channel) {
+  return panels.find((panel) => panel.channelId === channel.id) || null;
+}
+
 async function ensureDefaultPanels(client) {
   const result = { created: 0, updated: 0, skipped: [] };
   for (const guild of client.guilds.cache.values()) {
@@ -60,9 +66,7 @@ async function ensureDefaultPanels(client) {
         continue;
       }
 
-      const existing =
-        panels.find((panel) => panel.channelId === channel.id) ||
-        panels.find((panel) => String(panel.name).toLowerCase() === def.name);
+      const existing = existingFor(panels, channel);
 
       try {
         if (existing) {
@@ -93,4 +97,4 @@ async function ensureDefaultPanels(client) {
   return result;
 }
 
-module.exports = { DEFAULTS, findChannel, ensureDefaultPanels };
+module.exports = { DEFAULTS, findChannel, existingFor, ensureDefaultPanels };

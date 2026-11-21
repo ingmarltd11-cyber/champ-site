@@ -12,6 +12,11 @@ const { log } = require('../utils/logger');
 const MAX_REPLY = 1800;
 const MAX_HISTORY = 12;
 const TIMEOUT_MS = 25000;
+// A ticket gets at most one AI answer per interval, so a burst of messages cannot trigger a
+// pile of model calls and a wall of replies. Messages queue instead of being dropped.
+const MIN_REPLY_INTERVAL_MS = 3000;
+const replyClock = new Map();
+const channelQueues = new Map();
 const PLAN_ORDER = ['weekly', 'monthly', 'lifetime'];
 
 const HUMAN_WORDS = [
@@ -40,6 +45,36 @@ function model() {
 
 function isEnabled() {
   return Boolean(apiKey());
+}
+
+function startupWarning() {
+  if (isEnabled()) return null;
+  return 'No AI key found (OPENAI_API_KEY or AI_API_KEY). AI Support tickets will open and ask a human instead of answering.';
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Serialise the AI turns of one ticket and keep them at least intervalMs apart. The clock is
+// written after a turn, so it measures real replies rather than request starts.
+async function withThrottle(channelId, task, intervalMs = MIN_REPLY_INTERVAL_MS) {
+  const previous = channelQueues.get(channelId) || Promise.resolve();
+  const run = previous.then(async () => {
+    const now = Date.now();
+    if (replyClock.size > 400) {
+      for (const [id, at] of replyClock) if (now - at > 10 * 60 * 1000) replyClock.delete(id);
+    }
+    const wait = Math.max(0, intervalMs - (now - (replyClock.get(channelId) || 0)));
+    if (wait > 0) await delay(wait);
+    try {
+      return await task();
+    } finally {
+      replyClock.set(channelId, Date.now());
+    }
+  });
+  channelQueues.set(channelId, run.catch(() => {}));
+  return run;
 }
 
 function plansLine() {
@@ -233,41 +268,44 @@ async function handleMessage(message, ticket) {
     return true;
   }
 
-  await message.channel.sendTyping().catch(() => {});
-  const reply = await complete({
-    channel: message.channel,
-    guildId: message.guildId,
-    question: `${message.member?.displayName || message.author.username}: ${content}`,
-    messageId: message.id,
-  });
+  return withThrottle(message.channelId, async () => {
+    await message.channel.sendTyping().catch(() => {});
+    const reply = await complete({
+      channel: message.channel,
+      guildId: message.guildId,
+      question: `${message.member?.displayName || message.author.username}: ${content}`,
+      messageId: message.id,
+    });
 
-  if (!reply) {
+    if (!reply) {
+      await message
+        .reply({
+          content: `⚠️ I couldn't answer that just now, so I've asked a human from ${ping} to step in.`,
+          allowedMentions: mentionOptions(role),
+        })
+        .catch(() => {});
+      return true;
+    }
+
+    const suffix = reply.escalate ? `\n\n${ping} — a human will take it from here.` : '';
     await message
       .reply({
-        content: `⚠️ I couldn't answer that just now, so I've asked a human from ${ping} to step in.`,
-        allowedMentions: mentionOptions(role),
+        content: `${reply.text}${suffix}`.slice(0, 1990),
+        allowedMentions: reply.escalate ? mentionOptions(role) : { parse: [] },
       })
       .catch(() => {});
     return true;
-  }
-
-  const suffix = reply.escalate ? `\n\n${ping} — a human will take it from here.` : '';
-  await message
-    .reply({
-      content: `${reply.text}${suffix}`.slice(0, 1990),
-      allowedMentions: reply.escalate ? mentionOptions(role) : { parse: [] },
-    })
-    .catch(() => {});
-  return true;
+  });
 }
 
 module.exports = {
   isEnabled,
+  startupWarning,
   isAiTicket,
   wantsHuman,
   greeting,
   handleMessage,
   systemPrompt,
   factSheet,
-  __internal: { apiKey, baseUrl, model },
+  __internal: { apiKey, baseUrl, model, withThrottle, MIN_REPLY_INTERVAL_MS },
 };

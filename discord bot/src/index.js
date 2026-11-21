@@ -40,6 +40,9 @@ if (env.errors.length) {
   process.exit(1);
 }
 
+const aiWarning = supportAgent.startupWarning();
+if (aiWarning) log.warn('ai', aiWarning);
+
 const ticketConfig = getTicketConfig();
 const giveawayConfig = getGiveawayConfig();
 const welcomeConfig = getWelcomeDefaults();
